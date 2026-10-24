@@ -1,11 +1,47 @@
-export const MEMBER_COLORS = ['orange', 'blue', 'green', 'purple', 'red', 'graphite'] as const;
-export type MemberColor = (typeof MEMBER_COLORS)[number];
+export const AVATAR_SHAPES = [
+  'circle',
+  'cloud',
+  'square',
+  'flower',
+  'egg',
+  'hexagon',
+  'triangle',
+  'capsule',
+  'star',
+  'diamond',
+  'drop',
+  'bean',
+] as const;
+export type AvatarShape = (typeof AVATAR_SHAPES)[number];
+
+export const AVATAR_COLORS = [
+  'black',
+  'brown',
+  'red',
+  'orange',
+  'apricot',
+  'green',
+  'teal',
+  'blue',
+  'purple',
+  'pink',
+  'gray',
+] as const;
+export type AvatarColor = (typeof AVATAR_COLORS)[number];
+
+/** A member's avatar: a coloured blob with white eyes. */
+export interface Avatar {
+  shape: AvatarShape;
+  color: AvatarColor;
+}
 
 export interface Member {
   id: string;
   name: string;
   type: string;
-  color: MemberColor;
+  avatar: Avatar;
+  /** Short label such as "产品经理", shown next to the name. */
+  role: string;
   persona: string;
   /** Non-secret adapter config. */
   config: Record<string, string>;
@@ -39,19 +75,26 @@ export interface RelayState {
   replies: number;
   maxReplies: number;
   /** Color of the first member that replied at each hop, index 0 = hop 1. */
-  trail: MemberColor[];
+  trail: AvatarColor[];
+  /** Name of the member currently writing a reply, if any. */
+  thinking: string | null;
 }
 
 export interface GroupMemberRef {
   id: string;
   name: string;
-  color: MemberColor;
+  avatar: Avatar;
+  role: string;
   type: string;
 }
+
+/** 'direct' is a one-to-one chat: a group with just the user and one assistant. */
+export type GroupKind = 'group' | 'direct';
 
 export interface GroupSummary {
   id: string;
   name: string;
+  kind: GroupKind;
   createdAt: number;
   members: GroupMemberRef[];
   lastMessage: Message | null;

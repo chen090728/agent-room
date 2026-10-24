@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AdapterRegistry } from './adapters/registry.js';
 import { safeEqual } from './crypto.js';
 import type { Directory } from './directory.js';
-import { MEMBER_COLORS, type Member, type Message } from './types.js';
+import { AVATAR_COLORS, AVATAR_SHAPES, type Member, type Message } from './types.js';
 
 export interface ApiDeps {
   token: string;
@@ -23,10 +23,13 @@ const memberName = z
   .max(20, '名字最多 20 个字')
   .refine((s) => !/[\s@＠]/.test(s), '名字不能包含空格或 @');
 
+const avatarBody = z.object({ shape: z.enum(AVATAR_SHAPES), color: z.enum(AVATAR_COLORS) });
+
 const createMemberBody = z.object({
   name: memberName,
   type: z.string(),
-  color: z.enum(MEMBER_COLORS),
+  avatar: avatarBody,
+  role: z.string().trim().max(20, '角色标签最多 20 个字').default(''),
   persona: z.string().max(2000).default(''),
   config: z.record(z.string(), z.string()).default({}),
 });

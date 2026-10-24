@@ -46,12 +46,14 @@ export class Coordinator {
     });
     this.emit({ type: 'message', message });
 
-    const members = await this.directory.groupMembers(groupId);
-    const mentioned = resolveMentions(content, members);
+    const [members, group] = await Promise.all([this.directory.groupMembers(groupId), this.directory.getGroup(groupId)]);
+    let mentioned = resolveMentions(content, members);
+    // In a one-to-one chat everything is addressed to the assistant; no @ needed.
+    if (!mentioned.length && group?.kind === 'direct' && members.length === 1) mentioned = members;
     if (mentioned.length) {
       const { maxHops, maxReplies } = this.opts;
       const state: ChainState = {
-        relay: { groupId, rootId: message.id, active: true, hop: 0, maxHops, replies: 0, maxReplies, trail: [] },
+        relay: { groupId, rootId: message.id, active: true, hop: 0, maxHops, replies: 0, maxReplies, trail: [], thinking: null },
         depthNoticeSent: false,
       };
       this.room.createChain(
@@ -96,7 +98,8 @@ export class Coordinator {
       this.room.markAttempt(task.seq);
       const hop = trigger.hop + 1;
       relay.hop = Math.max(relay.hop, hop);
-      relay.trail[hop - 1] ??= member.color;
+      relay.trail[hop - 1] ??= member.avatar.color;
+      relay.thinking = member.name;
       this.room.saveChain(task.rootId, state);
       this.emit({ type: 'relay', relay: { ...relay } });
       await this.directory.recordActivity(groupId, { relay: { ...relay } });
@@ -107,6 +110,8 @@ export class Coordinator {
         text = stripSelfPrefix(await this.ask(member, members, trigger), member.name);
       } catch (err) {
         this.room.removeTask(task.seq);
+        relay.thinking = null;
+        this.room.saveChain(task.rootId, state);
         await this.addSystemMessage(groupId, `${member.name} 回复失败：${describeError(err)}`, task.rootId);
       } finally {
         this.emit({ type: 'typing', groupId, memberId: member.id, active: false });
@@ -114,6 +119,8 @@ export class Coordinator {
 
       if (!text) {
         this.room.removeTask(task.seq);
+        relay.thinking = null;
+        this.room.saveChain(task.rootId, state);
       } else {
         const next = resolveMentions(text, members).filter((m) => m.id !== member.id);
         const tooDeep = next.length > 0 && hop >= this.opts.maxHops;
@@ -132,6 +139,7 @@ export class Coordinator {
           });
           this.room.removeTask(task.seq);
           relay.replies++;
+          relay.thinking = null;
           if (tooDeep) state.depthNoticeSent = true;
           else this.room.pushTasks(groupId, task.rootId, next.map((m) => ({ memberId: m.id, triggerId: reply.id })));
           const capped = relay.replies >= this.opts.maxReplies && this.room.hasTasks(task.rootId);

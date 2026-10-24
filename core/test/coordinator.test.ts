@@ -23,7 +23,7 @@ async function setup(adapter: MemberAdapter, names = ['甲', '乙', '丙']) {
   const room = new SqlRoom(db);
   const ids: string[] = [];
   for (const name of names) {
-    const r = await directory.createMember({ name, type: adapter.type, color: 'blue', persona: '', config: {}, secrets: {} });
+    const r = await directory.createMember({ name, type: adapter.type, avatar: { shape: 'cloud', color: 'blue' }, role: '', persona: '', config: {}, secrets: {} });
     if (r.ok) ids.push(r.value.id);
   }
   const created = await directory.createGroup('群', ids);
@@ -188,7 +188,8 @@ describe('SqlDirectory', () => {
     const r = await dir.createMember({
       name: '小紫',
       type: 'openai-compatible',
-      color: 'purple',
+      avatar: { shape: 'flower', color: 'purple' },
+      role: '',
       persona: '',
       config: { model: 'm' },
       secrets: { apiKey: 'sk-test-abcdefgh' },
@@ -197,7 +198,7 @@ describe('SqlDirectory', () => {
     const raw = db.all<Record<string, unknown>>('SELECT * FROM members');
     expect(JSON.stringify(raw)).not.toContain('sk-test-abcdefgh');
     expect(await dir.getMemberSecrets(r.ok ? r.value.id : '')).toEqual({ apiKey: 'sk-test-abcdefgh' });
-    const dup = await dir.createMember({ name: '小紫', type: 'mock', color: 'red', persona: '', config: {}, secrets: {} });
+    const dup = await dir.createMember({ name: '小紫', type: 'mock', avatar: { shape: 'circle', color: 'red' }, role: '', persona: '', config: {}, secrets: {} });
     expect(dup).toEqual({ ok: false, error: '已经有叫「小紫」的成员了' });
   });
 });
@@ -226,5 +227,86 @@ describe('crash recovery', () => {
     while (await coordinator.step(group.id));
     expect(calls).toBe(1);
     expect(room.recentMessages(group.id, 10).at(-1)!.content).toBe('乙 的回复被中断，已跳过。');
+  });
+});
+
+
+describe('direct chats', () => {
+  const memberInput = (name: string) => ({
+    name,
+    type: 'script',
+    avatar: { shape: 'cloud' as const, color: 'orange' as const },
+    role: '测试',
+    persona: '',
+    config: {},
+    secrets: {},
+  });
+
+  it('creates a one-to-one chat for every new member, and routes messages without @', async () => {
+    const { directory, room, coordinator } = await setup(scripted((ctx) => `你说：${ctx.trigger.content}`));
+    const created = await directory.createMember(memberInput('小直'));
+    expect(created.ok).toBe(true);
+    const direct = (await directory.listGroups()).find((g) => g.kind === 'direct' && g.name === '小直')!;
+    expect(direct.members.map((m) => m.name)).toEqual(['小直']);
+    expect(direct.members[0]).toMatchObject({ avatar: { shape: 'cloud', color: 'orange' }, role: '测试' });
+
+    await coordinator.postUserMessage(direct.id, '在吗');
+    while (await coordinator.step(direct.id));
+    expect(room.recentMessages(direct.id, 10).map((m) => `${m.senderName}:${m.content}`)).toEqual(['用户:在吗', '小直:你说：在吗']);
+  });
+
+  it('still needs an @ in a normal group', async () => {
+    const { send } = await setup(scripted(() => 'ok'));
+    const { msgs } = await send('没有点名');
+    expect(msgs).toHaveLength(1);
+  });
+
+  it('does not let a direct chat change its members, and deleting the member removes the chat', async () => {
+    const { directory } = await setup(scripted(() => 'ok'));
+    const created = await directory.createMember(memberInput('小删'));
+    const id = created.ok ? created.value.id : '';
+    const direct = (await directory.listGroups()).find((g) => g.name === '小删')!;
+    expect(await directory.setGroupMembers(direct.id, [])).toEqual({ ok: false, error: '单聊的成员不能修改' });
+    expect(await directory.deleteMember(id)).toBe(true);
+    expect((await directory.listGroups()).some((g) => g.name === '小删')).toBe(false);
+    expect(await directory.getGroup(direct.id)).toBeNull();
+  });
+
+  it('tracks who is thinking while a reply is being written', async () => {
+    const { send, events } = await setup(scripted(() => '好'));
+    await send('@甲 hi');
+    const relays = events.filter((e) => e.type === 'relay').map((e) => (e as { relay: RelayState }).relay);
+    expect(relays.some((r) => r.thinking === '甲')).toBe(true);
+    expect(relays.at(-1)!.thinking).toBeNull();
+  });
+});
+
+describe('database migration', () => {
+  it('upgrades a database from the first release and gives existing members a direct chat', async () => {
+    const db = memoryDriver();
+    // The schema of the first release.
+    db.run(`CREATE TABLE members (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, type TEXT NOT NULL, color TEXT NOT NULL,
+      persona TEXT NOT NULL DEFAULT '', config_json TEXT NOT NULL DEFAULT '{}', secrets_enc TEXT,
+      secret_preview_json TEXT NOT NULL DEFAULT '{}', created_at INTEGER NOT NULL)`);
+    db.run(`CREATE TABLE groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL, last_message_json TEXT,
+      last_activity_at INTEGER NOT NULL, relay_json TEXT)`);
+    db.run(`CREATE TABLE group_members (group_id TEXT NOT NULL, member_id TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (group_id, member_id))`);
+    db.run(`INSERT INTO members (id, name, type, color, persona, created_at) VALUES ('m1', '小橙', 'mock', 'orange', '', 1), ('m2', '阿蓝', 'mock', 'blue', '', 2), ('m3', '小灰', 'mock', 'graphite', '', 3)`);
+    db.run(`INSERT INTO groups (id, name, created_at, last_activity_at) VALUES ('g1', '演示群', 1, 1)`);
+    db.run(`INSERT INTO group_members (group_id, member_id, position) VALUES ('g1', 'm1', 0), ('g1', 'm2', 1)`);
+
+    const dir = new SqlDirectory(db, new SecretBox('x'.repeat(20)));
+    const members = await dir.listMembers();
+    expect(members.map((m) => [m.name, m.avatar.shape, m.avatar.color, m.role])).toEqual([
+      ['小橙', 'cloud', 'orange', '产品经理'],
+      ['阿蓝', 'square', 'blue', '安全顾问'],
+      ['小灰', 'hexagon', 'gray', ''],
+    ]);
+    const groups = await dir.listGroups();
+    expect(groups.find((g) => g.id === 'g1')).toMatchObject({ kind: 'group' });
+    expect(groups.filter((g) => g.kind === 'direct').map((g) => g.name).sort()).toEqual(['小橙', '小灰', '阿蓝']);
+    // Running again changes nothing.
+    new SqlDirectory(db, null);
+    expect((await dir.listGroups()).length).toBe(4);
   });
 });

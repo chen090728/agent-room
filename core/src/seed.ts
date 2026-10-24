@@ -1,10 +1,11 @@
 import type { Directory } from './directory.js';
-import type { MemberColor } from './types.js';
+import type { Avatar } from './types.js';
 
-const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies: string[] }[] = [
+const DEMO_MEMBERS: { name: string; avatar: Avatar; role: string; persona: string; replies: string[] }[] = [
   {
     name: '小橙',
-    color: 'orange',
+    avatar: { shape: 'cloud', color: 'orange' },
+    role: '产品经理',
     persona: '热情的产品经理，点子多，喜欢先抛出方案再拉大家讨论。',
     replies: [
       '我有个想法：先做一个最简单的版本，让用户今天就能用上。',
@@ -15,7 +16,8 @@ const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies
   },
   {
     name: '阿蓝',
-    color: 'blue',
+    avatar: { shape: 'square', color: 'blue' },
+    role: '安全顾问',
     persona: '冷静的工程师，关注安全和可行性，说话简洁。',
     replies: [
       '技术上可行，但要注意接口的频率限制。',
@@ -26,7 +28,8 @@ const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies
   },
   {
     name: '小绿',
-    color: 'green',
+    avatar: { shape: 'egg', color: 'green' },
+    role: '交互设计',
     persona: '细心的设计师，关注交互体验，喜欢提问。',
     replies: [
       '用户在这一步会不会迷路？我想画个流程图确认一下。',
@@ -54,7 +57,8 @@ export async function seedIfEmpty(
     const created = await directory.createMember({
       name: m.name,
       type: 'mock',
-      color: m.color,
+      avatar: m.avatar,
+      role: m.role,
       persona: m.persona,
       config: { replies: JSON.stringify(m.replies), mentionRate: '0.85' },
       secrets: {},

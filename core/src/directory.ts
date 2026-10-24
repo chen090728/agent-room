@@ -1,11 +1,12 @@
 import { maskSecret, type SecretBox } from './crypto.js';
 import { first, runSchema, type SqlDriver } from './sql.js';
-import type { GroupSummary, ListEvent, Member, MemberColor, Message, RelayState } from './types.js';
+import type { Avatar, AvatarColor, AvatarShape, GroupKind, GroupSummary, ListEvent, Member, Message, RelayState } from './types.js';
 
 export interface NewMember {
   name: string;
   type: string;
-  color: MemberColor;
+  avatar: Avatar;
+  role: string;
   persona: string;
   config: Record<string, string>;
   secrets: Record<string, string>;
@@ -22,6 +23,8 @@ export interface ActivityPatch {
 /**
  * Members and groups. On Node it lives in the main database; on Cloudflare in
  * the single DirectoryDO. Methods are async so the Worker can call it over RPC.
+ *
+ * Every member automatically gets a direct chat (a group with only that member).
  */
 export interface Directory {
   isEmpty(): Promise<boolean>;
@@ -43,6 +46,8 @@ CREATE TABLE IF NOT EXISTS members (
   name TEXT NOT NULL UNIQUE COLLATE NOCASE,
   type TEXT NOT NULL,
   color TEXT NOT NULL,
+  shape TEXT NOT NULL DEFAULT 'cloud',
+  role TEXT NOT NULL DEFAULT '',
   persona TEXT NOT NULL DEFAULT '',
   config_json TEXT NOT NULL DEFAULT '{}',
   secrets_enc TEXT,
@@ -52,6 +57,8 @@ CREATE TABLE IF NOT EXISTS members (
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'group',
+  direct_member_id TEXT,
   created_at INTEGER NOT NULL,
   last_message_json TEXT,
   last_activity_at INTEGER NOT NULL,
@@ -64,11 +71,46 @@ CREATE TABLE IF NOT EXISTS group_members (
   PRIMARY KEY (group_id, member_id)
 )`;
 
+/**
+ * Upgrades a database created by the first release (members without shape and
+ * role, groups without kind). Safe to run on a current database.
+ */
+function migrate(db: SqlDriver) {
+  const has = (table: string, column: string) => {
+    try {
+      db.all(`SELECT ${column} FROM ${table} LIMIT 0`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!has('members', 'shape')) {
+    db.run(`ALTER TABLE members ADD COLUMN shape TEXT NOT NULL DEFAULT 'cloud'`);
+    db.run(`ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT ''`);
+    // Old colours were a smaller palette; give each a matching shape so members stay distinguishable.
+    db.run(
+      `UPDATE members SET shape = CASE color
+         WHEN 'blue' THEN 'square' WHEN 'green' THEN 'egg' WHEN 'purple' THEN 'flower'
+         WHEN 'red' THEN 'circle' WHEN 'graphite' THEN 'hexagon' ELSE 'cloud' END`,
+    );
+    db.run(`UPDATE members SET color = 'gray' WHERE color = 'graphite'`);
+    db.run(`UPDATE members SET role = '产品经理' WHERE type = 'mock' AND name = '小橙' AND role = ''`);
+    db.run(`UPDATE members SET role = '安全顾问' WHERE type = 'mock' AND name = '阿蓝' AND role = ''`);
+    db.run(`UPDATE members SET role = '交互设计' WHERE type = 'mock' AND name = '小绿' AND role = ''`);
+  }
+  if (!has('groups', 'kind')) {
+    db.run(`ALTER TABLE groups ADD COLUMN kind TEXT NOT NULL DEFAULT 'group'`);
+    db.run(`ALTER TABLE groups ADD COLUMN direct_member_id TEXT`);
+  }
+}
+
 interface MemberRow {
   id: string;
   name: string;
   type: string;
   color: string;
+  shape: string;
+  role: string;
   persona: string;
   config_json: string;
   secrets_enc: string | null;
@@ -79,6 +121,8 @@ interface MemberRow {
 interface GroupRow {
   id: string;
   name: string;
+  kind: string;
+  direct_member_id: string | null;
   created_at: number;
   last_message_json: string | null;
   last_activity_at: number;
@@ -90,7 +134,8 @@ function toMember(row: MemberRow): Member {
     id: row.id,
     name: row.name,
     type: row.type,
-    color: row.color as MemberColor,
+    avatar: { shape: row.shape as AvatarShape, color: row.color as AvatarColor },
+    role: row.role,
     persona: row.persona,
     config: JSON.parse(row.config_json),
     secretPreview: JSON.parse(row.secret_preview_json),
@@ -106,6 +151,13 @@ export class SqlDirectory implements Directory {
     private emit: (event: ListEvent) => void = () => {},
   ) {
     runSchema(db, SCHEMA);
+    migrate(db);
+    // Members created before direct chats existed get theirs now.
+    for (const m of db.all<{ id: string; name: string }>(
+      `SELECT id, name FROM members WHERE id NOT IN (SELECT direct_member_id FROM groups WHERE direct_member_id IS NOT NULL)`,
+    )) {
+      this.insertDirect(m.id, m.name);
+    }
   }
 
   async isEmpty() {
@@ -142,26 +194,37 @@ export class SqlDirectory implements Directory {
     }
     const id = crypto.randomUUID();
     const preview = Object.fromEntries(Object.entries(input.secrets).map(([k, v]) => [k, maskSecret(v)]));
-    this.db.run(
-      `INSERT INTO members (id, name, type, color, persona, config_json, secrets_enc, secret_preview_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      input.name,
-      input.type,
-      input.color,
-      input.persona,
-      JSON.stringify(input.config),
-      sealed,
-      JSON.stringify(preview),
-      Date.now(),
-    );
+    this.db.transaction(() => {
+      this.db.run(
+        `INSERT INTO members (id, name, type, color, shape, role, persona, config_json, secrets_enc, secret_preview_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id,
+        input.name,
+        input.type,
+        input.avatar.color,
+        input.avatar.shape,
+        input.role,
+        input.persona,
+        JSON.stringify(input.config),
+        sealed,
+        JSON.stringify(preview),
+        Date.now(),
+      );
+      this.insertDirect(id, input.name);
+    });
     this.emit({ type: 'members_changed' });
+    this.emit({ type: 'groups_changed' });
     return { ok: true, value: this.member(id)! };
   }
 
   async deleteMember(id: string) {
     const removed = this.db.transaction(() => {
       if (!first(this.db, 'SELECT 1 FROM members WHERE id = ?', id)) return false;
+      const direct = first<{ id: string }>(this.db, 'SELECT id FROM groups WHERE direct_member_id = ?', id);
+      if (direct) {
+        this.db.run('DELETE FROM group_members WHERE group_id = ?', direct.id);
+        this.db.run('DELETE FROM groups WHERE id = ?', direct.id);
+      }
       this.db.run('DELETE FROM group_members WHERE member_id = ?', id);
       this.db.run('DELETE FROM members WHERE id = ?', id);
       return true;
@@ -179,8 +242,9 @@ export class SqlDirectory implements Directory {
     return {
       id: row.id,
       name: row.name,
+      kind: row.kind as GroupKind,
       createdAt: row.created_at,
-      members: this.membersOf(row.id).map((m) => ({ id: m.id, name: m.name, color: m.color, type: m.type })),
+      members: this.membersOf(row.id).map((m) => ({ id: m.id, name: m.name, avatar: m.avatar, role: m.role, type: m.type })),
       lastMessage: row.last_message_json ? JSON.parse(row.last_message_json) : null,
       lastActivityAt: row.last_activity_at,
       relay: row.relay_json ? JSON.parse(row.relay_json) : null,
@@ -199,6 +263,21 @@ export class SqlDirectory implements Directory {
 
   private groupRow(id: string) {
     return first<GroupRow>(this.db, 'SELECT * FROM groups WHERE id = ?', id);
+  }
+
+  /** Creates the one-to-one chat of a member; call inside a transaction when creating the member. */
+  private insertDirect(memberId: string, name: string) {
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    this.db.run(
+      `INSERT INTO groups (id, name, kind, direct_member_id, created_at, last_activity_at) VALUES (?, ?, 'direct', ?, ?, ?)`,
+      id,
+      name,
+      memberId,
+      now,
+      now,
+    );
+    this.db.run('INSERT INTO group_members (group_id, member_id, position) VALUES (?, ?, 0)', id, memberId);
   }
 
   async listGroups() {
@@ -226,7 +305,13 @@ export class SqlDirectory implements Directory {
     const id = crypto.randomUUID();
     const now = Date.now();
     this.db.transaction(() => {
-      this.db.run('INSERT INTO groups (id, name, created_at, last_activity_at) VALUES (?, ?, ?, ?)', id, name, now, now);
+      this.db.run(
+        `INSERT INTO groups (id, name, kind, created_at, last_activity_at) VALUES (?, ?, 'group', ?, ?)`,
+        id,
+        name,
+        now,
+        now,
+      );
       this.writeGroupMembers(id, memberIds);
     });
     this.emit({ type: 'groups_changed' });
@@ -234,7 +319,9 @@ export class SqlDirectory implements Directory {
   }
 
   async setGroupMembers(id: string, memberIds: string[]): Promise<Result<GroupSummary>> {
-    if (!this.groupRow(id)) return { ok: false, error: '群聊不存在' };
+    const row = this.groupRow(id);
+    if (!row) return { ok: false, error: '群聊不存在' };
+    if (row.kind === 'direct') return { ok: false, error: '单聊的成员不能修改' };
     if (this.unknownMember(memberIds)) return { ok: false, error: '有成员不存在' };
     this.db.transaction(() => this.writeGroupMembers(id, memberIds));
     this.emit({ type: 'groups_changed' });

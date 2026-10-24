@@ -82,23 +82,38 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
       expect((await api('/api/groups', {}, 'wrong-token-0000000000')).status).toBe(401);
     });
 
-    it('seeds a demo group with three mock members and a welcome message', async () => {
+    const demoGroup = async () => (await api('/api/groups')).body.find((g: any) => g.name === '演示群');
+
+    it('seeds a demo group and a direct chat per mock member', async () => {
       const { body: groups } = await api('/api/groups');
-      expect(groups).toHaveLength(1);
-      expect(groups[0].name).toBe('演示群');
-      expect(groups[0].members.map((m: any) => [m.name, m.type, m.color])).toEqual([
-        ['小橙', 'mock', 'orange'],
-        ['阿蓝', 'mock', 'blue'],
-        ['小绿', 'mock', 'green'],
+      expect(groups.map((g: any) => [g.kind, g.name]).sort()).toEqual([
+        ['direct', '小橙'],
+        ['direct', '小绿'],
+        ['direct', '阿蓝'],
+        ['group', '演示群'],
       ]);
-      const { body: messages } = await api(`/api/groups/${groups[0].id}/messages`);
+      const demo = await demoGroup();
+      expect(demo.members.map((m: any) => [m.name, m.type, m.role, m.avatar])).toEqual([
+        ['小橙', 'mock', '产品经理', { shape: 'cloud', color: 'orange' }],
+        ['阿蓝', 'mock', '安全顾问', { shape: 'square', color: 'blue' }],
+        ['小绿', 'mock', '交互设计', { shape: 'egg', color: 'green' }],
+      ]);
+      const { body: messages } = await api(`/api/groups/${demo.id}/messages`);
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toContain('@小橙 你好');
     });
 
-    it('acceptance: "@小橙 你好" gets a reply, and the relay stops within the limits', async () => {
+    it('direct chats answer without an @', async () => {
       const { body: groups } = await api('/api/groups');
-      const groupId = groups[0].id;
+      const direct = groups.find((g: any) => g.kind === 'direct' && g.name === '小橙');
+      const { events } = await sendAndSettle(direct.id, '你好呀');
+      const replies = events.filter((e) => e.type === 'message' && e.message.senderKind === 'member').map((e) => e.message);
+      expect(replies[0].senderName).toBe('小橙');
+      expect(replies.every((m: any) => m.senderName === '小橙')).toBe(true);
+    });
+
+    it('acceptance: "@小橙 你好" gets a reply, and the relay stops within the limits', async () => {
+      const groupId = (await demoGroup()).id;
       const list = await openSocket('/ws');
 
       const { sent, events } = await sendAndSettle(groupId, '@小橙 你好');
@@ -122,9 +137,8 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
     });
 
     it('closes sockets that fail to authenticate', async () => {
-      const { body: groups } = await api('/api/groups');
       expect(await closeCode('/ws', JSON.stringify({ type: 'auth', token: 'nope' }))).toBe(4401);
-      expect(await closeCode(`/ws/groups/${groups[0].id}`, 'not json')).toBe(4401);
+      expect(await closeCode(`/ws/groups/${(await demoGroup()).id}`, 'not json')).toBe(4401);
     });
 
     it('creates an OpenAI-compatible member with an encrypted, masked key', async () => {
@@ -133,7 +147,8 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
         body: JSON.stringify({
           name: '小紫',
           type: 'openai-compatible',
-          color: 'purple',
+          avatar: { shape: 'flower', color: 'purple' },
+          role: '审查员',
           persona: '审查员',
           config: { baseUrl: 'http://127.0.0.1:1/v1', apiKey: 'sk-test-abcdefgh', model: 'some-model' },
         }),
@@ -142,16 +157,17 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
       expect(res.body.config).toEqual({ baseUrl: 'http://127.0.0.1:1/v1', model: 'some-model' });
       expect(res.body.secrets).toEqual({ apiKey: 'sk-…efgh' });
       expect(res.body.typeLabel).toBe('OpenAI 兼容接口');
+      expect(res.body).toMatchObject({ role: '审查员', avatar: { shape: 'flower', color: 'purple' } });
       expect(JSON.stringify((await api('/api/members')).body)).not.toContain('sk-test-abcdefgh');
 
       const dup = await api('/api/members', {
         method: 'POST',
-        body: JSON.stringify({ name: '小紫', type: 'mock', color: 'red', persona: '' }),
+        body: JSON.stringify({ name: '小紫', type: 'mock', avatar: { shape: 'circle', color: 'red' } }),
       });
       expect(dup.status).toBe(409);
       const missing = await api('/api/members', {
         method: 'POST',
-        body: JSON.stringify({ name: '小白', type: 'openai-compatible', color: 'red', config: {} }),
+        body: JSON.stringify({ name: '小白', type: 'openai-compatible', avatar: { shape: 'circle', color: 'red' }, config: {} }),
       });
       expect(missing).toEqual({ status: 400, body: { error: '请填写接口地址' } });
     });
@@ -176,7 +192,7 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           body: JSON.stringify({
             name: '小青',
             type: 'openai-compatible',
-            color: 'green',
+            avatar: { shape: 'egg', color: 'green' },
             persona: '代码审查员',
             config: { baseUrl: `http://127.0.0.1:${port}/v1/`, apiKey: 'sk-live-xyz-123456', model: 'm1' },
           }),
@@ -201,6 +217,23 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
       } finally {
         fake.close();
       }
+    });
+
+    it('rejects unknown avatar shapes and colours, and deletes an assistant together with its direct chat', async () => {
+      const bad = await api('/api/members', {
+        method: 'POST',
+        body: JSON.stringify({ name: '坏头像', type: 'mock', avatar: { shape: 'dragon', color: 'red' } }),
+      });
+      expect(bad.status).toBe(400);
+      const made = await api('/api/members', {
+        method: 'POST',
+        body: JSON.stringify({ name: '临时工', type: 'mock', avatar: { shape: 'star', color: 'pink' }, role: '实习生' }),
+      });
+      expect(made.status).toBe(201);
+      expect((await api('/api/groups')).body.some((g: any) => g.kind === 'direct' && g.name === '临时工')).toBe(true);
+      expect((await api(`/api/members/${made.body.id}`, { method: 'DELETE' })).status).toBe(200);
+      expect((await api('/api/groups')).body.some((g: any) => g.name === '临时工')).toBe(false);
+      expect((await api(`/api/members/${made.body.id}`, { method: 'DELETE' })).status).toBe(404);
     });
 
     it('updates group membership and lists groups by recent activity', async () => {
