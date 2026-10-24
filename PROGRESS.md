@@ -12,7 +12,7 @@
   - 验证：core 29 + Node 9 + Worker 9 个测试通过；App `tsc` 通过、iOS/Android 包能打出来；用浏览器渲染并连本地 Worker 走了一遍全流程（首次连接、首页、新建菜单、单聊、群聊接力、新建助手、设置），截图核对过。
 - PR 链接：
   - 任务 1 → https://github.com/chen090728/agent-room/pull/1
-  - 任务 2 → （开启后填写）
+  - 任务 2 → https://github.com/chen090728/agent-room/pull/2
 - 你醒来要做什么：
   1. 按《手机部署指南》填 5 个 GitHub Secrets（只能你自己做）。
   2. 先合并 PR #1，再合并任务 2 的 PR（任务 2 的分支包含 #1 的全部提交，所以顺序是 #1 → 任务 2）。
