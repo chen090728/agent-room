@@ -4,9 +4,16 @@
 
 > 每次运行结束时更新本节：本次完成了什么、PR 链接、用户醒来要做什么。
 
-- 状态：尚未开始。定时任务设在台北时间 2026-10-25 07:30 触发，到点后从"任务 1"开始。
-- 已有进度：Cloudflare 版（共用核心 `core/`、Node 版、`worker/`、两个 GitHub Actions、App 双 WebSocket、EAS Update 配置）已提交到分支 `claude/agenthub-phase1`，测试全部通过（core 24、Node 7、Worker 7）。
-- 任务 1 还差：`docs/手机部署指南.md`、README 更新、开 PR 到 `main`。
+- 状态：**任务 1 代码和文档已完成，PR 开启中**（见下方 PR 链接）。任务 2 起尚未开始。
+- 本次完成（任务 1）：
+  - `docs/手机部署指南.md`：从生成令牌开始，含 `AGENTHUB_SECRET` 备份警告、5 个 Secrets、服务器地址在哪找、App 怎么打开、常见问题。
+  - README 重写：workspaces 结构、Cloudflare 主推、Node 版保留、两条 WebSocket、新增适配器位置、v2 加密说明。
+  - 测试：core 24 + Node 版 7 + Worker 版 7 全部通过；各包 typecheck 和 App `tsc` 通过；`wrangler deploy --dry-run` 打包成功；用 kill 掉 wrangler 再重启的方式验证了接力任务能续跑。
+- PR 链接：（开启后填写）
+- 你醒来要做什么：
+  1. 按《手机部署指南》生成令牌并填 5 个 GitHub Secrets（这一步只能你自己做）。
+  2. 合并任务 1 的 PR 到 `main`，到 Actions 页面看部署结果。
+  3. 看下面"待我确认"里的决定。
 
 ## 工作规则（来自用户）
 
@@ -19,15 +26,15 @@
 
 ## 任务清单
 
-- [ ] **任务 1：完成 Cloudflare 部署**（计划已确认），附《手机部署指南》
+- [x] **任务 1：完成 Cloudflare 部署**（计划已确认），附《手机部署指南》
   - [x] 共用核心 `core/`，Node 版去掉 Fastify，npm workspaces
   - [x] `worker/`：Workers + Durable Objects（SQLite，每群一个 DO），WebSocket 用 Hibernation API
   - [x] Web Crypto AES-GCM 加密，令牌和密钥用 Wrangler secrets
   - [x] GitHub Actions：推送 `main` 自动部署 Worker、自动 `eas update`
   - [x] App：列表连接 `/ws` + 聊天连接 `/ws/groups/:id`；`expo-updates` + `runtimeVersion`
-  - [ ] `docs/手机部署指南.md`（从生成令牌开始，不写注册；必须醒目提醒：AGENTHUB_SECRET 生成后要备份，以后修改会导致已保存的 Key 无法解密）
-  - [ ] 更新 README（workspaces 结构、Cloudflare 主推、两条 WebSocket、新增适配器位置、加密格式 v2）
-  - [ ] 跑测试、提交推送、开 PR 到 `main`
+  - [x] `docs/手机部署指南.md`（从生成令牌开始，不写注册；醒目提醒 AGENTHUB_SECRET 要备份）
+  - [x] 更新 README（workspaces 结构、Cloudflare 主推、两条 WebSocket、新增适配器位置、加密格式 v2）
+  - [x] 跑测试、提交推送、开 PR 到 `main`
 
 - [ ] **任务 2：界面改版**（设计稿 https://claude.ai/artifact/1fdJBVcxUNVTKDhcqCZZiu ）
   - 去掉侧边抽屉，打开应用直接进入"助手和群聊"页：
@@ -66,4 +73,10 @@
 
 > 运行中做出的决定和理由记在这里，用户醒来后统一确认。
 
-- （暂无）
+- **未能用真实账号验证的部分（任务 1）**：这个环境连不上 Cloudflare、Expo、GitHub Actions 的真实服务，也打不开 Expo 文档网站。已验证的是：本地 `wrangler dev`（真实 workerd + Durable Objects）跑通全部端到端测试、`wrangler deploy --dry-run` 打包成功、两个 workflow 里的 shell 步骤用假数据演练过。没验证的是：真实的 `wrangler deploy` / `wrangler secret bulk`、`eas init --non-interactive --force` 与 `eas update --auto --branch main` 在 CI 里的表现、`exp://u.expo.dev/<项目ID>/group/<更新组ID>` 链接能否在手机上直接跳转 Expo Go（eas-cli 源码里只能确认更新页面网址格式）。指南里已对跳转链接标注"未在真机验证"。第一次真实部署失败时，先看 Actions 日志。
+- **GitHub Secrets 是 5 个**：除了你说的两个令牌，还需要 `CLOUDFLARE_ACCOUNT_ID`、`AGENTHUB_TOKEN`、`AGENTHUB_SECRET`。理由：部署需要账户 ID；你没有电脑，没法运行 `wrangler secret put`，所以由 Actions 每次部署时把后两个写进 Wrangler secrets。
+- **不提供旧数据迁移**：加密格式换成 `v2`（HKDF + AES-GCM），数据库表结构也变了。项目还没真正部署过，所以没写迁移代码，README 里写了"删 data/ 重来"。
+- **App 里还没有"删除助手"**：服务器有 `DELETE /api/members/:id`，但 App 没入口。指南里让用户换名字重新创建。任务 2 改版时顺手补一个入口。
+- **自动部署只在 `main` 上运行**：`workflow_dispatch` 的"Run workflow"按钮也要等 workflow 文件合并到默认分支才出现，所以必须先合并任务 1 的 PR。
+- **工作流用的 Node 22、`eas-version: latest`、`expo-github-action@v8`**：没法在这里确认这些版本号的最新情况，如果 Actions 报版本不存在，改成当时可用的版本。
+- **任务分支做法**：任务 1 在 `claude/agenthub-phase1` 上；任务 2 起每项从上一项的分支切新分支（`claude/task-2-...` 等），PR 的 base 先指向 `main`（用户要求）。因此后面的 PR 会包含前面任务的提交，直到前面的 PR 合并。
