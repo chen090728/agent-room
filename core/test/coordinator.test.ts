@@ -3,10 +3,13 @@ import { createMockAdapter } from '../src/adapters/mock.js';
 import { AdapterRegistry } from '../src/adapters/registry.js';
 import type { MemberAdapter, ReplyContext } from '../src/adapters/types.js';
 import { Coordinator } from '../src/coordinator.js';
+import { createGitHubIntegration } from '../src/integrations/github.js';
+import { IntegrationRegistry } from '../src/integrations/registry.js';
 import { SecretBox } from '../src/crypto.js';
 import { SqlDirectory } from '../src/directory.js';
 import { SqlRoom } from '../src/room.js';
 import type { ChatEvent, ListEvent, RelayState } from '../src/types.js';
+import { FAKE_REPO, FAKE_TOKEN, startFakeGitHub } from './fake-github.js';
 import { memoryDriver } from './sqlite.js';
 
 const limits = { maxHops: 5, maxReplies: 10, contextSize: 30, llmTimeoutMs: 5000, userDisplayName: '用户' };
@@ -30,7 +33,8 @@ async function setup(adapter: MemberAdapter, names = ['甲', '乙', '丙']) {
   if (!created.ok) throw new Error(created.error);
   const group = created.value;
   const events: ChatEvent[] = [];
-  const coordinator = new Coordinator(room, directory, new AdapterRegistry().register(adapter), (e) => events.push(e), limits);
+  const integrations = new IntegrationRegistry().register(createGitHubIntegration());
+  const coordinator = new Coordinator(room, directory, new AdapterRegistry().register(adapter), integrations, (e) => events.push(e), limits);
   const send = async (text: string) => {
     await coordinator.postUserMessage(group.id, text);
     let steps = 0;
@@ -308,5 +312,84 @@ describe('database migration', () => {
     // Running again changes nothing.
     new SqlDirectory(db, null);
     expect((await dir.listGroups()).length).toBe(4);
+  });
+});
+
+
+describe('repository tools and confirmation cards', () => {
+  it('gives bound conversations GitHub tools, attaches the pull request card, and merges only on the user\'s action', async () => {
+    const gh = await startFakeGitHub();
+    try {
+      let toolNames: string[] = [];
+      const { directory, room, group, coordinator, events } = await setup(
+        scripted((ctx) => {
+          toolNames = ctx.tools?.tools.map((t) => t.name) ?? [];
+          if (ctx.tools) {
+            // The scripted "model" is synchronous in this helper, so open the PR through the tool directly.
+            ctx.tools.cards.push({
+              type: 'pull_request',
+              integrationId: 'placeholder',
+              repo: FAKE_REPO,
+              number: 1,
+              title: 't',
+              url: 'u',
+              branch: 'b',
+              base: 'main',
+              files: [],
+              additions: 0,
+              deletions: 0,
+              state: 'open',
+            });
+          }
+          return ctx.tools ? '已提交。' : '没有工具';
+        }),
+      );
+      expect(toolNames).toEqual([]);
+
+      // Unbound: no tools, no cards.
+      await coordinator.postUserMessage(group.id, '@甲 看看');
+      while (await coordinator.step(group.id));
+      expect(toolNames).toEqual([]);
+      expect(room.recentMessages(group.id, 10).at(-1)!.card).toBeNull();
+
+      // Bind a repository through a stored connection.
+      const created = await directory.createIntegration({
+        type: 'github',
+        typeLabel: 'GitHub',
+        name: 'GitHub · octocat',
+        config: { apiBaseUrl: gh.url, account: 'octocat' },
+        secrets: { token: FAKE_TOKEN },
+      });
+      expect(created.ok).toBe(true);
+      const integrationId = created.ok ? created.value.id : '';
+      expect(await directory.setBinding(group.id, { repo: { integrationId, repo: FAKE_REPO } })).toMatchObject({ ok: true });
+      expect(JSON.stringify(await directory.listIntegrations())).not.toContain(FAKE_TOKEN);
+
+      await coordinator.postUserMessage(group.id, '@甲 改一下');
+      while (await coordinator.step(group.id));
+      expect(toolNames).toEqual(['list_directory', 'read_file', 'create_pull_request']);
+      const reply = room.recentMessages(group.id, 10).at(-1)!;
+      expect(reply.content).toBe('已提交。');
+      expect(reply.card).toMatchObject({ type: 'pull_request', state: 'open' });
+      expect((await directory.getGroup(group.id))!.lastMessage!.card).toMatchObject({ state: 'open' });
+      expect(events.some((e) => e.type === 'message' && e.message.card)).toBe(true);
+
+      // The fake card above has no real PR behind it, so a merge attempt is reported, not swallowed.
+      await expect(coordinator.cardAction(group.id, reply.id, 'merge')).rejects.toThrow();
+      await expect(coordinator.cardAction(group.id, 'nope', 'merge')).rejects.toMatchObject({ status: 404 });
+    } finally {
+      await gh.close();
+    }
+  });
+
+  it('deleting the connection removes the binding', async () => {
+    const { directory, group } = await setup(scripted(() => 'ok'));
+    const created = await directory.createIntegration({ type: 'github', typeLabel: 'GitHub', name: 'g', config: {}, secrets: { token: 'github_pat_x_0123456789' } });
+    const id = created.ok ? created.value.id : '';
+    await directory.setBinding(group.id, { repo: { integrationId: id, repo: 'a/b' } });
+    expect((await directory.getGroup(group.id))!.binding).not.toBeNull();
+    expect(await directory.deleteIntegration(id)).toBe(true);
+    expect((await directory.getGroup(group.id))!.binding).toBeNull();
+    expect(await directory.setBinding(group.id, { repo: { integrationId: 'missing', repo: 'a/b' } })).toEqual({ ok: false, error: '这个连接不存在' });
   });
 });

@@ -1,6 +1,18 @@
 import { maskSecret, type SecretBox } from './crypto.js';
 import { first, runSchema, type SqlDriver } from './sql.js';
-import type { Avatar, AvatarColor, AvatarShape, GroupKind, GroupSummary, ListEvent, Member, Message, RelayState } from './types.js';
+import type {
+  Avatar,
+  AvatarColor,
+  AvatarShape,
+  GroupBinding,
+  GroupKind,
+  GroupSummary,
+  IntegrationView,
+  ListEvent,
+  Member,
+  Message,
+  RelayState,
+} from './types.js';
 
 export interface NewMember {
   name: string;
@@ -8,6 +20,23 @@ export interface NewMember {
   avatar: Avatar;
   role: string;
   persona: string;
+  config: Record<string, string>;
+  secrets: Record<string, string>;
+}
+
+export interface NewIntegration {
+  type: string;
+  typeLabel: string;
+  name: string;
+  config: Record<string, string>;
+  secrets: Record<string, string>;
+}
+
+/** A connection with its decrypted secrets; only for server-side use. */
+export interface IntegrationWithSecrets {
+  id: string;
+  type: string;
+  name: string;
   config: Record<string, string>;
   secrets: Record<string, string>;
 }
@@ -38,6 +67,12 @@ export interface Directory {
   setGroupMembers(id: string, memberIds: string[]): Promise<Result<GroupSummary>>;
   groupMembers(groupId: string): Promise<Member[]>;
   recordActivity(groupId: string, patch: ActivityPatch): Promise<void>;
+  listIntegrations(): Promise<IntegrationView[]>;
+  createIntegration(input: NewIntegration): Promise<Result<IntegrationView>>;
+  deleteIntegration(id: string): Promise<boolean>;
+  /** Decrypted; never expose this over the HTTP API. */
+  getIntegration(id: string): Promise<IntegrationWithSecrets | null>;
+  setBinding(groupId: string, binding: GroupBinding | null): Promise<Result<GroupSummary>>;
 }
 
 const SCHEMA = `
@@ -62,7 +97,18 @@ CREATE TABLE IF NOT EXISTS groups (
   created_at INTEGER NOT NULL,
   last_message_json TEXT,
   last_activity_at INTEGER NOT NULL,
-  relay_json TEXT
+  relay_json TEXT,
+  binding_json TEXT
+);
+CREATE TABLE IF NOT EXISTS integrations (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  type_label TEXT NOT NULL,
+  name TEXT NOT NULL,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  secrets_enc TEXT,
+  secret_preview_json TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS group_members (
   group_id TEXT NOT NULL,
@@ -102,6 +148,7 @@ function migrate(db: SqlDriver) {
     db.run(`ALTER TABLE groups ADD COLUMN kind TEXT NOT NULL DEFAULT 'group'`);
     db.run(`ALTER TABLE groups ADD COLUMN direct_member_id TEXT`);
   }
+  if (!has('groups', 'binding_json')) db.run(`ALTER TABLE groups ADD COLUMN binding_json TEXT`);
 }
 
 interface MemberRow {
@@ -127,6 +174,18 @@ interface GroupRow {
   last_message_json: string | null;
   last_activity_at: number;
   relay_json: string | null;
+  binding_json: string | null;
+}
+
+interface IntegrationRow {
+  id: string;
+  type: string;
+  type_label: string;
+  name: string;
+  config_json: string;
+  secrets_enc: string | null;
+  secret_preview_json: string;
+  created_at: number;
 }
 
 function toMember(row: MemberRow): Member {
@@ -248,6 +307,7 @@ export class SqlDirectory implements Directory {
       lastMessage: row.last_message_json ? JSON.parse(row.last_message_json) : null,
       lastActivityAt: row.last_activity_at,
       relay: row.relay_json ? JSON.parse(row.relay_json) : null,
+      binding: row.binding_json ? JSON.parse(row.binding_json) : null,
     };
   }
 
@@ -330,6 +390,82 @@ export class SqlDirectory implements Directory {
 
   async groupMembers(groupId: string) {
     return this.membersOf(groupId);
+  }
+
+  // ---- integrations ----
+
+  private integrationView(row: IntegrationRow): IntegrationView {
+    return {
+      id: row.id,
+      type: row.type,
+      typeLabel: row.type_label,
+      name: row.name,
+      config: JSON.parse(row.config_json),
+      secrets: JSON.parse(row.secret_preview_json),
+      createdAt: row.created_at,
+    };
+  }
+
+  async listIntegrations() {
+    return this.db.all<IntegrationRow>('SELECT * FROM integrations ORDER BY created_at, rowid').map((r) => this.integrationView(r));
+  }
+
+  async createIntegration(input: NewIntegration): Promise<Result<IntegrationView>> {
+    const hasSecrets = Object.keys(input.secrets).length > 0;
+    if (hasSecrets && !this.box) return { ok: false, error: '服务器没有配置 AGENTHUB_SECRET，无法保存令牌' };
+    const sealed = hasSecrets ? await this.box!.encrypt(JSON.stringify(input.secrets)) : null;
+    const id = crypto.randomUUID();
+    const preview = Object.fromEntries(Object.entries(input.secrets).map(([k, v]) => [k, maskSecret(v)]));
+    this.db.run(
+      `INSERT INTO integrations (id, type, type_label, name, config_json, secrets_enc, secret_preview_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      input.type,
+      input.typeLabel,
+      input.name,
+      JSON.stringify(input.config),
+      sealed,
+      JSON.stringify(preview),
+      Date.now(),
+    );
+    return { ok: true, value: this.integrationView(first<IntegrationRow>(this.db, 'SELECT * FROM integrations WHERE id = ?', id)!) };
+  }
+
+  async deleteIntegration(id: string) {
+    const removed = this.db.transaction(() => {
+      if (!first(this.db, 'SELECT 1 FROM integrations WHERE id = ?', id)) return false;
+      this.db.run('DELETE FROM integrations WHERE id = ?', id);
+      // Conversations bound through this connection lose their binding.
+      for (const g of this.db.all<GroupRow>('SELECT * FROM groups WHERE binding_json IS NOT NULL')) {
+        const binding: GroupBinding = JSON.parse(g.binding_json!);
+        if (binding.repo?.integrationId === id) this.db.run('UPDATE groups SET binding_json = NULL WHERE id = ?', g.id);
+      }
+      return true;
+    });
+    if (removed) this.emit({ type: 'groups_changed' });
+    return removed;
+  }
+
+  async getIntegration(id: string): Promise<IntegrationWithSecrets | null> {
+    const row = first<IntegrationRow>(this.db, 'SELECT * FROM integrations WHERE id = ?', id);
+    if (!row) return null;
+    let secrets: Record<string, string> = {};
+    if (row.secrets_enc) {
+      if (!this.box) throw new Error('服务器没有配置 AGENTHUB_SECRET');
+      secrets = JSON.parse(await this.box.decrypt(row.secrets_enc));
+    }
+    return { id: row.id, type: row.type, name: row.name, config: JSON.parse(row.config_json), secrets };
+  }
+
+  async setBinding(groupId: string, binding: GroupBinding | null): Promise<Result<GroupSummary>> {
+    if (!this.groupRow(groupId)) return { ok: false, error: '群聊不存在' };
+    if (binding?.repo && !first(this.db, 'SELECT 1 FROM integrations WHERE id = ?', binding.repo.integrationId)) {
+      return { ok: false, error: '这个连接不存在' };
+    }
+    const empty = !binding || !binding.repo;
+    this.db.run('UPDATE groups SET binding_json = ? WHERE id = ?', empty ? null : JSON.stringify(binding), groupId);
+    this.emit({ type: 'group_updated', group: this.summary(this.groupRow(groupId)!) });
+    return { ok: true, value: (await this.getGroup(groupId))! };
   }
 
   async recordActivity(groupId: string, patch: ActivityPatch) {

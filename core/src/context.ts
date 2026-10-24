@@ -22,6 +22,7 @@ export function buildSystemPrompt(ctx: ReplyContext): string {
     '2. 需要某位成员接着回应时，在回复里写 "@名字"，被 @ 的成员会收到并回复；不需要时不要 @ 任何人。',
     '3. 群聊记录里每条消息前面的"名字:"标明了发言人。',
     '4. 回复简洁自然，像在群里聊天。',
+    ctx.tools?.instructions ? `\n${ctx.tools.instructions}` : '',
   ]
     .filter((line, i, arr) => !(line === '' && arr[i - 1] === ''))
     .join('\n');

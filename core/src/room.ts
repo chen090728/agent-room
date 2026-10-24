@@ -1,5 +1,5 @@
 import { first, runSchema, type SqlDriver } from './sql.js';
-import type { Message, RelayState, SenderKind } from './types.js';
+import type { Card, Message, RelayState, SenderKind } from './types.js';
 
 export interface NewMessage {
   groupId: string;
@@ -7,6 +7,7 @@ export interface NewMessage {
   senderId: string | null;
   senderName: string;
   content: string;
+  card?: Card | null;
   /** Defaults to the new message's own id (an original message). */
   rootId?: string;
   hop?: number;
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id TEXT,
   sender_name TEXT NOT NULL,
   content TEXT NOT NULL,
+  card_json TEXT,
   root_id TEXT NOT NULL,
   hop INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
@@ -63,6 +65,7 @@ interface MessageRow {
   sender_id: string | null;
   sender_name: string;
   content: string;
+  card_json: string | null;
   root_id: string;
   hop: number;
   created_at: number;
@@ -76,6 +79,7 @@ function toMessage(row: MessageRow): Message {
     senderId: row.sender_id,
     senderName: row.sender_name,
     content: row.content,
+    card: row.card_json ? JSON.parse(row.card_json) : null,
     rootId: row.root_id,
     hop: row.hop,
     createdAt: row.created_at,
@@ -90,6 +94,12 @@ function toMessage(row: MessageRow): Message {
 export class SqlRoom {
   constructor(private db: SqlDriver) {
     runSchema(db, SCHEMA);
+    // Databases from before cards existed.
+    try {
+      db.all('SELECT card_json FROM messages LIMIT 0');
+    } catch {
+      db.run('ALTER TABLE messages ADD COLUMN card_json TEXT');
+    }
   }
 
   // ---- messages ----
@@ -104,13 +114,14 @@ export class SqlRoom {
       senderId: input.senderId,
       senderName: input.senderName,
       content: input.content,
+      card: input.card ?? null,
       rootId: input.rootId ?? id,
       hop: input.hop ?? 0,
       createdAt: Date.now(),
     };
     this.db.run(
-      `INSERT INTO messages (id, group_id, seq, sender_kind, sender_id, sender_name, content, root_id, hop, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messages (id, group_id, seq, sender_kind, sender_id, sender_name, content, card_json, root_id, hop, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       message.groupId,
       seq,
@@ -118,11 +129,18 @@ export class SqlRoom {
       message.senderId,
       message.senderName,
       message.content,
+      message.card ? JSON.stringify(message.card) : null,
       message.rootId,
       message.hop,
       message.createdAt,
     );
     return message;
+  }
+
+  /** Replaces the card of a message and returns the updated message. */
+  updateCard(id: string, card: Card): Message | undefined {
+    this.db.run('UPDATE messages SET card_json = ? WHERE id = ?', JSON.stringify(card), id);
+    return this.getMessage(id);
   }
 
   getMessage(id: string): Message | undefined {

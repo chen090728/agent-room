@@ -1,6 +1,7 @@
 import {
   AUTH_TIMEOUT_MS,
   Coordinator,
+  defaultIntegrations,
   defaultRegistry,
   handleApi,
   HELLO,
@@ -29,6 +30,7 @@ export interface Hub {
 export async function createHub(config: Config, { log = true } = {}): Promise<Hub> {
   const db = openSqlite(config.dbPath);
   const registry = defaultRegistry(config);
+  const integrations = defaultIntegrations();
 
   const listSockets = new Set<WebSocket>();
   const groupSockets = new Map<string, Set<WebSocket>>();
@@ -44,8 +46,9 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     room,
     directory,
     registry,
+    integrations,
     (e: ChatEvent) => {
-      const groupId = e.type === 'message' ? e.message.groupId : e.type === 'relay' ? e.relay.groupId : e.groupId;
+      const groupId = e.type === 'message' || e.type === 'message_updated' ? e.message.groupId : e.type === 'relay' ? e.relay.groupId : e.groupId;
       send(groupSockets.get(groupId) ?? [], JSON.stringify(e));
     },
     config,
@@ -84,11 +87,12 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     async messages(groupId: string, limit: number, before?: string) {
       return room.recentMessages(groupId, limit, before);
     },
+    cardAction: (groupId: string, messageId: string, action: 'merge' | 'reject') => coordinator.cardAction(groupId, messageId, action),
   };
 
   const server = createServer(async (req, res) => {
     try {
-      const response = await handleApi(await toRequest(req), { token: config.token, directory, registry, rooms });
+      const response = await handleApi(await toRequest(req), { token: config.token, directory, registry, integrations, rooms });
       await writeResponse(res, response ?? Response.json({ error: '接口不存在' }, { status: 404 }));
     } catch (err) {
       console.error('[http]', err);

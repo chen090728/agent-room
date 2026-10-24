@@ -1,4 +1,4 @@
-import { defaultRegistry, handleApi, parseLimits, secretProblems, socketTarget, type Directory } from '@agenthub/core';
+import { defaultIntegrations, defaultRegistry, handleApi, parseLimits, secretProblems, socketTarget, UserError, type Directory } from '@agenthub/core';
 import { directoryStub, groupStub, settings, type Env } from './env.js';
 
 export { DirectoryDO } from './directory-do.js';
@@ -18,9 +18,15 @@ export default {
       configError: problems.length ? `服务器还没有配置好：${problems.join('；')}` : undefined,
       directory: directoryStub(env) as unknown as Directory,
       registry: defaultRegistry(parseLimits(settings(env))),
+      integrations: defaultIntegrations(),
       rooms: {
         post: (groupId, content) => groupStub(env, groupId).post(groupId, content),
         messages: (groupId, limit, before) => groupStub(env, groupId).messages(groupId, limit, before),
+        cardAction: async (groupId, messageId, action) => {
+          const result = await groupStub(env, groupId).cardAction(groupId, messageId, action);
+          if (!result.ok) throw new UserError(result.error, result.status);
+          return result.message;
+        },
       },
     });
     if (response) return response;

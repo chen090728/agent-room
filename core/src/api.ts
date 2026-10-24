@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { AdapterRegistry } from './adapters/registry.js';
 import { safeEqual } from './crypto.js';
 import type { Directory } from './directory.js';
-import { AVATAR_COLORS, AVATAR_SHAPES, type Member, type Message } from './types.js';
+import type { IntegrationRegistry } from './integrations/registry.js';
+import { AVATAR_COLORS, AVATAR_SHAPES, UserError, type Member, type Message } from './types.js';
 
 export interface ApiDeps {
   token: string;
@@ -10,9 +11,11 @@ export interface ApiDeps {
   configError?: string;
   directory: Directory;
   registry: AdapterRegistry;
+  integrations: IntegrationRegistry;
   rooms: {
     post(groupId: string, content: string): Promise<Message>;
     messages(groupId: string, limit: number, before?: string): Promise<Message[]>;
+    cardAction(groupId: string, messageId: string, action: 'merge' | 'reject'): Promise<Message>;
   };
 }
 
@@ -41,6 +44,18 @@ const createGroupBody = z.object({
 
 const setMembersBody = z.object({ memberIds: z.array(z.string()) });
 const sendBody = z.object({ content: z.string().trim().min(1).max(4000) });
+const cardBody = z.object({ action: z.enum(['merge', 'reject']) });
+const bindingBody = z.object({
+  repo: z
+    .object({ integrationId: z.string(), repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, '仓库名要写成 所有者/仓库名') })
+    .nullable()
+    .default(null),
+});
+const createIntegrationBody = z.object({
+  type: z.string(),
+  name: z.string().trim().max(40).default(''),
+  config: z.record(z.string(), z.string()).default({}),
+});
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
 const fail = (status: number, error: string) => json(status, { error });
@@ -67,6 +82,7 @@ export async function handleApi(request: Request, deps: ApiDeps): Promise<Respon
     return (await route(request, url, path, deps)) ?? fail(404, '接口不存在');
   } catch (err) {
     if (err instanceof z.ZodError) return fail(400, err.issues[0]?.message ?? '参数错误');
+    if (err instanceof UserError) return fail(err.status, err.message);
     if (err instanceof SyntaxError) return fail(400, '请求内容不是有效的 JSON');
     console.error('[api]', err);
     return fail(500, '服务器内部错误');
@@ -74,7 +90,7 @@ export async function handleApi(request: Request, deps: ApiDeps): Promise<Respon
 }
 
 async function route(request: Request, url: URL, path: string, deps: ApiDeps): Promise<Response | null> {
-  const { directory, registry, rooms } = deps;
+  const { directory, registry, integrations, rooms } = deps;
   const method = request.method;
   const body = async () => (request.headers.get('content-length') === '0' ? {} : await request.json());
 
@@ -130,7 +146,79 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
     }
   }
 
-  const groupMatch = path.match(/^\/api\/groups\/([\w-]+)(\/members|\/messages)?$/);
+  // ---- integrations (connections to outside services) ----
+
+  if (path === '/api/integrations/types' && method === 'GET') {
+    return json(
+      200,
+      integrations.list().map(({ type, label, description, fields }) => ({ type, label, description, fields })),
+    );
+  }
+
+  if (path === '/api/integrations') {
+    if (method === 'GET') return json(200, await directory.listIntegrations());
+    if (method === 'POST') {
+      const input = createIntegrationBody.parse(await body());
+      const type = integrations.get(input.type);
+      if (!type) return fail(400, `未知的连接类型：${input.type}`);
+
+      const config: Record<string, string> = {};
+      const secrets: Record<string, string> = {};
+      for (const field of type.fields) {
+        const value = (input.config[field.key] ?? '').trim();
+        if (field.required && !value) return fail(400, `请填写${field.label}`);
+        if (value && field.kind === 'url' && !/^https?:\/\/\S+$/i.test(value)) {
+          return fail(400, `${field.label}需要以 http:// 或 https:// 开头`);
+        }
+        if (value) (field.secret ? secrets : config)[field.key] = value;
+      }
+
+      let account: string;
+      try {
+        ({ account } = await type.verify({ ...config, ...secrets }));
+      } catch (err) {
+        return fail(400, err instanceof Error ? err.message : '验证失败');
+      }
+      const created = await directory.createIntegration({
+        type: type.type,
+        typeLabel: type.label,
+        name: input.name || (account ? `${type.label} · ${account}` : type.label),
+        config: account ? { ...config, account } : config,
+        secrets,
+      });
+      if (!created.ok) return fail(400, created.error);
+      return json(201, created.value);
+    }
+  }
+
+  const integrationMatch = path.match(/^\/api\/integrations\/([\w-]+)(\/resources)?$/);
+  if (integrationMatch) {
+    const [, id, sub] = integrationMatch;
+    if (!sub && method === 'DELETE') {
+      if (!(await directory.deleteIntegration(id))) return fail(404, '连接不存在');
+      return json(200, { ok: true });
+    }
+    if (sub && method === 'GET') {
+      const full = await directory.getIntegration(id);
+      const type = full && integrations.get(full.type);
+      if (!full || !type) return fail(404, '连接不存在');
+      try {
+        return json(200, await type.listResources({ ...full.config, ...full.secrets }));
+      } catch (err) {
+        return fail(502, err instanceof Error ? err.message : '读取失败');
+      }
+    }
+  }
+
+  const cardMatch = path.match(/^\/api\/groups\/([\w-]+)\/messages\/([\w-]+)\/card$/);
+  if (cardMatch && method === 'POST') {
+    const [, groupId, messageId] = cardMatch;
+    if (!(await directory.getGroup(groupId))) return fail(404, '群聊不存在');
+    const { action } = cardBody.parse(await body());
+    return json(200, await rooms.cardAction(groupId, messageId, action));
+  }
+
+  const groupMatch = path.match(/^\/api\/groups\/([\w-]+)(\/members|\/messages|\/binding)?$/);
   if (groupMatch) {
     const [, groupId, sub] = groupMatch;
     const group = await directory.getGroup(groupId);
@@ -141,6 +229,13 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
     if (sub === '/members' && method === 'PUT') {
       const input = setMembersBody.parse(await body());
       const updated = await directory.setGroupMembers(groupId, input.memberIds);
+      if (!updated.ok) return fail(400, updated.error);
+      return json(200, updated.value);
+    }
+
+    if (sub === '/binding' && method === 'PUT') {
+      const input = bindingBody.parse(await body());
+      const updated = await directory.setBinding(groupId, input.repo ? { repo: input.repo } : null);
       if (!updated.ok) return fail(400, updated.error);
       return json(200, updated.value);
     }

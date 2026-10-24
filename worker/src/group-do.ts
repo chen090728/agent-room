@@ -1,9 +1,11 @@
 import {
   Coordinator,
+  defaultIntegrations,
   defaultRegistry,
   first,
   parseLimits,
   SqlRoom,
+  UserError,
   type CoordinatorDirectory,
   type Message,
   type SqlDriver,
@@ -33,6 +35,7 @@ export class GroupDO extends DurableObject<Env> {
       this.room,
       directoryStub(env) as unknown as CoordinatorDirectory,
       defaultRegistry(limits),
+      defaultIntegrations(),
       (event) => broadcast(ctx, JSON.stringify(event)),
       limits,
     );
@@ -62,6 +65,24 @@ export class GroupDO extends DurableObject<Env> {
 
   async messages(groupId: string, limit: number, before?: string): Promise<Message[]> {
     return this.room.recentMessages(groupId, limit, before);
+  }
+
+  /**
+   * Durable Object RPC drops custom error types, so expected failures are
+   * returned as data; the Worker turns them back into user-facing errors.
+   */
+  async cardAction(
+    groupId: string,
+    messageId: string,
+    action: 'merge' | 'reject',
+  ): Promise<{ ok: true; message: Message } | { ok: false; status: number; error: string }> {
+    this.remember(groupId);
+    try {
+      return { ok: true, message: await this.coordinator.cardAction(groupId, messageId, action) };
+    } catch (err) {
+      if (err instanceof UserError) return { ok: false, status: err.status, error: err.message };
+      throw err;
+    }
   }
 
   async addSystemMessage(groupId: string, content: string): Promise<Message> {

@@ -1,4 +1,6 @@
 import {
+  type GroupBinding,
+  type NewIntegration,
   SecretBox,
   secretProblems,
   seedIfEmpty,
@@ -74,6 +76,21 @@ export class DirectoryDO extends DurableObject<Env> implements Directory {
   }
   async groupMembers(groupId: string) {
     return this.dir.groupMembers(groupId);
+  }
+  async listIntegrations() {
+    return this.dir.listIntegrations();
+  }
+  async createIntegration(input: NewIntegration) {
+    return this.dir.createIntegration(input);
+  }
+  async deleteIntegration(id: string) {
+    return this.dir.deleteIntegration(id);
+  }
+  async getIntegration(id: string) {
+    return this.dir.getIntegration(id);
+  }
+  async setBinding(groupId: string, binding: GroupBinding | null) {
+    return this.dir.setBinding(groupId, binding);
   }
   // Not gated on ready(): the demo group's welcome message calls this while seeding.
   async recordActivity(groupId: string, patch: ActivityPatch) {

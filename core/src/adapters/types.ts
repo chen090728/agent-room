@@ -1,3 +1,4 @@
+import type { ToolRuntime } from '../integrations/types.js';
 import type { SenderKind } from '../types.js';
 
 /** One input field the App renders when creating a member of this type. */
@@ -29,6 +30,8 @@ export interface ReplyContext {
   history: ContextMessage[];
   /** The message that @-mentioned this member. */
   trigger: ContextMessage;
+  /** Tools from the connections bound to this conversation (e.g. GitHub); undefined when none. */
+  tools?: ToolRuntime;
   signal: AbortSignal;
 }
 
