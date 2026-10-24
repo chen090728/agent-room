@@ -9,17 +9,8 @@ export interface Member {
   persona: string;
   /** Non-secret adapter config. */
   config: Record<string, string>;
-  createdAt: number;
-}
-
-/** A member plus its decrypted secrets; never leaves the server. */
-export interface MemberWithSecrets extends Member {
-  secrets: Record<string, string>;
-}
-
-export interface Group {
-  id: string;
-  name: string;
+  /** Masked previews of stored secrets, e.g. { apiKey: 'sk-…abcd' }. */
+  secretPreview: Record<string, string>;
   createdAt: number;
 }
 
@@ -50,3 +41,33 @@ export interface RelayState {
   /** Color of the first member that replied at each hop, index 0 = hop 1. */
   trail: MemberColor[];
 }
+
+export interface GroupMemberRef {
+  id: string;
+  name: string;
+  color: MemberColor;
+  type: string;
+}
+
+export interface GroupSummary {
+  id: string;
+  name: string;
+  createdAt: number;
+  members: GroupMemberRef[];
+  lastMessage: Message | null;
+  lastActivityAt: number;
+  /** Relay currently running in the group, if any. */
+  relay: RelayState | null;
+}
+
+/** Events for one group's chat, sent over /ws/groups/:id. */
+export type ChatEvent =
+  | { type: 'message'; message: Message }
+  | { type: 'typing'; groupId: string; memberId: string; active: boolean }
+  | { type: 'relay'; relay: RelayState };
+
+/** Events for the group list, sent over /ws. */
+export type ListEvent =
+  | { type: 'group_updated'; group: GroupSummary }
+  | { type: 'groups_changed' }
+  | { type: 'members_changed' };

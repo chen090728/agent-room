@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { loadConfig } from './config.js';
-import { buildServer } from './server.js';
+import { loadConfig, type Config } from './config.js';
+import { createHub } from './hub.js';
 
-let config;
+let config: Config;
 try {
   config = loadConfig();
 } catch (err) {
@@ -10,9 +10,7 @@ try {
   process.exit(1);
 }
 
-const { app } = buildServer({ config });
-
-app.listen({ host: config.host, port: config.port }).catch((err) => {
-  console.error(err);
-  process.exit(1);
+const { server } = await createHub(config);
+server.listen(config.port, config.host, () => {
+  console.log(`AgentHub listening on http://${config.host}:${config.port}`);
 });

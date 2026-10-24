@@ -1,0 +1,102 @@
+name: Deploy server to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
+      - 'worker/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check required secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AGENTHUB_TOKEN: ${{ secrets.AGENTHUB_TOKEN }}
+          AGENTHUB_SECRET: ${{ secrets.AGENTHUB_SECRET }}
+        run: |
+          missing=""
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID AGENTHUB_TOKEN AGENTHUB_SECRET; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::GitHub Secrets 缺少:$missing（Settings → Secrets and variables → Actions）"
+            exit 1
+          fi
+          for name in AGENTHUB_TOKEN AGENTHUB_SECRET; do
+            value="${!name}"
+            if [ ${#value} -lt 16 ]; then
+              echo "::error::$name 至少需要 16 个字符"
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test
+        run: npm test
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+
+      - name: Deploy Worker
+        working-directory: worker
+        run: |
+          set -o pipefail
+          npx wrangler deploy | tee "$RUNNER_TEMP/deploy.log"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+
+      - name: Upload AGENTHUB_TOKEN and AGENTHUB_SECRET as Wrangler secrets
+        working-directory: worker
+        run: |
+          node -e 'require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify({ AGENTHUB_TOKEN: process.env.AGENTHUB_TOKEN, AGENTHUB_SECRET: process.env.AGENTHUB_SECRET }), { mode: 0o600 })'
+          npx wrangler secret bulk "$RUNNER_TEMP/secrets.json"
+          rm -f "$RUNNER_TEMP/secrets.json"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AGENTHUB_TOKEN: ${{ secrets.AGENTHUB_TOKEN }}
+          AGENTHUB_SECRET: ${{ secrets.AGENTHUB_SECRET }}
+          WRANGLER_SEND_METRICS: 'false'
+
+      - name: Show server address
+        run: |
+          url=$(grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' "$RUNNER_TEMP/deploy.log" | head -n1 || true)
+          if [ -n "$url" ]; then
+            {
+              echo "## 部署完成"
+              echo ""
+              echo "App 里要填的**服务器地址**："
+              echo ""
+              echo '```'
+              echo "$url"
+              echo '```'
+              echo ""
+              echo "在手机浏览器打开 [$url/api/health]($url/api/health)，看到 \`\"configured\":true\` 就说明服务器正常。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Server address: $url"
+          else
+            echo "## 部署完成" >> "$GITHUB_STEP_SUMMARY"
+            echo "没有在部署日志里找到 workers.dev 网址，请到 Cloudflare 后台 → Workers 和 Pages → agenthub 查看。" >> "$GITHUB_STEP_SUMMARY"
+          fi

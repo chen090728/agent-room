@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ReplyContext } from '../src/adapters/types.js';
 import { buildChatMessages, stripSelfPrefix } from '../src/context.js';
-import { maskSecret, SecretBox } from '../src/crypto.js';
+import { maskSecret, safeEqual, SecretBox } from '../src/crypto.js';
 import { parseMentions } from '../src/mentions.js';
 
 describe('parseMentions', () => {
@@ -72,14 +72,29 @@ describe('buildChatMessages', () => {
 });
 
 describe('SecretBox', () => {
-  it('round-trips and rejects a different secret', () => {
-    const sealed = new SecretBox('secret-one-0123456789').encrypt('sk-test-123');
+  it('round-trips and rejects a different secret', async () => {
+    const sealed = await new SecretBox('secret-one-0123456789').encrypt('sk-test-123');
+    expect(sealed).toMatch(/^v2:/);
     expect(sealed).not.toContain('sk-test');
-    expect(new SecretBox('secret-one-0123456789').decrypt(sealed)).toBe('sk-test-123');
-    expect(() => new SecretBox('secret-two-0123456789').decrypt(sealed)).toThrow(/AGENTHUB_SECRET/);
+    expect(await new SecretBox('secret-one-0123456789').decrypt(sealed)).toBe('sk-test-123');
+    await expect(new SecretBox('secret-two-0123456789').decrypt(sealed)).rejects.toThrow(/AGENTHUB_SECRET/);
+  });
+
+  it('uses a fresh IV every time', async () => {
+    const box = new SecretBox('secret-one-0123456789');
+    expect(await box.encrypt('same')).not.toBe(await box.encrypt('same'));
   });
 
   it('masks secrets', () => {
     expect(maskSecret('sk-abcdefghijkl')).toBe('sk-…ijkl');
+  });
+});
+
+describe('safeEqual', () => {
+  it('compares tokens', () => {
+    expect(safeEqual('abc', 'abc')).toBe(true);
+    expect(safeEqual('abc', 'abd')).toBe(false);
+    expect(safeEqual('abc', 'abcd')).toBe(false);
+    expect(safeEqual('', '')).toBe(false);
   });
 });

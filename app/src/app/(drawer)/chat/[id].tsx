@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import type { DrawerNavigationProp } from 'expo-router/drawer';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Composer } from '../../../components/Composer';
@@ -10,26 +10,24 @@ import { OrbRow } from '../../../components/Orb';
 import { RoundButton } from '../../../components/ui';
 import type { RelayState } from '../../../protocol';
 import { saveLastGroupId } from '../../../storage';
-import { useStore } from '../../../store';
+import { useGroupChannel, useStore } from '../../../store';
 import { colors, shadows, type OrbColor } from '../../../theme';
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation<DrawerNavigationProp<Record<string, object | undefined>>>();
   const store = useStore();
-  const { loadMessages, send } = store;
+  const { send } = store;
   const group = store.groups.find((g) => g.id === id);
   const messages = store.messages[id];
   const typing = store.typing[id] ?? [];
   const relay = store.relays[id];
-  const [error, setError] = useState<string | null>(null);
+  const channel = useGroupChannel(group ? id : undefined);
+  const error = channel.error;
 
   useEffect(() => {
-    if (!id) return;
-    saveLastGroupId(id).catch(() => {});
-    setError(null);
-    loadMessages(id).catch((e) => setError(e.message));
-  }, [id, loadMessages]);
+    if (id) saveLastGroupId(id).catch(() => {});
+  }, [id]);
 
   // Colors of members who have left the group are looked up from all members.
   const colorOf = useCallback(
@@ -93,8 +91,8 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        {store.status !== 'online' && (
-          <Text style={styles.banner}>{store.status === 'connecting' ? '正在连接服务器…' : '与服务器断开，正在重连…'}</Text>
+        {channel.status !== 'online' && (
+          <Text style={styles.banner}>{channel.status === 'connecting' ? '正在连接服务器…' : '与服务器断开，正在重连…'}</Text>
         )}
 
         <FlatList

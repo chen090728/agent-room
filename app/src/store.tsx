@@ -1,15 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
-import { AppState } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import { createApi, socketUrl, type Api } from './api';
-import type { AdapterInfo, GroupSummary, MemberView, Message, RelayState, ServerEvent } from './protocol';
+import type { AdapterInfo, ChatEvent, GroupSummary, ListEvent, MemberView, Message, RelayState } from './protocol';
+import { openSocket, type SocketStatus } from './socket';
 import { clearSettings, loadSettings, saveSettings, type ConnectionSettings } from './storage';
-
-type Status = 'offline' | 'connecting' | 'online';
 
 interface State {
   settingsLoaded: boolean;
   settings: ConnectionSettings | null;
-  status: Status;
+  /** Status of the group-list connection. */
+  status: SocketStatus;
   groupsLoaded: boolean;
   groups: GroupSummary[];
   members: MemberView[];
@@ -23,12 +22,13 @@ interface State {
 
 type Action =
   | { type: 'settings'; settings: ConnectionSettings | null }
-  | { type: 'status'; status: Status }
+  | { type: 'status'; status: SocketStatus }
   | { type: 'groups'; groups: GroupSummary[] }
   | { type: 'members'; members: MemberView[] }
   | { type: 'adapters'; adapters: AdapterInfo[] }
   | { type: 'messages'; groupId: string; messages: Message[] }
-  | { type: 'event'; event: ServerEvent };
+  | { type: 'group'; group: GroupSummary }
+  | { type: 'chat'; event: ChatEvent };
 
 const initial: State = {
   settingsLoaded: false,
@@ -63,6 +63,14 @@ function reducer(state: State, action: Action): State {
       for (const g of action.groups) relays[g.id] = g.relay ?? undefined;
       return { ...state, groupsLoaded: true, groups: [...action.groups].sort(byActivity), relays };
     }
+    case 'group': {
+      const g = action.group;
+      return {
+        ...state,
+        groups: [g, ...state.groups.filter((x) => x.id !== g.id)].sort(byActivity),
+        relays: { ...state.relays, [g.id]: g.relay ?? undefined },
+      };
+    }
     case 'members':
       return { ...state, members: action.members };
     case 'adapters':
@@ -72,22 +80,23 @@ function reducer(state: State, action: Action): State {
         ...state,
         messages: { ...state.messages, [action.groupId]: mergeMessages(state.messages[action.groupId], action.messages) },
       };
-    case 'event':
-      return applyEvent(state, action.event);
+    case 'chat':
+      return applyChatEvent(state, action.event);
   }
 }
 
-function applyEvent(state: State, event: ServerEvent): State {
+function applyChatEvent(state: State, event: ChatEvent): State {
   switch (event.type) {
     case 'message': {
       const m = event.message;
       const groups = state.groups
         .map((g) => (g.id === m.groupId ? { ...g, lastMessage: m, lastActivityAt: m.createdAt } : g))
         .sort(byActivity);
-      const messages = state.messages[m.groupId]
-        ? { ...state.messages, [m.groupId]: mergeMessages(state.messages[m.groupId], [m]) }
-        : state.messages;
-      return { ...state, groups, messages };
+      return {
+        ...state,
+        groups,
+        messages: { ...state.messages, [m.groupId]: mergeMessages(state.messages[m.groupId], [m]) },
+      };
     }
     case 'typing': {
       const current = (state.typing[event.groupId] ?? []).filter((id) => id !== event.memberId);
@@ -101,13 +110,12 @@ function applyEvent(state: State, event: ServerEvent): State {
         ...state,
         relays: { ...state.relays, [event.relay.groupId]: event.relay.active ? event.relay : undefined },
       };
-    default:
-      return state;
   }
 }
 
 interface Store extends State {
   api: Api | null;
+  dispatch: React.Dispatch<Action>;
   connect(settings: ConnectionSettings): Promise<void>;
   disconnect(): Promise<void>;
   refreshGroups(): Promise<void>;
@@ -123,7 +131,6 @@ const StoreContext = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initial);
   const api = useMemo(() => (state.settings ? createApi(state.settings) : null), [state.settings]);
-  const loadedGroups = useRef(new Set<string>());
 
   useEffect(() => {
     loadSettings()
@@ -144,83 +151,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const loadMessages = useCallback(
     async (groupId: string) => {
-      if (!api) return;
-      loadedGroups.current.add(groupId);
-      dispatch({ type: 'messages', groupId, messages: await api.messages(groupId) });
+      if (api) dispatch({ type: 'messages', groupId, messages: await api.messages(groupId) });
     },
     [api],
   );
 
-  // Initial load and live updates over WebSocket, reconnecting with backoff.
+  // Group-list connection (/ws): stays open while the App is connected.
   useEffect(() => {
     if (!api || !state.settings) return;
-    loadedGroups.current.clear();
     refreshGroups().catch(() => {});
     refreshMembers().catch(() => {});
-
-    let ws: WebSocket | null = null;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let attempt = 0;
-    let closed = false;
-    const { serverUrl, token } = state.settings;
-
-    const open = () => {
-      if (closed) return;
-      dispatch({ type: 'status', status: 'connecting' });
-      ws = new WebSocket(socketUrl(serverUrl));
-      ws.onopen = () => ws?.send(JSON.stringify({ type: 'auth', token }));
-      ws.onmessage = (e) => {
-        let event: ServerEvent;
-        try {
-          event = JSON.parse(String(e.data));
-        } catch {
-          return;
-        }
-        if (event.type === 'hello') {
-          const reconnect = attempt > 0;
-          attempt = 0;
-          dispatch({ type: 'status', status: 'online' });
-          if (reconnect) {
-            // Catch up on anything missed while disconnected.
-            refreshGroups().catch(() => {});
-            loadedGroups.current.forEach((id) => loadMessages(id).catch(() => {}));
-          }
-        } else if (event.type === 'groups_changed') {
-          refreshGroups().catch(() => {});
-        } else if (event.type === 'members_changed') {
-          refreshMembers().catch(() => {});
-        } else {
-          dispatch({ type: 'event', event });
-        }
-      };
-      ws.onclose = () => {
-        ws = null;
-        if (closed) return;
-        dispatch({ type: 'status', status: 'offline' });
-        attempt += 1;
-        retry = setTimeout(open, Math.min(30000, 1000 * 2 ** Math.min(attempt, 5)));
-      };
-    };
-    open();
-
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active' && !ws) {
-        clearTimeout(retry);
-        open();
-      }
+    return openSocket({
+      url: socketUrl(state.settings.serverUrl),
+      token: state.settings.token,
+      onStatus: (status) => dispatch({ type: 'status', status }),
+      onReconnect: () => refreshGroups().catch(() => {}),
+      onEvent: (event: ListEvent) => {
+        if (event.type === 'group_updated') dispatch({ type: 'group', group: event.group });
+        else if (event.type === 'groups_changed') refreshGroups().catch(() => {});
+        else if (event.type === 'members_changed') refreshMembers().catch(() => {});
+      },
     });
-
-    return () => {
-      closed = true;
-      clearTimeout(retry);
-      sub.remove();
-      ws?.close();
-    };
-  }, [api, state.settings, refreshGroups, refreshMembers, loadMessages]);
+  }, [api, state.settings, refreshGroups, refreshMembers]);
 
   const store: Store = {
     ...state,
     api,
+    dispatch,
     async connect(settings) {
       // Verify before saving so a typo never locks the user out.
       await createApi(settings).groups();
@@ -237,11 +194,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async send(groupId, content) {
       if (!api) return;
       const message = await api.send(groupId, content);
-      dispatch({ type: 'event', event: { type: 'message', message } });
+      dispatch({ type: 'chat', event: { type: 'message', message } });
     },
     upsertGroup(group) {
-      const others = state.groups.filter((g) => g.id !== group.id);
-      dispatch({ type: 'groups', groups: [group, ...others] });
+      dispatch({ type: 'group', group });
     },
   };
 
@@ -252,4 +208,30 @@ export function useStore(): Store {
   const store = useContext(StoreContext);
   if (!store) throw new Error('useStore must be used inside StoreProvider');
   return store;
+}
+
+/**
+ * Chat connection (/ws/groups/:id) for the group on screen: loads its history
+ * and streams new messages, typing and relay progress while mounted.
+ */
+export function useGroupChannel(groupId: string | undefined): { status: SocketStatus; error: string | null } {
+  const { settings, dispatch, loadMessages } = useStore();
+  const [status, setStatus] = useState<SocketStatus>('connecting');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!groupId || !settings) return;
+    setError(null);
+    const load = () => loadMessages(groupId).then(() => setError(null), (e) => setError(e.message));
+    load();
+    return openSocket({
+      url: socketUrl(settings.serverUrl, groupId),
+      token: settings.token,
+      onStatus: setStatus,
+      onReconnect: load,
+      onEvent: (event: ChatEvent) => dispatch({ type: 'chat', event }),
+    });
+  }, [groupId, settings, dispatch, loadMessages]);
+
+  return { status, error };
 }

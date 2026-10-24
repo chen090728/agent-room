@@ -16,8 +16,9 @@ export function normalizeServerUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
 
-export function socketUrl(serverUrl: string): string {
-  return `${serverUrl.replace(/^http/i, 'ws')}/ws`;
+/** /ws for the group list, /ws/groups/:id for one group's chat. */
+export function socketUrl(serverUrl: string, groupId?: string): string {
+  return `${serverUrl.replace(/^http/i, 'ws')}/ws${groupId ? `/groups/${groupId}` : ''}`;
 }
 
 export function createApi({ serverUrl, token }: ConnectionSettings) {

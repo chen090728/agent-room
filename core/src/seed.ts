@@ -1,4 +1,4 @@
-import type { Repo } from './db/repo.js';
+import type { Directory } from './directory.js';
 import type { MemberColor } from './types.js';
 
 const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies: string[] }[] = [
@@ -37,29 +37,31 @@ const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies
   },
 ];
 
-/** On first start (empty database) creates a demo group with mock members. */
-export function seedIfEmpty(repo: Repo): boolean {
-  if (!repo.isEmpty()) return false;
-  const members = DEMO_MEMBERS.map((m) =>
-    repo.createMember({
+export const WELCOME_MESSAGE =
+  '欢迎来到演示群！这里的三位都是模拟成员，不需要任何 Key。试试发送「@小橙 你好」，或者同时 @ 好几位，看看成员之间怎么接力。';
+
+/**
+ * On first start (no members, no groups) creates a demo group with mock
+ * members. `addWelcome` posts the welcome notice into the new group.
+ */
+export async function seedIfEmpty(
+  directory: Directory,
+  addWelcome: (groupId: string, content: string) => Promise<unknown>,
+): Promise<boolean> {
+  if (!(await directory.isEmpty())) return false;
+  const ids: string[] = [];
+  for (const m of DEMO_MEMBERS) {
+    const created = await directory.createMember({
       name: m.name,
       type: 'mock',
       color: m.color,
       persona: m.persona,
       config: { replies: JSON.stringify(m.replies), mentionRate: '0.85' },
       secrets: {},
-    }),
-  );
-  const group = repo.createGroup(
-    '演示群',
-    members.map((m) => m.id),
-  );
-  repo.addMessage({
-    groupId: group.id,
-    senderKind: 'system',
-    senderId: null,
-    senderName: '系统',
-    content: '欢迎来到演示群！这里的三位都是模拟成员，不需要任何 Key。试试发送「@小橙 你好」，或者同时 @ 好几位，看看成员之间怎么接力。',
-  });
+    });
+    if (created.ok) ids.push(created.value.id);
+  }
+  const group = await directory.createGroup('演示群', ids);
+  if (group.ok) await addWelcome(group.value.id, WELCOME_MESSAGE);
   return true;
 }

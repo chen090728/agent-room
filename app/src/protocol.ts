@@ -72,10 +72,14 @@ export interface AdapterInfo {
   fields: FieldSpec[];
 }
 
-export type ServerEvent =
-  | { type: 'hello' }
+/** Events for one group's chat, sent over /ws/groups/:id. */
+export type ChatEvent =
   | { type: 'message'; message: Message }
   | { type: 'typing'; groupId: string; memberId: string; active: boolean }
-  | { type: 'relay'; relay: RelayState }
+  | { type: 'relay'; relay: RelayState };
+
+/** Events for the group list, sent over /ws. */
+export type ListEvent =
+  | { type: 'group_updated'; group: GroupSummary }
   | { type: 'groups_changed' }
   | { type: 'members_changed' };
