@@ -12,7 +12,8 @@ export default function RootLayout() {
         <StoreProvider>
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-            <Stack.Screen name="(drawer)" />
+            <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colors.homeBg } }} />
+            <Stack.Screen name="chat/[id]" />
             <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="member/new" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="group/new" options={{ animation: 'slide_from_bottom' }} />

@@ -1,21 +1,21 @@
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import type { DrawerNavigationProp } from 'expo-router/drawer';
-import { useCallback, useEffect, useMemo } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Composer } from '../../../components/Composer';
-import { AddPersonIcon, MenuIcon, NewChatIcon } from '../../../components/Icons';
-import { buildRows, MessageItem, TypingRow } from '../../../components/MessageItem';
-import { OrbRow } from '../../../components/Orb';
-import { RoundButton } from '../../../components/ui';
-import type { RelayState } from '../../../protocol';
-import { saveLastGroupId } from '../../../storage';
-import { useGroupChannel, useStore } from '../../../store';
-import { colors, shadows, type OrbColor } from '../../../theme';
+import { MacDots } from '../../components/Avatar';
+import { Composer } from '../../components/Composer';
+import { AddPersonIcon, MenuIcon, NewChatIcon } from '../../components/Icons';
+import { buildRows, MessageItem, TypingRow } from '../../components/MessageItem';
+import { RelayDots } from '../../components/RelayDots';
+import { RoundButton } from '../../components/ui';
+import type { RelayState } from '../../protocol';
+import { useGroupChannel, useStore } from '../../store';
+import { colors, shadows, type Avatar } from '../../theme';
+
+const FALLBACK_AVATAR: Avatar = { shape: 'circle', color: 'gray' };
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const navigation = useNavigation<DrawerNavigationProp<Record<string, object | undefined>>>();
   const store = useStore();
   const { send } = store;
   const group = store.groups.find((g) => g.id === id);
@@ -25,21 +25,19 @@ export default function ChatScreen() {
   const channel = useGroupChannel(group ? id : undefined);
   const error = channel.error;
 
-  useEffect(() => {
-    if (id) saveLastGroupId(id).catch(() => {});
-  }, [id]);
+  const goHome = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-  // Colors of members who have left the group are looked up from all members.
-  const colorOf = useCallback(
-    (memberId: string | null): OrbColor =>
-      group?.members.find((m) => m.id === memberId)?.color ??
-      store.members.find((m) => m.id === memberId)?.color ??
-      'graphite',
+  // Members who have left the group are looked up among all assistants.
+  const avatarOf = useCallback(
+    (memberId: string | null): Avatar =>
+      group?.members.find((m) => m.id === memberId)?.avatar ??
+      store.members.find((m) => m.id === memberId)?.avatar ??
+      FALLBACK_AVATAR,
     [group, store.members],
   );
 
   // The list is inverted so it starts at the bottom; rows go newest first.
-  const rows = useMemo(() => buildRows(messages ?? [], colorOf).reverse(), [messages, colorOf]);
+  const rows = useMemo(() => buildRows(messages ?? [], avatarOf).reverse(), [messages, avatarOf]);
 
   const onSend = async (content: string) => {
     try {
@@ -54,24 +52,29 @@ export default function ChatScreen() {
     return (
       <SafeAreaView style={styles.empty}>
         <Text style={styles.emptyText}>{store.groupsLoaded ? '群聊不存在' : '加载中…'}</Text>
+        <Pressable accessibilityRole="button" onPress={goHome}>
+          <Text style={styles.link}>回到列表</Text>
+        </Pressable>
       </SafeAreaView>
     );
   }
+
+  const direct = group.kind === 'direct';
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.root} behavior="padding">
         <View style={styles.header}>
-          <RoundButton label="打开群聊列表" onPress={() => navigation.openDrawer()}>
+          <RoundButton label="回到助手和群聊" onPress={goHome}>
             <MenuIcon />
           </RoundButton>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${group.name}，查看群成员`}
-            onPress={() => router.push({ pathname: '/group/[id]/members', params: { id } })}
+            accessibilityLabel={direct ? group.name : `${group.name}，查看群成员`}
+            onPress={direct ? undefined : () => router.push({ pathname: '/group/[id]/members', params: { id } })}
             style={styles.titlePill}
           >
-            {group.members.length > 0 && <OrbRow memberColors={group.members.slice(0, 3).map((m) => m.color)} r={6} gap={-2} />}
+            <MacDots small />
             <Text style={styles.titleText} numberOfLines={1}>
               {group.name}
             </Text>
@@ -80,12 +83,7 @@ export default function ChatScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel="新建群聊" onPress={() => router.push('/group/new')} style={styles.action}>
               <NewChatIcon />
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="新建助手"
-              onPress={() => router.push({ pathname: '/member/new', params: { groupId: id } })}
-              style={styles.action}
-            >
+            <Pressable accessibilityRole="button" accessibilityLabel="新建助手" onPress={() => router.push('/member/new')} style={styles.action}>
               <AddPersonIcon />
             </Pressable>
           </View>
@@ -107,19 +105,21 @@ export default function ChatScreen() {
             <View>
               {typing.map((memberId) => {
                 const m = group.members.find((x) => x.id === memberId);
-                return m ? <TypingRow key={memberId} name={m.name} color={m.color} /> : null;
+                return m ? <TypingRow key={memberId} name={m.name} avatar={m.avatar} /> : null;
               })}
             </View>
           }
           ListEmptyComponent={
-            <Text style={styles.emptyText}>{error ?? (messages ? '还没有消息，@ 一位成员开始聊天吧' : '加载中…')}</Text>
+            <Text style={styles.emptyText}>
+              {error ?? (messages ? (direct ? '发一句话，开始聊天吧' : '还没有消息，@ 一位成员开始聊天吧') : '加载中…')}
+            </Text>
           }
         />
 
         {relay && <RelayBar relay={relay} />}
 
         <View style={styles.composer}>
-          <Composer members={group.members} onSend={onSend} />
+          <Composer members={group.members} onSend={onSend} placeholder={direct ? `给${group.name}发消息` : '给群里发消息，@ 点名'} showMention={!direct} />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -127,12 +127,9 @@ export default function ChatScreen() {
 }
 
 function RelayBar({ relay }: { relay: RelayState }) {
-  const dots: (OrbColor | string)[] = Array.from({ length: relay.maxHops }, (_, i) =>
-    i < relay.hop ? (relay.trail[i] ?? 'graphite') : colors.idleDot,
-  );
   return (
-    <View style={styles.relay} accessibilityLabel={`接力 ${relay.hop} / ${relay.maxHops}`}>
-      <OrbRow memberColors={dots} r={3.5} gap={2.5} />
+    <View style={styles.relay}>
+      <RelayDots relay={relay} r={3.5} gap={2.5} />
       <Text style={styles.relayText}>
         接力 {relay.hop} / {relay.maxHops}
       </Text>
@@ -176,6 +173,7 @@ const styles = StyleSheet.create({
   relay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 12 },
   relayText: { fontSize: 12, color: colors.textSecondary },
   composer: { paddingBottom: 10 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg, gap: 8 },
   emptyText: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, paddingVertical: 24 },
+  link: { fontSize: 14, color: colors.text, textDecorationLine: 'underline' },
 });

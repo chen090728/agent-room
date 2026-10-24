@@ -281,7 +281,7 @@ export class SqlDirectory implements Directory {
   }
 
   async listGroups() {
-    return this.db.all<GroupRow>('SELECT * FROM groups ORDER BY last_activity_at DESC').map((r) => this.summary(r));
+    return this.db.all<GroupRow>('SELECT * FROM groups ORDER BY last_activity_at DESC, rowid ASC').map((r) => this.summary(r));
   }
 
   async getGroup(id: string) {

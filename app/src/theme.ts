@@ -1,5 +1,6 @@
 export const colors = {
   bg: '#F9F9F8',
+  homeBg: '#FBFBFA',
   surface: '#FFFFFF',
   text: '#1F1F1F',
   textSecondary: '#6B6B6B',
@@ -21,17 +22,68 @@ export const shadows = {
   card: '0 1px 2px rgba(0,0,0,0.03)',
   button: '0 8px 24px rgba(0,0,0,0.14)',
   segment: '0 1px 3px rgba(0,0,0,0.07)',
+  popover: '0 12px 32px rgba(0,0,0,0.12)',
+  bar: '0 8px 24px rgba(0,0,0,0.08)',
 };
 
-export const ORB_COLORS = ['orange', 'blue', 'green', 'purple', 'red', 'graphite'] as const;
-export type OrbColor = (typeof ORB_COLORS)[number];
+// Avatars are coloured blobs with white eyes: 12 shapes x 11 colours.
+export const AVATAR_SHAPES = ['circle', 'cloud', 'square', 'flower', 'egg', 'hexagon', 'triangle', 'capsule', 'star', 'diamond', 'drop', 'bean'] as const;
+export type AvatarShape = (typeof AVATAR_SHAPES)[number];
 
-/** Radial gradient stops (highlight, body, edge) for each glossy orb color. */
-export const orbPalette: Record<OrbColor, { stops: [string, string, string]; label: string }> = {
-  orange: { stops: ['#FFE0CC', '#F4844F', '#D2562A'], label: '橙色' },
-  blue: { stops: ['#DCE6FF', '#6A8FF7', '#2E57D2'], label: '蓝色' },
-  green: { stops: ['#D3F5E4', '#3EC08A', '#148A5A'], label: '绿色' },
-  purple: { stops: ['#E8E0FF', '#9478F2', '#5C3FCF'], label: '紫色' },
-  red: { stops: ['#FFD9DA', '#EE6B6E', '#C73C40'], label: '红色' },
-  graphite: { stops: ['#EDEDED', '#7A7A7A', '#2A2A2A'], label: '石墨' },
+export const SHAPE_LABELS: Record<AvatarShape, string> = {
+  circle: '圆形',
+  cloud: '云朵',
+  square: '方块',
+  flower: '四叶花',
+  egg: '蛋形',
+  hexagon: '六边形',
+  triangle: '三角',
+  capsule: '胶囊',
+  star: '星星',
+  diamond: '菱形',
+  drop: '水滴',
+  bean: '豆子',
 };
+
+export const AVATAR_COLORS = ['black', 'brown', 'red', 'orange', 'apricot', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'] as const;
+export type AvatarColor = (typeof AVATAR_COLORS)[number];
+
+export const COLOR_HEX: Record<AvatarColor, string> = {
+  black: '#1F1F1F',
+  brown: '#8B6343',
+  red: '#E5484D',
+  orange: '#EE7032',
+  apricot: '#F2A33A',
+  green: '#4CC277',
+  teal: '#4FB9A8',
+  blue: '#3E86F5',
+  purple: '#8B5CF6',
+  pink: '#EC4899',
+  gray: '#7A7A7A',
+};
+
+export const COLOR_LABELS: Record<AvatarColor, string> = {
+  black: '黑色',
+  brown: '棕色',
+  red: '红色',
+  orange: '橙色',
+  apricot: '杏色',
+  green: '绿色',
+  teal: '青色',
+  blue: '蓝色',
+  purple: '紫色',
+  pink: '粉色',
+  gray: '灰色',
+};
+
+export interface Avatar {
+  shape: AvatarShape;
+  color: AvatarColor;
+}
+
+/** The three window-control colours used as the AgentHub mark. */
+export const MAC_DOTS = [
+  { fill: '#FF5F57', stroke: '#E0443E' },
+  { fill: '#FEBC2E', stroke: '#DEA123' },
+  { fill: '#28C840', stroke: '#1AAB29' },
+] as const;

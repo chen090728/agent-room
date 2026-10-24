@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MemberView } from '../protocol';
 import { colors } from '../theme';
-import { Orb } from './Orb';
+import { Blob } from './Avatar';
 import { Card, CheckCircle } from './ui';
 
 /** Card listing members with a check circle each. */
@@ -29,10 +29,11 @@ export function MemberChecklist({
               onPress={() => onToggle(m.id)}
               style={styles.row}
             >
-              <Orb color={m.color} size={32} />
+              <Blob avatar={m.avatar} size={34} />
               <View style={styles.text}>
                 <Text style={styles.name}>{m.name}</Text>
                 <Text style={styles.sub} numberOfLines={1}>
+                  {m.role ? `${m.role} · ` : ''}
                   {m.typeLabel}
                   {m.secrets.apiKey ? ` · ${m.secrets.apiKey}` : ''}
                   {m.persona ? ` · ${m.persona}` : ''}

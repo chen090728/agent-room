@@ -1,5 +1,5 @@
 // Mirrors the server's API shapes (server/src/types.ts and server/src/server.ts).
-import type { OrbColor } from './theme';
+import type { Avatar, AvatarColor } from './theme';
 
 export type SenderKind = 'user' | 'member' | 'system';
 
@@ -23,19 +23,26 @@ export interface RelayState {
   maxHops: number;
   replies: number;
   maxReplies: number;
-  trail: OrbColor[];
+  trail: AvatarColor[];
+  /** Name of the member currently writing a reply. */
+  thinking: string | null;
 }
 
 export interface GroupMemberRef {
   id: string;
   name: string;
-  color: OrbColor;
+  avatar: Avatar;
+  role: string;
   type: string;
 }
+
+/** 'direct' is a one-to-one chat with a single assistant. */
+export type GroupKind = 'group' | 'direct';
 
 export interface GroupSummary {
   id: string;
   name: string;
+  kind: GroupKind;
   createdAt: number;
   members: GroupMemberRef[];
   lastMessage: Message | null;
@@ -48,7 +55,8 @@ export interface MemberView {
   name: string;
   type: string;
   typeLabel: string;
-  color: OrbColor;
+  avatar: Avatar;
+  role: string;
   persona: string;
   config: Record<string, string>;
   /** Masked previews of stored secrets, e.g. { apiKey: 'sk-…abcd' }. */

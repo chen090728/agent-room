@@ -2,20 +2,20 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { separatorTime } from '../format';
 import type { Message } from '../protocol';
-import { colors, shadows, type OrbColor } from '../theme';
-import { Orb } from './Orb';
+import { colors, shadows, type Avatar } from '../theme';
+import { Blob } from './Avatar';
 
 export type ChatRow =
   | { kind: 'time'; key: string; at: number }
-  | { kind: 'message'; key: string; message: Message; color: OrbColor };
+  | { kind: 'message'; key: string; message: Message; avatar: Avatar };
 
 /** Inserts a time separator before messages that follow a 5-minute gap. */
-export function buildRows(messages: Message[], colorOf: (memberId: string | null) => OrbColor): ChatRow[] {
+export function buildRows(messages: Message[], avatarOf: (memberId: string | null) => Avatar): ChatRow[] {
   const rows: ChatRow[] = [];
   let prev = 0;
   for (const m of messages) {
     if (m.createdAt - prev > 5 * 60 * 1000) rows.push({ kind: 'time', key: `t-${m.id}`, at: m.createdAt });
-    rows.push({ kind: 'message', key: m.id, message: m, color: colorOf(m.senderId) });
+    rows.push({ kind: 'message', key: m.id, message: m, avatar: avatarOf(m.senderId) });
     prev = m.createdAt;
   }
   return rows;
@@ -23,7 +23,7 @@ export function buildRows(messages: Message[], colorOf: (memberId: string | null
 
 export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) {
   if (row.kind === 'time') return <Text style={styles.time}>{separatorTime(row.at)}</Text>;
-  const { message: m, color } = row;
+  const { message: m, avatar } = row;
 
   if (m.senderKind === 'system') return <Text style={styles.system}>{m.content}</Text>;
 
@@ -40,7 +40,7 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
   return (
     <View style={styles.theirs}>
       <View style={styles.sender}>
-        <Orb color={color} size={18} />
+        <Blob avatar={avatar} size={28} />
         <Text style={styles.senderName}>{m.senderName}</Text>
       </View>
       <View style={styles.bubble}>
@@ -52,10 +52,10 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
   );
 });
 
-export function TypingRow({ name, color }: { name: string; color: OrbColor }) {
+export function TypingRow({ name, avatar }: { name: string; avatar: Avatar }) {
   return (
     <View style={styles.typing}>
-      <Orb color={color} size={18} />
+      <Blob avatar={avatar} size={28} />
       <Text style={styles.typingText}>{name} 正在思考</Text>
     </View>
   );

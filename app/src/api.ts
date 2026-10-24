@@ -1,6 +1,6 @@
 import type { AdapterInfo, GroupSummary, MemberView, Message } from './protocol';
 import type { ConnectionSettings } from './storage';
-import type { OrbColor } from './theme';
+import type { Avatar } from './theme';
 
 export class ApiError extends Error {
   constructor(
@@ -64,10 +64,12 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
     createMember: (input: {
       name: string;
       type: string;
-      color: OrbColor;
+      avatar: Avatar;
+      role: string;
       persona: string;
       config: Record<string, string>;
     }) => post<MemberView>('/api/members', input),
+    deleteMember: (id: string) => request<{ ok: true }>(`/api/members/${id}`, { method: 'DELETE' }),
   };
 }
 

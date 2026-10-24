@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CloseIcon, LockIcon } from '../../components/Icons';
-import { Orb, OrbPreview } from '../../components/Orb';
+import { AvatarPicker } from '../../components/AvatarPicker';
 import { Card, ErrorText, FieldRow, PrimaryButton, RoundButton, ScreenHeader, SectionLabel, Switch } from '../../components/ui';
 import { useStore } from '../../store';
-import { colors, ORB_COLORS, orbPalette, shadows, type OrbColor } from '../../theme';
+import { colors, shadows, type Avatar } from '../../theme';
 
 // The App's "chat assistant" with the mock switch off maps to this adapter;
 // its input fields come from the server, so new fields need no App change.
@@ -17,8 +17,9 @@ export default function NewMemberScreen() {
   const { api, adapters, groups, refreshGroups } = useStore();
   const group = groups.find((g) => g.id === groupId);
 
-  const [color, setColor] = useState<OrbColor>('purple');
+  const [avatar, setAvatar] = useState<Avatar>({ shape: 'cloud', color: 'teal' });
   const [name, setName] = useState('');
+  const [role, setRole] = useState('');
   const [persona, setPersona] = useState('');
   const [mock, setMock] = useState(false);
   const [config, setConfig] = useState<Record<string, string>>({});
@@ -37,7 +38,8 @@ export default function NewMemberScreen() {
       const member = await api.createMember({
         name: name.trim(),
         type: mock ? 'mock' : CHAT_ADAPTER,
-        color,
+        avatar,
+        role: role.trim(),
         persona: persona.trim(),
         config: mock ? {} : config,
       });
@@ -65,26 +67,11 @@ export default function NewMemberScreen() {
           }
         />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.avatar}>
-            <OrbPreview color={color} />
-            <View style={styles.swatches}>
-              {ORB_COLORS.map((c) => (
-                <Pressable
-                  key={c}
-                  accessibilityRole="button"
-                  accessibilityLabel={orbPalette[c].label}
-                  accessibilityState={{ selected: c === color }}
-                  onPress={() => setColor(c)}
-                  style={[styles.swatch, c === color && styles.swatchOn]}
-                >
-                  <Orb color={c} size={28} />
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <AvatarPicker value={avatar} onChange={setAvatar} />
 
           <Card>
-            <FieldRow first label="名字" value={name} onChangeText={setName} placeholder="例如：小紫" maxLength={20} />
+            <FieldRow first label="名字" value={name} onChangeText={setName} placeholder="例如：小青" maxLength={20} />
+            <FieldRow label="角色标签" value={role} onChangeText={setRole} placeholder="例如：产品经理" maxLength={20} />
             <FieldRow
               label="人设"
               value={persona}
@@ -143,7 +130,7 @@ export default function NewMemberScreen() {
             </Card>
           </View>
 
-          {group && (
+          {group && group.kind === 'group' && (
             <Card>
               <View style={styles.switchRow}>
                 <View style={styles.switchText}>
@@ -170,19 +157,6 @@ export default function NewMemberScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 30, paddingBottom: 20, gap: 26 },
-  avatar: { alignItems: 'center', gap: 22 },
-  swatches: { flexDirection: 'row', gap: 14 },
-  swatch: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swatchOn: { borderColor: colors.text },
   section: { gap: 10 },
   segment: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.selected, borderRadius: 16 },
   segmentItem: { flex: 1, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

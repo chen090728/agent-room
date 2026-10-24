@@ -3,14 +3,19 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeServerUrl } from '../api';
+import { MacDots, MeAvatar } from '../components/Avatar';
+import { AvatarPicker } from '../components/AvatarPicker';
 import { CloseIcon, LockIcon } from '../components/Icons';
-import { OrbRow } from '../components/Orb';
 import { Card, ErrorText, FieldRow, PrimaryButton, RoundButton, ScreenHeader, SectionLabel } from '../components/ui';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { colors, type Avatar } from '../theme';
+
+const DEFAULT_PICK: Avatar = { shape: 'cloud', color: 'teal' };
 
 export default function SettingsScreen() {
-  const { settings, status, connect, disconnect } = useStore();
+  const { settings, status, profile, connect, disconnect, updateProfile } = useStore();
+  const [nickname, setNickname] = useState(profile.nickname);
+  const [avatar, setAvatar] = useState<Avatar | null>(profile.avatar);
   const [serverUrl, setServerUrl] = useState(settings?.serverUrl ?? '');
   // The saved token is never shown again; leave empty to keep it.
   const [token, setToken] = useState('');
@@ -21,12 +26,14 @@ export default function SettingsScreen() {
   const url = normalizeServerUrl(serverUrl);
   const validUrl = /^https?:\/\/\S+$/i.test(url);
   const effectiveToken = token.trim() || settings?.token || '';
+  const connectionChanged = firstRun || url !== settings?.serverUrl || !!token.trim();
 
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      await connect({ serverUrl: url, token: effectiveToken });
+      if (connectionChanged) await connect({ serverUrl: url, token: effectiveToken });
+      await updateProfile({ nickname: nickname.trim() || '我', avatar });
       if (router.canGoBack()) router.back();
       else router.replace('/');
     } catch (e) {
@@ -65,11 +72,31 @@ export default function SettingsScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {firstRun && (
             <View style={styles.intro}>
-              <OrbRow memberColors={['orange', 'blue', 'green']} r={10} gap={0} />
+              <MacDots />
               <Text style={styles.introTitle}>欢迎使用 AgentHub</Text>
-              <Text style={styles.introText}>填写你自己部署的服务器地址和访问令牌（服务器 .env 里的 AGENTHUB_TOKEN）。</Text>
+              <Text style={styles.introText}>填写你自己部署的服务器地址和访问令牌（服务器的 AGENTHUB_TOKEN）。</Text>
             </View>
           )}
+
+          <View style={styles.section}>
+            <SectionLabel>我</SectionLabel>
+            <AvatarPicker
+              value={avatar ?? DEFAULT_PICK}
+              onChange={setAvatar}
+              preview={<MeAvatar avatar={avatar} size={104} />}
+            />
+            {avatar && (
+              <Pressable accessibilityRole="button" onPress={() => setAvatar(null)} style={styles.resetAvatar}>
+                <Text style={styles.resetText}>使用默认头像</Text>
+              </Pressable>
+            )}
+            <Card>
+              <FieldRow first label="昵称" value={nickname} onChangeText={setNickname} placeholder="我" maxLength={20} />
+            </Card>
+            <View style={styles.note}>
+              <Text style={styles.noteText}>昵称和头像只保存在这台手机上。</Text>
+            </View>
+          </View>
 
           <View style={styles.section}>
             <SectionLabel
@@ -87,7 +114,7 @@ export default function SettingsScreen() {
                 label="服务器地址"
                 value={serverUrl}
                 onChangeText={setServerUrl}
-                placeholder="https://agenthub.example.com"
+                placeholder="https://agenthub.example.workers.dev"
                 autoCapitalize="none"
                 keyboardType="url"
               />
@@ -114,7 +141,12 @@ export default function SettingsScreen() {
         </ScrollView>
         <View style={styles.footer}>
           <ErrorText>{error}</ErrorText>
-          <PrimaryButton title="连接并保存" onPress={save} disabled={!validUrl || !effectiveToken} busy={busy} />
+          <PrimaryButton
+            title={firstRun ? '连接并保存' : '保存'}
+            onPress={save}
+            disabled={connectionChanged && (!validUrl || !effectiveToken)}
+            busy={busy}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -127,10 +159,12 @@ const styles = StyleSheet.create({
   intro: { alignItems: 'center', gap: 10, paddingVertical: 10 },
   introTitle: { fontSize: 20, fontWeight: '600', color: colors.text, marginTop: 8 },
   introText: { fontSize: 14, lineHeight: 21, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 12 },
-  section: { gap: 10 },
+  section: { gap: 14 },
   status: { fontSize: 12, color: colors.textSecondary },
   note: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
   noteText: { fontSize: 12, color: colors.textSecondary },
+  resetAvatar: { alignSelf: 'center', paddingVertical: 4 },
+  resetText: { fontSize: 13, color: colors.textSecondary, textDecorationLine: 'underline' },
   signOut: { alignItems: 'center', justifyContent: 'center', height: 48 },
   signOutText: { fontSize: 14, color: colors.danger },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },

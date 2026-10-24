@@ -2,9 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { createApi, socketUrl, type Api } from './api';
 import type { AdapterInfo, ChatEvent, GroupSummary, ListEvent, MemberView, Message, RelayState } from './protocol';
 import { openSocket, type SocketStatus } from './socket';
-import { clearSettings, loadSettings, saveSettings, type ConnectionSettings } from './storage';
+import {
+  clearSettings,
+  DEFAULT_PROFILE,
+  loadProfile,
+  loadSettings,
+  saveProfile,
+  saveSettings,
+  type ConnectionSettings,
+  type Profile,
+} from './storage';
 
 interface State {
+  profile: Profile;
   settingsLoaded: boolean;
   settings: ConnectionSettings | null;
   /** Status of the group-list connection. */
@@ -21,6 +31,7 @@ interface State {
 }
 
 type Action =
+  | { type: 'profile'; profile: Profile }
   | { type: 'settings'; settings: ConnectionSettings | null }
   | { type: 'status'; status: SocketStatus }
   | { type: 'groups'; groups: GroupSummary[] }
@@ -31,6 +42,7 @@ type Action =
   | { type: 'chat'; event: ChatEvent };
 
 const initial: State = {
+  profile: DEFAULT_PROFILE,
   settingsLoaded: false,
   settings: null,
   status: 'offline',
@@ -54,8 +66,10 @@ function mergeMessages(existing: Message[] = [], incoming: Message[]): Message[]
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case 'profile':
+      return { ...state, profile: action.profile };
     case 'settings':
-      return { ...initial, settingsLoaded: true, settings: action.settings };
+      return { ...initial, profile: state.profile, settingsLoaded: true, settings: action.settings };
     case 'status':
       return { ...state, status: action.status };
     case 'groups': {
@@ -118,6 +132,7 @@ interface Store extends State {
   dispatch: React.Dispatch<Action>;
   connect(settings: ConnectionSettings): Promise<void>;
   disconnect(): Promise<void>;
+  updateProfile(profile: Profile): Promise<void>;
   refreshGroups(): Promise<void>;
   refreshMembers(): Promise<void>;
   loadMessages(groupId: string): Promise<void>;
@@ -133,6 +148,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const api = useMemo(() => (state.settings ? createApi(state.settings) : null), [state.settings]);
 
   useEffect(() => {
+    loadProfile().then((profile) => dispatch({ type: 'profile', profile }));
     loadSettings()
       .then((settings) => dispatch({ type: 'settings', settings }))
       .catch(() => dispatch({ type: 'settings', settings: null }));
@@ -187,6 +203,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async disconnect() {
       await clearSettings();
       dispatch({ type: 'settings', settings: null });
+    },
+    async updateProfile(profile) {
+      dispatch({ type: 'profile', profile });
+      await saveProfile(profile);
     },
     refreshGroups,
     refreshMembers,

@@ -119,6 +119,20 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 
 `.env` 和数据库文件已被 `.gitignore` 排除，不要提交。
 
+## App 界面
+
+打开 App 直接进入"助手和群聊"页：左上角是"我"的头像（点开进入设置：昵称、头像、服务器地址、访问令牌），
+旁边是三个圆点标志，右上角的加号新建群聊；列表里单聊和群聊混排，按最近消息从新到旧排序；
+左下角的按钮弹出"新建助手 / 新建群聊"，右边是搜索栏。点进聊天页后，左上角的菜单按钮回到这个列表。
+
+- **单聊**：每个助手创建后会自动出现一个只有你和它的单聊，直接发消息就会回复，不需要 @。
+  长按单聊那一行可以删除这个助手。
+- **头像**：12 种形状（带白色眼睛的纯色团子）× 11 种颜色，服务器里保存为 `avatar: { shape, color }`。
+  新建助手时还可以填"角色标签"，显示在名字旁边；模拟助手会标上"· 模拟"。
+- **模型小图标**：非模拟助手的行右侧会显示所用模型的提供方图标，根据模型名和接口地址推断，
+  认不出就用通用图标（图标来自 LobeHub Icons，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
+- **我的昵称和头像**只保存在这台手机上，不会传到服务器。
+
 ## 群聊规则
 
 - **只有被 @ 的成员回复**。一条消息 @ 了多位成员，按顺序依次回复。
@@ -142,8 +156,10 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 
 ### 从旧版本升级
 
-加密格式在 Cloudflare 版开发时改成了 `v2`（HKDF + AES-GCM），数据库表结构也有调整。
-项目还没有正式发布过，所以**不提供迁移**：如果你之前跑过旧版 Node 服务器，请删除 `server/data/` 后重新启动，并在 App 里重新填 Key。
+- 加密格式在 Cloudflare 版开发时改成了 `v2`（HKDF + AES-GCM）。项目还没有正式发布过，所以**不提供旧格式的迁移**：
+  如果你之前跑过最早的 Node 版，请删除 `server/data/` 后重新启动，并在 App 里重新填 Key。
+- 头像、角色标签和单聊是后来加的。从"第一次 Cloudflare 部署"升级到带这些功能的版本时，数据库会**自动迁移**：
+  原来的颜色会对应到一种形状，演示成员补上角色标签，每个已有的助手自动得到一个单聊。
 
 ## 如何新增适配器
 
@@ -224,11 +240,11 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | --- | --- | --- |
 | GET | `/api/health` | 健康检查（不需要令牌），`configured` 表示令牌和密钥是否已配置 |
 | GET | `/api/adapters` | 可用的成员类型及配置字段 |
-| GET / POST | `/api/members` | 成员列表 / 创建成员 |
-| DELETE | `/api/members/:id` | 删除成员 |
-| GET / POST | `/api/groups` | 群列表（按最近活动排序）/ 建群 |
+| GET / POST | `/api/members` | 成员列表 / 创建成员（`name`、`type`、`avatar: {shape, color}`、`role`、`persona`、`config`）；创建时自动生成单聊 |
+| DELETE | `/api/members/:id` | 删除成员（同时删除它的单聊） |
+| GET / POST | `/api/groups` | 群列表（单聊和群聊，`kind` 为 `direct` 或 `group`，按最近活动排序）/ 建群 |
 | GET | `/api/groups/:id` | 群详情 |
-| PUT | `/api/groups/:id/members` | 设置群成员 |
+| PUT | `/api/groups/:id/members` | 设置群成员（单聊不可修改） |
 | GET / POST | `/api/groups/:id/messages` | 历史消息（`?before=<id>&limit=50`）/ 发消息 |
 | WS | `/ws` | 群列表事件：`group_updated`、`groups_changed`、`members_changed` |
 | WS | `/ws/groups/:id` | 单个群的聊天事件：`message`、`typing`、`relay`（接力进度） |
@@ -243,4 +259,4 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 - 不得把本软件作为托管服务或在线服务提供给第三方使用（即不能拿它对外提供 SaaS）。
 - 分发或修改时，需要保留许可证和版权声明，并注明你做了修改。
 
-具体条款以 [LICENSE](LICENSE) 全文为准。
+具体条款以 [LICENSE](LICENSE) 全文为准。第三方组件见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

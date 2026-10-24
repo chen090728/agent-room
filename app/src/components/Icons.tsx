@@ -100,3 +100,35 @@ export function CheckIcon({ size = 14, color = '#FFFFFF' }: IconProps) {
     </Svg>
   );
 }
+
+/** A thin plus, used for "new conversation". */
+export function ThinPlusIcon({ size = 20, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round">
+      <Line x1={12} y1={4.5} x2={12} y2={19.5} />
+      <Line x1={4.5} y1={12} x2={19.5} y2={12} />
+    </Svg>
+  );
+}
+
+/** Squares with a plus: "create something new". */
+export function NewMenuIcon({ size = 22, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x={4} y={4} width={6.5} height={6.5} rx={1.6} />
+      <Rect x={13.5} y={4} width={6.5} height={6.5} rx={1.6} />
+      <Rect x={4} y={13.5} width={6.5} height={6.5} rx={1.6} />
+      <Line x1={16.75} y1={13.5} x2={16.75} y2={20} />
+      <Line x1={13.5} y1={16.75} x2={20} y2={16.75} />
+    </Svg>
+  );
+}
+
+export function SearchIcon({ size = 18, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round">
+      <Circle cx={10.5} cy={10.5} r={6.5} />
+      <Line x1={15.5} y1={15.5} x2={20} y2={20} />
+    </Svg>
+  );
+}

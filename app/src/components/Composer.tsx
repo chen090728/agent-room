@@ -2,14 +2,25 @@ import { useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import type { GroupMemberRef } from '../protocol';
 import { colors, shadows } from '../theme';
+import { Blob } from './Avatar';
 import { PlusIcon, SendIcon } from './Icons';
-import { Orb } from './Orb';
 
 /**
  * Message input. Typing "@" at the end (or tapping +) opens a member picker
  * that inserts "@名字 ".
  */
-export function Composer({ members, onSend }: { members: GroupMemberRef[]; onSend: (text: string) => Promise<void> }) {
+export function Composer({
+  members,
+  onSend,
+  placeholder = '给群里发消息，@ 点名',
+  showMention = true,
+}: {
+  members: GroupMemberRef[];
+  onSend: (text: string) => Promise<void>;
+  placeholder?: string;
+  /** Hide the @ picker, e.g. in a one-to-one chat where nobody else can be addressed. */
+  showMention?: boolean;
+}) {
   const [text, setText] = useState('');
   const [picker, setPicker] = useState(false);
   const [sending, setSending] = useState(false);
@@ -17,7 +28,7 @@ export function Composer({ members, onSend }: { members: GroupMemberRef[]; onSen
 
   const change = (value: string) => {
     // Open the picker right after a freshly typed "@".
-    if (value.length === text.length + 1 && /[@＠]$/.test(value)) setPicker(true);
+    if (showMention && value.length === text.length + 1 && /[@＠]$/.test(value)) setPicker(true);
     else if (picker && !/[@＠]$/.test(value)) setPicker(false);
     setText(value);
   };
@@ -47,7 +58,7 @@ export function Composer({ members, onSend }: { members: GroupMemberRef[]; onSen
 
   return (
     <View style={styles.wrap}>
-      {picker && members.length > 0 && (
+      {showMention && picker && members.length > 0 && (
         <View style={styles.picker}>
           <FlatList
             data={members}
@@ -60,7 +71,7 @@ export function Composer({ members, onSend }: { members: GroupMemberRef[]; onSen
                 onPress={() => pick(item.name)}
                 style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
               >
-                <Orb color={item.color} size={22} />
+                <Blob avatar={item.avatar} size={28} />
                 <Text style={styles.optionText}>{item.name}</Text>
               </Pressable>
             )}
@@ -68,22 +79,19 @@ export function Composer({ members, onSend }: { members: GroupMemberRef[]; onSen
         </View>
       )}
       <View style={styles.bar}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="@ 成员"
-          onPress={() => setPicker((p) => !p)}
-          style={styles.iconButton}
-        >
-          <PlusIcon />
-        </Pressable>
+        {showMention && (
+          <Pressable accessibilityRole="button" accessibilityLabel="@ 成员" onPress={() => setPicker((p) => !p)} style={styles.iconButton}>
+            <PlusIcon />
+          </Pressable>
+        )}
         <TextInput
           ref={input}
           value={text}
           onChangeText={change}
-          placeholder="给群里发消息，@ 点名"
+          placeholder={placeholder}
           placeholderTextColor="#A3A3A0"
           accessibilityLabel="消息"
-          style={styles.input}
+          style={[styles.input, !showMention && styles.inputNoButton]}
           multiline
           maxLength={4000}
         />
@@ -131,6 +139,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     boxShadow: shadows.composer,
   },
+  inputNoButton: { paddingLeft: 14 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, minHeight: 44, maxHeight: 120, fontSize: 14, color: colors.text, paddingTop: 12, paddingBottom: 12 },
   send: {
