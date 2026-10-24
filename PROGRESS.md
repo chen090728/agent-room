@@ -4,12 +4,12 @@
 
 > 每次运行结束时更新本节：本次完成了什么、PR 链接、用户醒来要做什么。
 
-- 状态：**任务 1 代码和文档已完成，PR 开启中**（见下方 PR 链接）。任务 2 起尚未开始。
+- 状态：**任务 1 已完成并开了 PR**。任务 2 起尚未开始。
 - 本次完成（任务 1）：
   - `docs/手机部署指南.md`：从生成令牌开始，含 `AGENTHUB_SECRET` 备份警告、5 个 Secrets、服务器地址在哪找、App 怎么打开、常见问题。
   - README 重写：workspaces 结构、Cloudflare 主推、Node 版保留、两条 WebSocket、新增适配器位置、v2 加密说明。
   - 测试：core 24 + Node 版 7 + Worker 版 7 全部通过；各包 typecheck 和 App `tsc` 通过；`wrangler deploy --dry-run` 打包成功；用 kill 掉 wrangler 再重启的方式验证了接力任务能续跑。
-- PR 链接：（开启后填写）
+- PR 链接：任务 1 → https://github.com/chen090728/agent-room/pull/1
 - 你醒来要做什么：
   1. 按《手机部署指南》生成令牌并填 5 个 GitHub Secrets（这一步只能你自己做）。
   2. 合并任务 1 的 PR 到 `main`，到 Actions 页面看部署结果。
