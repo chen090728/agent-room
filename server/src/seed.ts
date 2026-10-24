@@ -8,7 +8,7 @@ const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies
     persona: '热情的产品经理，点子多，喜欢先抛出方案再拉大家讨论。',
     replies: [
       '我有个想法：先做一个最简单的版本，让用户今天就能用上。',
-      '{sender} 说得对！我们可以把这个拆成三步，第一步先验证需求。',
+      '{sender}说得对！我们可以把这个拆成三步，第一步先验证需求。',
       '要不要加一个新手引导？第一次打开的体验很关键。',
       '我觉得方向没问题，接下来要定优先级。',
     ],
@@ -31,7 +31,7 @@ const DEMO_MEMBERS: { name: string; color: MemberColor; persona: string; replies
     replies: [
       '用户在这一步会不会迷路？我想画个流程图确认一下。',
       '按钮可以再大一点，单手操作更方便。',
-      '{sender} 的方案我喜欢，颜色上可以再柔和一些。',
+      '{sender}的方案我喜欢，颜色上可以再柔和一些。',
       '我们是不是该先找几位用户聊聊？',
     ],
   },

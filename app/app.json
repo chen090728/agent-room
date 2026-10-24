@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "AgentHub",
+    "slug": "agenthub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F9F9F8",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "agenthub",
+    "backgroundColor": "#F9F9F8",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}

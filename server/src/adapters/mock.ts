@@ -11,7 +11,7 @@ import type { MemberAdapter, ReplyContext } from './types.js';
 const GENERIC_REPLIES = [
   '收到，{sender}。我按自己的理解说两句：先把目标说清楚，再定下一步。',
   '这个问题挺有意思，我的看法是先做一个最小版本试试。',
-  '同意 {sender} 的方向，不过细节上还可以再想想。',
+  '同意{sender}的方向，不过细节上还可以再想想。',
   '我补充一点：别忘了考虑用户第一次使用时的感受。',
   '好的，这部分我来跟进。',
 ];
