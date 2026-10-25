@@ -179,7 +179,10 @@ export function BubbleMenu({
             key={item.label}
             accessibilityRole="button"
             accessibilityLabel={item.label}
-            onPress={item.onPress}
+            onPress={() => {
+              onClose();
+              item.onPress();
+            }}
             style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
           >
             {item.icon}
