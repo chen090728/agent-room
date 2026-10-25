@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, type ViewInstance } from 'react-native';
 import Animated, {
   Easing,
   Extrapolation,
@@ -22,6 +22,41 @@ export interface BubbleAnchor {
   y: number;
   width: number;
   height: number;
+}
+
+/**
+ * Finds where a "+" button is, so a BubbleMenu can scale out of it. Put
+ * `rootRef` / `onLayout` on the screen's full-size container and `plusRef` on
+ * a wrapper around the button (with `collapsable={false}`), then call
+ * `measure(() => setOpen(true))` when the button is pressed.
+ */
+export function useBubbleAnchor(topInset: number) {
+  const rootRef = useRef<ViewInstance>(null);
+  const plusRef = useRef<ViewInstance>(null);
+  const rootSize = useRef({ width: 0, height: 0 });
+  const [anchor, setAnchor] = useState<BubbleAnchor | null>(null);
+
+  const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
+    rootSize.current = { width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height };
+  };
+
+  const measure = (done: () => void) => {
+    const fallback = (): BubbleAnchor => ({ x: Math.max(8, rootSize.current.width - 16 - 48), y: topInset + 14, width: 48, height: 48 });
+    const use = (a: BubbleAnchor) => {
+      setAnchor(a);
+      done();
+    };
+    const plus = plusRef.current;
+    const root = rootRef.current;
+    if (!plus || !root) return use(fallback());
+    plus.measureLayout(
+      root,
+      (x, y, width, height) => use(width <= 0 || height <= 0 ? fallback() : { x, y, width, height }),
+      () => use(fallback()),
+    );
+  };
+
+  return { rootRef, plusRef, onLayout, anchor, measure };
 }
 
 export interface BubbleMenuItem {
@@ -144,7 +179,10 @@ export function BubbleMenu({
             key={item.label}
             accessibilityRole="button"
             accessibilityLabel={item.label}
-            onPress={item.onPress}
+            onPress={() => {
+              onClose();
+              item.onPress();
+            }}
             style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
           >
             {item.icon}

@@ -4,7 +4,10 @@
     "slug": "agenthub",
     "version": "1.0.0",
     "orientation": "portrait",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
@@ -26,7 +29,15 @@
     "backgroundColor": "#F9F9F8",
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AgentHub 需要访问相册，用来选择头像和要发送的图片。",
+          "cameraPermission": "AgentHub 需要使用相机，用来拍摄头像。",
+          "microphonePermission": false
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

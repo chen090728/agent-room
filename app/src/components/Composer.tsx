@@ -7,7 +7,7 @@ import type { Attachment, GroupMemberRef } from '../protocol';
 import { colors, shadows } from '../theme';
 import { formatSize } from './Attachments';
 import { Blob } from './Avatar';
-import { AtIcon, CloseIcon, FileIcon, ImageIcon, PlusIcon, SendIcon } from './Icons';
+import { AtIcon, CloseIcon, FileIcon, ImageIcon, LinkIcon, PlusIcon, SendIcon } from './Icons';
 
 export interface PickedFile {
   uri: string;
@@ -35,6 +35,7 @@ export function Composer({
   onUpload,
   placeholder = '给群里发消息，@ 点名',
   showMention = true,
+  onPlugins,
 }: {
   members: GroupMemberRef[];
   onSend: (text: string, attachmentIds: string[]) => Promise<void>;
@@ -42,6 +43,8 @@ export function Composer({
   placeholder?: string;
   /** Hide the @ picker, e.g. in a one-to-one chat where nobody else can be addressed. */
   showMention?: boolean;
+  /** Adds a "插件" entry to the + menu. */
+  onPlugins?: () => void;
 }) {
   const [text, setText] = useState('');
   const [picker, setPicker] = useState(false);
@@ -154,6 +157,17 @@ export function Composer({
           <MenuItem label="文件" onPress={pickDocuments}>
             <FileIcon />
           </MenuItem>
+          {onPlugins && (
+            <MenuItem
+              label="插件"
+              onPress={() => {
+                setMenu(false);
+                onPlugins();
+              }}
+            >
+              <LinkIcon />
+            </MenuItem>
+          )}
           {showMention && (
             <MenuItem
               label="@ 成员"

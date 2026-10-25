@@ -81,7 +81,8 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
   describe(name, () => {
     it('reports health and rejects requests without the access token', async () => {
       const health = await api('/api/health', {}, '');
-      expect(health).toEqual({ status: 200, body: { ok: true, name: 'AgentHub', configured: true } });
+      expect(health).toMatchObject({ status: 200, body: { ok: true, name: 'AgentHub', configured: true } });
+      expect(typeof health.body.files).toBe('boolean');
       expect((await api('/api/groups', {}, 'wrong-token-0000000000')).status).toBe(401);
     });
 
@@ -457,6 +458,43 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           await platforms.close();
           llmServers.forEach((srv) => srv.close());
         }
+      });
+    });
+
+    describe('assistant avatar picture', () => {
+      it('shows an uploaded image as the avatar, validates it, and can clear it', async () => {
+        const health = await api('/api/health', {}, '');
+        const hasFiles = health.body.files === true;
+        const member = (await api('/api/members', { method: 'POST', body: JSON.stringify({ name: '画像员', type: 'mock', avatar: { shape: 'bean', color: 'pink' }, role: '' }) })).body;
+        const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '画像员');
+        const put = (image: unknown) => api(`/api/members/${member.id}/avatar-image`, { method: 'PUT', body: JSON.stringify({ image }) });
+        expect((await put(null)).status).toBe(200);
+        expect((await api('/api/members/nope/avatar-image', { method: 'PUT', body: JSON.stringify({ image: null }) })).status).toBe(404);
+        if (!hasFiles) {
+          expect((await put({ groupId: direct.id, fileId: 'x' })).status).toBe(503);
+          return;
+        }
+        expect((await put({ groupId: direct.id, fileId: 'missing' })).status).toBe(400);
+
+        const png = await fetch(`${target().baseUrl}/api/groups/${direct.id}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${target().token}`, 'Content-Type': 'image/png', 'X-File-Name': 'a.png' }, body: TINY_PNG as BodyInit });
+        const attachment: any = await png.json();
+        const set = await put({ groupId: direct.id, fileId: attachment.id });
+        expect(set.status).toBe(200);
+        expect(set.body.avatar).toEqual({ shape: 'bean', color: 'pink', image: { groupId: direct.id, fileId: attachment.id } });
+        // The picture travels with the member everywhere avatars appear.
+        const listed = (await api('/api/groups')).body.find((g: any) => g.id === direct.id);
+        expect(listed.members[0].avatar.image).toEqual({ groupId: direct.id, fileId: attachment.id });
+        // It can be opened with a signed link, like any uploaded file.
+        const link = await api(`/api/groups/${direct.id}/files/${attachment.id}/link`, { method: 'POST', body: '{}' });
+        expect((await fetch(`${target().baseUrl}${link.body.path}`)).status).toBe(200);
+
+        // A text file is not a picture.
+        const txt = await fetch(`${target().baseUrl}/api/groups/${direct.id}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${target().token}`, 'Content-Type': 'text/plain', 'X-File-Name': 'a.txt' }, body: 'hello' });
+        const txtAttachment: any = await txt.json();
+        expect((await put({ groupId: direct.id, fileId: txtAttachment.id })).status).toBe(400);
+
+        const cleared = await put(null);
+        expect(cleared.body.avatar).toEqual({ shape: 'bean', color: 'pink' });
       });
     });
 

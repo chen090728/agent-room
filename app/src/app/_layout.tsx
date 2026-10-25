@@ -2,8 +2,24 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ChatSettingsSheet } from '../sheet-content/ChatSettingsSheet';
+import { NewGroupSheet } from '../sheet-content/NewGroupSheet';
+import { NewMemberSheet } from '../sheet-content/NewMemberSheet';
+import { PluginDetailSheet } from '../sheet-content/PluginDetailSheet';
+import { PluginsSheet } from '../sheet-content/PluginsSheet';
+import { SettingsSheet } from '../sheet-content/SettingsSheet';
+import { SheetProvider } from '../sheets';
 import { StoreProvider } from '../store';
 import { colors } from '../theme';
+
+const SHEETS = {
+  'member-new': { component: NewMemberSheet },
+  'group-new': { component: NewGroupSheet },
+  settings: { component: SettingsSheet },
+  'chat-settings': { component: ChatSettingsSheet },
+  plugins: { component: PluginsSheet },
+  'plugin-detail': { component: PluginDetailSheet, height: 0.55 },
+};
 
 export default function RootLayout() {
   return (
@@ -11,17 +27,17 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StoreProvider>
           <StatusBar style="dark" />
+          <SheetProvider registry={SHEETS}>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
             <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colors.homeBg } }} />
             <Stack.Screen name="chat/[id]/index" />
-            <Stack.Screen name="chat/[id]/settings" />
-            <Stack.Screen name="integrations/index" />
-            <Stack.Screen name="integrations/new" />
-            <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="member/new" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="member/pair" />
-            <Stack.Screen name="group/new" options={{ animation: 'slide_from_bottom' }} />
+            {/* Invisible routes that open a sheet; see sheetRoute.ts. */}
+            <Stack.Screen name="settings" options={{ presentation: 'transparentModal', animation: 'none' }} />
+            <Stack.Screen name="member/new" options={{ presentation: 'transparentModal', animation: 'none' }} />
+            <Stack.Screen name="group/new" options={{ presentation: 'transparentModal', animation: 'none' }} />
           </Stack>
+          </SheetProvider>
         </StoreProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

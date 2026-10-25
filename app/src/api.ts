@@ -55,6 +55,18 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
 
   return {
     adapters: () => request<AdapterInfo[]>('/api/adapters'),
+    /** Whether the server can store uploaded files (R2 on Cloudflare). */
+    filesEnabled: async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/health`);
+        return !!(await res.json()).files;
+      } catch {
+        return false;
+      }
+    },
+    /** Shows an uploaded picture as the assistant's avatar; null goes back to the blob. */
+    setAvatarImage: (memberId: string, image: { groupId: string; fileId: string } | null) =>
+      request<MemberView>(`/api/members/${memberId}/avatar-image`, { method: 'PUT', body: JSON.stringify({ image }) }),
     groups: () => request<GroupSummary[]>('/api/groups'),
     createGroup: (name: string, memberIds: string[]) => post<GroupSummary>('/api/groups', { name, memberIds }),
     setGroupMembers: (groupId: string, memberIds: string[]) =>

@@ -15,6 +15,8 @@ import {
 
 interface State {
   profile: Profile;
+  /** Whether the server can store files (hides "upload a picture" when it cannot). */
+  filesEnabled: boolean;
   settingsLoaded: boolean;
   settings: ConnectionSettings | null;
   /** Status of the group-list connection. */
@@ -34,6 +36,7 @@ interface State {
 
 type Action =
   | { type: 'profile'; profile: Profile }
+  | { type: 'files'; enabled: boolean }
   | { type: 'settings'; settings: ConnectionSettings | null }
   | { type: 'status'; status: SocketStatus }
   | { type: 'groups'; groups: GroupSummary[] }
@@ -46,6 +49,7 @@ type Action =
 
 const initial: State = {
   profile: DEFAULT_PROFILE,
+  filesEnabled: false,
   settingsLoaded: false,
   settings: null,
   status: 'offline',
@@ -73,6 +77,8 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'profile':
       return { ...state, profile: action.profile };
+    case 'files':
+      return { ...state, filesEnabled: action.enabled };
     case 'settings':
       return { ...initial, profile: state.profile, settingsLoaded: true, settings: action.settings };
     case 'status':
@@ -200,6 +206,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!api || !state.settings) return;
     refreshGroups().catch(() => {});
     refreshMembers().catch(() => {});
+    api.filesEnabled().then((enabled) => dispatch({ type: 'files', enabled }));
     return openSocket({
       url: socketUrl(state.settings.serverUrl),
       token: state.settings.token,

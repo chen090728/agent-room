@@ -79,6 +79,8 @@ export interface Directory {
   getMemberSecrets(id: string): Promise<Record<string, string>>;
   createMember(input: NewMember): Promise<Result<Member>>;
   deleteMember(id: string): Promise<boolean>;
+  /** Sets (or clears, with null) the uploaded picture shown as a member's avatar. */
+  setMemberAvatarImage(id: string, image: { groupId: string; fileId: string } | null): Promise<Result<Member>>;
   listGroups(): Promise<GroupSummary[]>;
   getGroup(id: string): Promise<GroupSummary | null>;
   createGroup(name: string, memberIds: string[]): Promise<Result<GroupSummary>>;
@@ -138,6 +140,7 @@ CREATE TABLE IF NOT EXISTS members (
   config_json TEXT NOT NULL DEFAULT '{}',
   secrets_enc TEXT,
   secret_preview_json TEXT NOT NULL DEFAULT '{}',
+  avatar_image TEXT,
   created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS groups (
@@ -212,6 +215,7 @@ function migrate(db: SqlDriver) {
     db.run(`ALTER TABLE groups ADD COLUMN kind TEXT NOT NULL DEFAULT 'group'`);
     db.run(`ALTER TABLE groups ADD COLUMN direct_member_id TEXT`);
   }
+  if (!has('members', 'avatar_image')) db.run(`ALTER TABLE members ADD COLUMN avatar_image TEXT`);
   if (!has('groups', 'binding_json')) db.run(`ALTER TABLE groups ADD COLUMN binding_json TEXT`);
 }
 
@@ -226,6 +230,7 @@ interface MemberRow {
   config_json: string;
   secrets_enc: string | null;
   secret_preview_json: string;
+  avatar_image: string | null;
   created_at: number;
 }
 
@@ -257,7 +262,7 @@ function toMember(row: MemberRow): Member {
     id: row.id,
     name: row.name,
     type: row.type,
-    avatar: { shape: row.shape as AvatarShape, color: row.color as AvatarColor },
+    avatar: { shape: row.shape as AvatarShape, color: row.color as AvatarColor, ...(row.avatar_image ? { image: JSON.parse(row.avatar_image) } : {}) },
     role: row.role,
     persona: row.persona,
     config: JSON.parse(row.config_json),
@@ -335,6 +340,14 @@ export class SqlDirectory implements Directory {
       );
       this.insertDirect(id, input.name);
     });
+    this.emit({ type: 'members_changed' });
+    this.emit({ type: 'groups_changed' });
+    return { ok: true, value: this.member(id)! };
+  }
+
+  async setMemberAvatarImage(id: string, image: { groupId: string; fileId: string } | null): Promise<Result<Member>> {
+    if (!this.member(id)) return { ok: false, error: '成员不存在' };
+    this.db.run('UPDATE members SET avatar_image = ? WHERE id = ?', image ? JSON.stringify(image) : null, id);
     this.emit({ type: 'members_changed' });
     this.emit({ type: 'groups_changed' });
     return { ok: true, value: this.member(id)! };

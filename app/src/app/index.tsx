@@ -1,9 +1,9 @@
 import { Redirect, router } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View, type ViewInstance } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GroupAvatar, MacDots, MeAvatar } from '../components/Avatar';
-import { BubbleMenu, type BubbleAnchor } from '../components/BubbleMenu';
+import { BubbleMenu, useBubbleAnchor } from '../components/BubbleMenu';
 import { AddPersonIcon, NewChatIcon, SearchIcon, ThinPlusIcon } from '../components/Icons';
 import { ModelIcon } from '../components/ModelIcon';
 import { RelayDots } from '../components/RelayDots';
@@ -44,12 +44,9 @@ function previewText(g: GroupSummary, myName: string): string {
 export default function HomeScreen() {
   const { settingsLoaded, settings, groupsLoaded, groups, members, profile, api, refreshGroups, refreshMembers, status } = useStore();
   const insets = useSafeAreaInsets();
-  const rootRef = useRef<ViewInstance>(null);
-  const plusRef = useRef<ViewInstance>(null);
-  const rootSize = useRef({ width: 0, height: 0 });
+  const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(false);
-  const [anchor, setAnchor] = useState<BubbleAnchor | null>(null);
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const q = query.trim().toLowerCase();
@@ -75,33 +72,7 @@ export default function HomeScreen() {
     router.push(path);
   };
 
-  const openMenu = () => {
-    const plus = plusRef.current;
-    const root = rootRef.current;
-    const fallback = (): BubbleAnchor => ({
-      x: Math.max(8, (rootSize.current.width || 0) - 16 - 48),
-      y: insets.top + 14,
-      width: 48,
-      height: 48,
-    });
-    if (!plus || !root) {
-      setAnchor(fallback());
-      setMenu(true);
-      return;
-    }
-    plus.measureLayout(
-      root,
-      (x, y, width, height) => {
-        if (width <= 0 || height <= 0) setAnchor(fallback());
-        else setAnchor({ x, y, width, height });
-        setMenu(true);
-      },
-      () => {
-        setAnchor(fallback());
-        setMenu(true);
-      },
-    );
-  };
+  const openMenu = () => measure(() => setMenu(true));
 
   const confirmDelete = async (member: MemberView) => {
     const ok = await confirmAction({
@@ -163,9 +134,7 @@ export default function HomeScreen() {
         ref={rootRef}
         style={styles.root}
         collapsable={false}
-        onLayout={(event) => {
-          rootSize.current = { width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height };
-        }}
+        onLayout={onLayout}
       >
         <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <View style={styles.headerLeft}>

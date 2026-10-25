@@ -163,23 +163,31 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 - **单聊**：每个助手创建后会自动出现一个只有你和它的单聊，直接发消息就会回复，不需要 @。
   长按单聊那一行可以删除这个助手。
 - **头像**：12 种形状（带白色眼睛的纯色团子）× 11 种颜色，服务器里保存为 `avatar: { shape, color }`。
-  新建助手时还可以填"角色标签"，显示在名字旁边；模拟助手会标上"· 模拟"。
+  新建助手时还可以填"角色标签"，显示在名字旁边；模拟助手会标上"· 模拟"。助手也可以**上传一张图片**当头像
+  （走文件上传接口，图片存在服务器的文件存储里，`avatar.image` 指向它；没开通文件存储（R2）时这个选项会隐藏）。
 - **模型小图标**：非模拟助手的行右侧会显示所用模型的提供方图标，根据模型名和接口地址推断，
   认不出就用通用图标（图标来自 LobeHub Icons，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
-- **我的昵称和头像**只保存在这台手机上，不会传到服务器。
-- **对话设置**：点聊天页顶部的名字胶囊，可以改群成员（群聊）和绑定代码仓库。
+- **我的昵称和头像**只保存在这台手机上，不会传到服务器。头像可以拍照或从相册选一张（缩成 256 像素的正方形，显示成圆形），
+  也可以"使用默认头像"。
+- **聊天页**：左上角菜单按钮和三个圆点，中间是助手头像（群聊是叠放的成员头像）和名字，右上角加号弹出"新建助手 / 新建群聊"；
+  点中间的头像或名字打开**对话设置**（改群成员、看工作助手的电脑连接状态）。
+- **底部卡片**：新建助手、新建群聊、设置、对话设置、插件都是从底部滑出的卡片，背景会略微缩小变暗；
+  拖住卡片顶部往下拉（或点 ×、点空白处）关闭，没拉够会弹回去。
+- **插件**：输入框上方的小标签显示这个对话已绑定的插件（GitHub 仓库、部署项目），点开可以查看或解除绑定；
+  输入框左边的加号 → "插件"，列出 GitHub、Cloudflare Pages、Vercel、Netlify、Render：没连接的直接填令牌连接，
+  连接过的绑定到当前对话。设置页只保留"我"和服务器。
 
 ## 连接（Integrations）：GitHub
 
-设置里的"连接"页管理和外部服务的连接，目前支持 GitHub。写法和成员适配器一致：按类型注册、
+"连接"（插件）管理和外部服务的连接，目前支持 GitHub 和四个部署平台，在聊天输入框的加号 → "插件"里添加和绑定。写法和成员适配器一致：按类型注册、
 用表单字段描述需要填什么、敏感字段加密保存、并向助手暴露工具。
 
 **连接 GitHub**：在 GitHub 网页创建一个**细粒度访问令牌**（Settings → Developer settings → Personal access tokens →
 Fine-grained tokens），Repository access 只选要给助手用的仓库，Repository permissions 里把 **Contents** 和
-**Pull requests** 设为 Read and write。把令牌填进 App 的"设置 → 连接 → GitHub"，服务器会先验证再保存；
+**Pull requests** 设为 Read and write。把令牌填进 App：聊天输入框的加号 → "插件" → GitHub → 连接，服务器会先验证再保存；
 令牌加密存在你的服务器上，App 里只显示打码后的样子。
 
-**绑定仓库**：打开某个对话（群聊或单聊）→ 点顶部的名字胶囊 → "代码仓库"，选一个仓库。之后这个对话里的助手
+**绑定仓库**：打开某个对话（群聊或单聊）→ 输入框左边的加号 → "插件" → GitHub，选一个仓库（连接成功后会直接进入选仓库）。之后这个对话里的助手
 （需要是"OpenAI 兼容接口"类型，模拟助手没有这个能力；模型要支持函数调用，不支持时会自动降级成普通回复）会有三个工具：
 
 | 工具 | 作用 |
@@ -203,7 +211,7 @@ Fine-grained tokens），Repository access 只选要给助手用的仓库，Repo
 
 1. App → 新建助手 → 类型选"工作助手"，选工具；创建后显示一个**配对码**（10 分钟有效，一次性）。
 2. 在电脑上构建并配对 bridge：`node dist/agenthub-bridge.cjs pair <服务器地址> <配对码>`，再运行 `run`。
-3. App 里该助手显示"电脑已连接"后即可对话。助手的对话设置页（点聊天顶部名字）里能随时看到连接状态、重新配对或换电脑。
+3. App 里该助手显示"电脑已连接"后即可对话。助手的对话设置卡片（点聊天顶部的头像或名字）里能随时看到连接状态、重新配对或换电脑。
 
 要点：
 
@@ -229,8 +237,8 @@ Node 版 `server/src/hub.ts` 和 Cloudflare 版 `worker/src/directory-do.ts` 里
 | Render | API Key | 同上 |
 | Cloudflare Pages | API 令牌（Cloudflare Pages：编辑）+ 账户 ID | 同上 |
 
-**使用**：先在平台里把项目连到这个 GitHub 仓库并开着自动部署；然后打开对话 → 点顶部名字胶囊 →
-"部署平台"，选一个项目（要先绑定了代码仓库才会出现这一栏）。之后只要你在聊天里点"同意合并"，群里就会出现一张
+**使用**：先在平台里把项目连到这个 GitHub 仓库并开着自动部署；然后打开对话 → 输入框左边的加号 →
+"插件" → 选一个部署平台，再选项目（要先绑定 GitHub 仓库才能绑定部署平台）。之后只要你在聊天里点"同意合并"，群里就会出现一张
 **部署卡片**：平台和项目、排队 / 部署中 / 已上线 / 失败、合并的提交，上线后有"打开预览"按钮；失败会写出原因。
 服务器每隔 `DEPLOY_POLL_MS`（默认 10 秒）查一次平台，Node 版用定时器、Cloudflare 版用 Durable Object 的 alarm，
 重启后会接着跟踪。约 5 分钟找不到对应的部署、或部署超过 20 分钟还没结束，会停止跟踪并在卡片上说明。
@@ -364,7 +372,7 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/health` | 健康检查（不需要令牌），`configured` 表示令牌和密钥是否已配置 |
+| GET | `/api/health` | 健康检查（不需要令牌），`configured` 表示令牌和密钥是否已配置，`files` 表示有没有文件存储 |
 | GET | `/api/adapters` | 可用的成员类型及配置字段 |
 | GET / POST | `/api/members` | 成员列表 / 创建成员（`name`、`type`、`avatar: {shape, color}`、`role`、`persona`、`config`）；创建时自动生成单聊 |
 | DELETE | `/api/members/:id` | 删除成员（同时删除它的单聊） |
@@ -375,6 +383,7 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | POST | `/api/groups/:id/uploads` | 上传文件（请求体就是文件内容，头 `Content-Type` 是类型、`X-File-Name` 是 URL 编码的文件名），返回附件信息 |
 | GET | `/api/groups/:id/files/:fid` | 下载文件（需要令牌） |
 | POST | `/api/groups/:id/files/:fid/link` | 生成 10 分钟有效的签名下载链接 |
+| PUT | `/api/members/:id/avatar-image` | 把一次上传的图片设为助手头像（`{"image": {"groupId", "fileId"}}`，`null` 恢复成团子）；要求是 ≤ 2 MB 的图片 |
 | PUT | `/api/groups/:id/binding` | 绑定 / 解除代码仓库和部署项目。两个键都可省略（省略 = 保持不变），`null` = 清除：`{"repo": {"integrationId", "repo"}, "deploy": {"integrationId", "project", "name"}}` |
 | POST | `/api/groups/:id/messages/:mid/card` | 点确认卡片的按钮（`{"action": "merge" 或 "reject"}`） |
 | POST | `/api/members/:id/pairing` | 为工作助手生成一次性配对码（10 分钟有效） |
