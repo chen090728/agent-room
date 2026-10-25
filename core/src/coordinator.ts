@@ -1,6 +1,8 @@
 import type { AdapterRegistry } from './adapters/registry.js';
 import type { ContextMessage } from './adapters/types.js';
 import { stripSelfPrefix } from './context.js';
+import type { FileStore } from './files.js';
+import { resolveForContext } from './uploads.js';
 import type { Directory } from './directory.js';
 import { parseMentions } from './mentions.js';
 import type { IntegrationRegistry } from './integrations/registry.js';
@@ -34,18 +36,26 @@ export class Coordinator {
     private directory: CoordinatorDirectory,
     private registry: AdapterRegistry,
     private integrations: IntegrationRegistry,
+    /** Null when the deployment has no file storage; then nothing can be attached. */
+    private files: FileStore | null,
     private emit: (event: ChatEvent) => void,
     private opts: CoordinatorOptions,
   ) {}
 
   /** Saves a message from the human; returns whether replies are now queued. */
-  async postUserMessage(groupId: string, content: string): Promise<{ message: Message; pending: boolean }> {
-    const message = this.room.addMessage({
-      groupId,
-      senderKind: 'user',
-      senderId: null,
-      senderName: this.opts.userDisplayName,
-      content,
+  async postUserMessage(groupId: string, content: string, attachmentIds: string[] = []): Promise<{ message: Message; pending: boolean }> {
+    const attachments = this.room.checkUploads(groupId, attachmentIds);
+    const message = this.room.atomically(() => {
+      const m = this.room.addMessage({
+        groupId,
+        senderKind: 'user',
+        senderId: null,
+        senderName: this.opts.userDisplayName,
+        content,
+        attachments,
+      });
+      this.room.claimUploads(attachmentIds, m.id);
+      return m;
     });
     this.emit({ type: 'message', message });
 
@@ -214,12 +224,17 @@ export class Coordinator {
       }
     }
 
+    // Files of the recent messages, prepared for this member's model.
+    const supportsImages = member.config.vision !== 'false';
+    const history = this.room.contextMessages(trigger.groupId, this.opts.contextSize);
+    const resolved = await resolveForContext(this.room, this.files, trigger.groupId, history, { images: supportsImages });
     const toCtx = (m: Message): ContextMessage => ({
       id: m.id,
       senderKind: m.senderKind,
       senderName: m.senderName,
       isSelf: m.senderId === member.id,
       content: m.content,
+      attachments: resolved.get(m.id) ?? m.attachments?.map((a) => ({ name: a.name, kind: a.kind, note: '没有发给模型' })),
     });
 
     const text = await adapter.reply(
@@ -230,8 +245,9 @@ export class Coordinator {
           { name: this.opts.userDisplayName, persona: '', isHuman: true },
           ...members.filter((m) => m.id !== member.id).map((m) => ({ name: m.name, persona: m.persona, isHuman: false })),
         ],
-        history: this.room.contextMessages(trigger.groupId, this.opts.contextSize).map(toCtx),
+        history: history.map(toCtx),
         trigger: toCtx(trigger),
+        supportsImages,
         tools,
         signal: AbortSignal.timeout(this.opts.llmTimeoutMs),
       },

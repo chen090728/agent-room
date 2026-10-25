@@ -29,11 +29,14 @@ export function createOpenAICompatibleAdapter(fetchImpl: typeof fetch = fetch): 
       { key: 'baseUrl', label: '接口地址', kind: 'url', required: true, placeholder: 'https://api.example.com/v1' },
       { key: 'apiKey', label: 'API Key', kind: 'password', required: true, placeholder: 'sk-…', secret: true },
       { key: 'model', label: '模型名', kind: 'text', required: true, placeholder: '填写服务商提供的模型名' },
+      { key: 'vision', label: '支持看图', kind: 'boolean', required: false, defaultValue: 'true' },
     ],
 
     async reply(ctx, config) {
       const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-      const messages: any[] = buildChatMessages(ctx);
+      const hasImages = ctx.history.some((m) => m.attachments?.some((a) => a.image));
+      let useImages = hasImages;
+      let messages: any[] = buildChatMessages(ctx, { images: useImages });
       const tools = ctx.tools?.tools ?? [];
       const toolSpecs = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
       let useTools = tools.length > 0;
@@ -60,10 +63,18 @@ export function createOpenAICompatibleAdapter(fetchImpl: typeof fetch = fetch): 
         try {
           data = await call(offerTools);
         } catch (err) {
-          // Some models or services reject the tools parameter; answer without tools instead.
-          if (offerTools && round === 0 && err instanceof HttpError && (err.status === 400 || err.status === 422)) {
-            useTools = false;
-            continue;
+          // A 400/422 on the first request usually means the model cannot take images or tools.
+          // Drop images first (they are the likelier cause), then tools, and try again.
+          if (round === 0 && err instanceof HttpError && (err.status === 400 || err.status === 422)) {
+            if (useImages) {
+              useImages = false;
+              messages = buildChatMessages(ctx, { images: false });
+              continue;
+            }
+            if (offerTools) {
+              useTools = false;
+              continue;
+            }
           }
           throw err;
         }

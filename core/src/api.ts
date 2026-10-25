@@ -2,8 +2,18 @@ import { z } from 'zod';
 import type { AdapterRegistry } from './adapters/registry.js';
 import { safeEqual } from './crypto.js';
 import type { Directory } from './directory.js';
+import {
+  classifyFile,
+  fileKey,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_FILE_BYTES,
+  sanitizeFileName,
+  signFileLink,
+  verifyFileLink,
+  type FileStore,
+} from './files.js';
 import type { IntegrationRegistry } from './integrations/registry.js';
-import { AVATAR_COLORS, AVATAR_SHAPES, UserError, type Member, type Message } from './types.js';
+import { AVATAR_COLORS, AVATAR_SHAPES, UserError, type Attachment, type Member, type Message } from './types.js';
 
 export interface ApiDeps {
   token: string;
@@ -12,8 +22,13 @@ export interface ApiDeps {
   directory: Directory;
   registry: AdapterRegistry;
   integrations: IntegrationRegistry;
+  /** Where uploaded files go; null when the deployment has no file storage. */
+  files: FileStore | null;
+  /** Signs the short-lived download links (AGENTHUB_SECRET). */
+  signingSecret: string;
   rooms: {
-    post(groupId: string, content: string): Promise<Message>;
+    post(groupId: string, content: string, attachments: string[]): Promise<Message>;
+    registerUpload(groupId: string, attachment: Attachment): Promise<Attachment>;
     messages(groupId: string, limit: number, before?: string): Promise<Message[]>;
     cardAction(groupId: string, messageId: string, action: 'merge' | 'reject'): Promise<Message>;
   };
@@ -43,7 +58,12 @@ const createGroupBody = z.object({
 });
 
 const setMembersBody = z.object({ memberIds: z.array(z.string()) });
-const sendBody = z.object({ content: z.string().trim().min(1).max(4000) });
+const sendBody = z
+  .object({
+    content: z.string().trim().max(4000).default(''),
+    attachments: z.array(z.string()).max(MAX_ATTACHMENTS_PER_MESSAGE, `一条消息最多带 ${MAX_ATTACHMENTS_PER_MESSAGE} 个文件`).default([]),
+  })
+  .refine((b) => b.content.length > 0 || b.attachments.length > 0, '消息不能为空');
 const cardBody = z.object({ action: z.enum(['merge', 'reject']) });
 const bindingBody = z.object({
   repo: z
@@ -73,6 +93,15 @@ export async function handleApi(request: Request, deps: ApiDeps): Promise<Respon
     return json(200, { ok: true, name: 'AgentHub', configured: !deps.configError });
   }
   if (deps.configError) return fail(503, deps.configError);
+
+  // Signed download links are opened in the phone's browser, which cannot send the token header.
+  const publicFile = path.match(/^\/api\/f\/([\w-]+)\/([\w-]+)$/);
+  if (publicFile && request.method === 'GET') {
+    const [, groupId, fileId] = publicFile;
+    const ok = await verifyFileLink(deps.signingSecret, groupId, fileId, Number(url.searchParams.get('exp')), url.searchParams.get('sig') ?? '');
+    if (!ok) return fail(403, '链接已过期，请回到 App 重新打开');
+    return serveFile(deps.files, groupId, fileId);
+  }
 
   const header = request.headers.get('authorization') ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -218,6 +247,49 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
     return json(200, await rooms.cardAction(groupId, messageId, action));
   }
 
+  // ---- files ----
+
+  const uploadMatch = path.match(/^\/api\/groups\/([\w-]+)\/uploads$/);
+  if (uploadMatch && method === 'POST') {
+    const groupId = uploadMatch[1];
+    if (!deps.files) return fail(503, '服务器没有开通文件存储。Cloudflare 版需要先开通 R2，见《手机部署指南》');
+    if (!(await directory.getGroup(groupId))) return fail(404, '群聊不存在');
+    if (Number(request.headers.get('content-length')) > MAX_FILE_BYTES) return fail(413, `文件太大，最多 ${MAX_FILE_BYTES / 1024 / 1024} MB`);
+    const data = new Uint8Array(await request.arrayBuffer());
+    if (!data.length) return fail(400, '文件是空的');
+    if (data.length > MAX_FILE_BYTES) return fail(413, `文件太大，最多 ${MAX_FILE_BYTES / 1024 / 1024} MB`);
+
+    let rawName = request.headers.get('x-file-name') ?? '';
+    try {
+      rawName = decodeURIComponent(rawName);
+    } catch {
+      // Use the name as sent.
+    }
+    const name = sanitizeFileName(rawName);
+    const kind = classifyFile(name, request.headers.get('content-type') ?? '');
+    if (!kind) return fail(415, '暂不支持这种文件。可以发送图片、PDF，以及常见的文本和代码文件');
+
+    const id = crypto.randomUUID();
+    await deps.files.put(fileKey(groupId, id), data, { contentType: kind.mime, name });
+    try {
+      return json(201, await rooms.registerUpload(groupId, { id, name, mime: kind.mime, size: data.length, kind: kind.kind }));
+    } catch (err) {
+      await deps.files.delete(fileKey(groupId, id));
+      throw err;
+    }
+  }
+
+  const fileMatch = path.match(/^\/api\/groups\/([\w-]+)\/files\/([\w-]+)(\/link)?$/);
+  if (fileMatch) {
+    const [, groupId, fileId, link] = fileMatch;
+    if (!link && method === 'GET') return serveFile(deps.files, groupId, fileId);
+    if (link && method === 'POST') {
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      const sig = await signFileLink(deps.signingSecret, groupId, fileId, expiresAt);
+      return json(200, { path: `/api/f/${groupId}/${fileId}?exp=${expiresAt}&sig=${sig}`, expiresAt });
+    }
+  }
+
   const groupMatch = path.match(/^\/api\/groups\/([\w-]+)(\/members|\/messages|\/binding)?$/);
   if (groupMatch) {
     const [, groupId, sub] = groupMatch;
@@ -246,10 +318,28 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
     }
 
     if (sub === '/messages' && method === 'POST') {
-      const { content } = sendBody.parse(await body());
-      return json(201, await rooms.post(groupId, content));
+      const { content, attachments } = sendBody.parse(await body());
+      return json(201, await rooms.post(groupId, content, attachments));
     }
   }
 
   return null;
+}
+
+/** Streams a stored file. Content types are fixed by the server, and sniffing is off, so an upload can never run as a page. */
+async function serveFile(files: FileStore | null, groupId: string, fileId: string): Promise<Response> {
+  if (!files) return fail(503, '服务器没有开通文件存储');
+  const stored = await files.get(fileKey(groupId, fileId));
+  if (!stored) return fail(404, '文件不存在');
+  const contentType = stored.contentType === 'text/plain' ? 'text/plain; charset=utf-8' : stored.contentType;
+  return new Response(stored.data.slice(), {
+    headers: {
+      'Content-Type': contentType,
+      'Content-Length': String(stored.data.length),
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(stored.name)}`,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+      'Cache-Control': 'private, max-age=3600',
+    },
+  });
 }

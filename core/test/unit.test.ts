@@ -42,6 +42,7 @@ describe('buildChatMessages', () => {
       { name: '用户', persona: '', isHuman: true },
       { name: '阿蓝', persona: '工程师', isHuman: false },
     ],
+    supportsImages: true,
     signal: new AbortController().signal,
   };
 

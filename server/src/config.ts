@@ -6,6 +6,8 @@ export interface Config extends Limits {
   token: string;
   secret: string;
   dbPath: string;
+  /** Where uploaded files are stored. */
+  filesDir: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -22,5 +24,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     token: env.AGENTHUB_TOKEN!,
     secret: env.AGENTHUB_SECRET!,
     dbPath: env.DB_PATH || './data/agenthub.db',
+    filesDir: env.FILES_DIR || './data/files',
   };
 }

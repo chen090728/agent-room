@@ -1,6 +1,7 @@
 import {
   AUTH_TIMEOUT_MS,
   Coordinator,
+  registerUpload,
   defaultIntegrations,
   defaultRegistry,
   handleApi,
@@ -12,12 +13,14 @@ import {
   SqlDirectory,
   SqlRoom,
   UNAUTHORIZED_CODE,
+  type Attachment,
   type ChatEvent,
   type ListEvent,
 } from '@agenthub/core';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Config } from './config.js';
+import { LocalFileStore } from './files.js';
 import { openSqlite } from './sqlite.js';
 
 export interface Hub {
@@ -31,6 +34,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
   const db = openSqlite(config.dbPath);
   const registry = defaultRegistry(config);
   const integrations = defaultIntegrations();
+  const files = new LocalFileStore(config.filesDir);
 
   const listSockets = new Set<WebSocket>();
   const groupSockets = new Map<string, Set<WebSocket>>();
@@ -47,6 +51,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     directory,
     registry,
     integrations,
+    files,
     (e: ChatEvent) => {
       const groupId = e.type === 'message' || e.type === 'message_updated' ? e.message.groupId : e.type === 'relay' ? e.relay.groupId : e.groupId;
       send(groupSockets.get(groupId) ?? [], JSON.stringify(e));
@@ -79,20 +84,21 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
   room.pendingGroups().forEach(drive);
 
   const rooms = {
-    async post(groupId: string, content: string) {
-      const { message, pending } = await coordinator.postUserMessage(groupId, content);
+    async post(groupId: string, content: string, attachments: string[]) {
+      const { message, pending } = await coordinator.postUserMessage(groupId, content, attachments);
       if (pending) drive(groupId);
       return message;
     },
     async messages(groupId: string, limit: number, before?: string) {
       return room.recentMessages(groupId, limit, before);
     },
+    registerUpload: (groupId: string, attachment: Attachment) => registerUpload(room, files, groupId, attachment),
     cardAction: (groupId: string, messageId: string, action: 'merge' | 'reject') => coordinator.cardAction(groupId, messageId, action),
   };
 
   const server = createServer(async (req, res) => {
     try {
-      const response = await handleApi(await toRequest(req), { token: config.token, directory, registry, integrations, rooms });
+      const response = await handleApi(await toRequest(req), { token: config.token, directory, registry, integrations, files, signingSecret: config.secret, rooms });
       await writeResponse(res, response ?? Response.json({ error: '接口不存在' }, { status: 404 }));
     } catch (err) {
       console.error('[http]', err);

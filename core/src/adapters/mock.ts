@@ -48,6 +48,10 @@ export function createMockAdapter(opts: MockOptions = {}): MemberAdapter {
         .replaceAll('{self}', ctx.self.name)
         .replaceAll('{persona}', persona);
 
+      // Mock members cannot read files, but they can say they got them (handy for demos and tests).
+      const files = ctx.trigger.attachments ?? [];
+      if (files.length) text = `收到你发的${files.length > 1 ? `${files.length} 个文件` : '文件'}：${files.map((f) => f.name).join('、')}。 ${text}`;
+
       const rate = clamp(Number(config.mentionRate ?? 0.6));
       const candidates = ctx.others.filter((o) => !o.isHuman).map((o) => o.name);
       if (candidates.length && random() < rate) {

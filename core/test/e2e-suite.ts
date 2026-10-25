@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { FAKE_REPO, FAKE_TOKEN, startFakeGitHub } from './fake-github.js';
+import { makePdf, TINY_PNG } from './pdf.js';
 
 export interface E2ETarget {
   baseUrl: string;
@@ -387,6 +388,134 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           await gh.close();
           llmServers.forEach((srv) => srv.close());
         }
+      });
+    });
+
+    describe('files', () => {
+      const servers: Server[] = [];
+      const upload = (groupId: string, name: string, type: string, body: Uint8Array | string, token = target().token) =>
+        fetch(`${target().baseUrl}/api/groups/${groupId}/uploads`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': type, 'X-File-Name': encodeURIComponent(name) },
+          body: body as BodyInit,
+        });
+
+      const startLlm = async (bodies: any[]) => {
+        const server = createServer((req, res) => {
+          let data = '';
+          req.on('data', (c) => (data += c));
+          req.on('end', () => {
+            bodies.push(JSON.parse(data));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ choices: [{ message: { content: '看到了这些文件。' } }] }));
+          });
+        });
+        await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+        servers.push(server);
+        return `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+      };
+
+      it('uploads, serves and signs files, and sends images, text and PDF text to the model', async () => {
+        const bodies: any[] = [];
+        const baseUrl = await startLlm(bodies);
+        const member = await api('/api/members', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: '读图员',
+            type: 'openai-compatible',
+            avatar: { shape: 'egg', color: 'teal' },
+            config: { baseUrl, apiKey: 'sk-test-reader-1234', model: 'reader' },
+          }),
+        });
+        expect(member.status).toBe(201);
+        const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '读图员');
+
+        // Upload an image, a text file and a PDF.
+        const png = await upload(direct.id, '猫.png', 'image/png', TINY_PNG);
+        const txt = await upload(direct.id, 'notes.txt', 'text/plain', '第一行\n第二行');
+        const pdf = await upload(direct.id, 'report.pdf', 'application/pdf', makePdf('Hello PDF world'));
+        expect([png.status, txt.status, pdf.status]).toEqual([201, 201, 201]);
+        const [a, b, c] = [await png.json(), await txt.json(), await pdf.json()];
+        expect([a, b, c].map((x) => [x.name, x.kind, x.mime])).toEqual([
+          ['猫.png', 'image', 'image/png'],
+          ['notes.txt', 'text', 'text/plain'],
+          ['report.pdf', 'pdf', 'application/pdf'],
+        ]);
+        expect(a.size).toBe(TINY_PNG.length);
+
+        // Download needs the token and is served safely.
+        const url = (f: any) => `${target().baseUrl}/api/groups/${direct.id}/files/${f.id}`;
+        expect((await fetch(url(a))).status).toBe(401);
+        const got = await fetch(url(a), { headers: { Authorization: `Bearer ${target().token}` } });
+        expect(got.status).toBe(200);
+        expect(got.headers.get('content-type')).toBe('image/png');
+        expect(got.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(new Uint8Array(await got.arrayBuffer())).toEqual(TINY_PNG);
+        const text = await fetch(url(b), { headers: { Authorization: `Bearer ${target().token}` } });
+        expect(text.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+        expect(await text.text()).toBe('第一行\n第二行');
+
+        // A signed link works without the token; tampering or the wrong file does not.
+        const link = await api(`/api/groups/${direct.id}/files/${a.id}/link`, { method: 'POST' });
+        expect(link.status).toBe(200);
+        const signed = await fetch(`${target().baseUrl}${link.body.path}`);
+        expect(signed.status).toBe(200);
+        expect(new Uint8Array(await signed.arrayBuffer())).toEqual(TINY_PNG);
+        const tampered = link.body.path.replace(/sig=(.)/, (_m: string, c: string) => `sig=${c === '0' ? '1' : '0'}`);
+        expect((await fetch(`${target().baseUrl}${tampered}`)).status).toBe(403);
+        expect((await fetch(`${target().baseUrl}${link.body.path.replace(a.id, b.id)}`)).status).toBe(403);
+        expect((await fetch(`${target().baseUrl}/api/f/${direct.id}/${a.id}`)).status).toBe(403);
+
+        // Send them: the model gets the image, the text file's content and the PDF's text.
+        const chat = await openSocket(`/ws/groups/${direct.id}`);
+        const sent = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '看看这几个', attachments: [a.id, b.id, c.id] }) });
+        expect(sent.status).toBe(201);
+        expect(sent.body.attachments.map((x: any) => x.name)).toEqual(['猫.png', 'notes.txt', 'report.pdf']);
+        await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent.body.id && !e.relay.active);
+        chat.close();
+
+        const userMessage = bodies.at(-1).messages.at(-1);
+        expect(userMessage.role).toBe('user');
+        const parts: any[] = userMessage.content;
+        const joined = parts.filter((p) => p.type === 'text').map((p) => p.text).join('\n');
+        expect(joined).toContain('【文件：notes.txt】');
+        expect(joined).toContain('第一行\n第二行');
+        expect(joined).toContain('Hello PDF world');
+        const image = parts.find((p) => p.type === 'image_url');
+        expect(image.image_url.url).toBe(`data:image/png;base64,${Buffer.from(TINY_PNG).toString('base64')}`);
+
+        // History keeps the attachments, and a file can be sent only once.
+        const history = (await api(`/api/groups/${direct.id}/messages`)).body;
+        expect(history.find((m: any) => m.id === sent.body.id).attachments).toHaveLength(3);
+        const again = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: 'x', attachments: [a.id] }) });
+        expect(again.status).toBe(409);
+        expect((await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '', attachments: [] }) })).status).toBe(400);
+        expect((await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: 'x', attachments: ['nope'] }) })).status).toBe(404);
+        servers.forEach((srv) => srv.close());
+      });
+
+      it('lets a mock assistant acknowledge a file sent without any text', async () => {
+        const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '小橙');
+        const up = await (await upload(direct.id, 'todo.md', 'text/markdown', '# todo')).json();
+        const chat = await openSocket(`/ws/groups/${direct.id}`);
+        const sent = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ attachments: [up.id] }) });
+        expect(sent.status).toBe(201);
+        expect(sent.body.content).toBe('');
+        const reply = await chat.waitFor((e) => e.type === 'message' && e.message.senderKind === 'member');
+        expect(reply.message.content).toContain('收到你发的文件：todo.md');
+        chat.close();
+      });
+
+      it('refuses bad uploads with clear errors', async () => {
+        const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '小橙');
+        const err = async (res: Response) => ({ status: res.status, error: (await res.json()).error });
+        expect(await err(await upload(direct.id, 'x.zip', 'application/zip', 'PK'))).toMatchObject({ status: 415 });
+        expect(await err(await upload(direct.id, 'logo.svg', 'image/svg+xml', '<svg/>'))).toMatchObject({ status: 415 });
+        expect(await err(await upload(direct.id, 'empty.txt', 'text/plain', ''))).toEqual({ status: 400, error: '文件是空的' });
+        expect(await err(await upload(direct.id, 'big.txt', 'text/plain', new Uint8Array(10 * 1024 * 1024 + 1)))).toMatchObject({ status: 413 });
+        expect((await upload('does-not-exist', 'a.txt', 'text/plain', 'a')).status).toBe(404);
+        expect((await upload(direct.id, 'a.txt', 'text/plain', 'a', 'wrong-token-0000000000')).status).toBe(401);
+        expect((await api(`/api/groups/${direct.id}/files/does-not-exist`)).status).toBe(404);
       });
     });
   });

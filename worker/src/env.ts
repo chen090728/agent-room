@@ -4,6 +4,8 @@ import type { GroupDO } from './group-do.js';
 export interface Env {
   DIRECTORY: DurableObjectNamespace<DirectoryDO>;
   GROUPS: DurableObjectNamespace<GroupDO>;
+  /** R2 bucket for uploaded files; absent when R2 is not enabled for the account. */
+  FILES?: R2Bucket;
   // Wrangler secrets
   AGENTHUB_TOKEN?: string;
   AGENTHUB_SECRET?: string;
@@ -18,7 +20,7 @@ export interface Env {
 
 /** String settings only, in the shape the core config parsers expect. */
 export function settings(env: Env): Record<string, string | undefined> {
-  const { DIRECTORY: _d, GROUPS: _g, ...rest } = env;
+  const { DIRECTORY: _d, GROUPS: _g, FILES: _f, ...rest } = env;
   return rest;
 }
 

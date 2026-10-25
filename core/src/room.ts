@@ -1,5 +1,5 @@
 import { first, runSchema, type SqlDriver } from './sql.js';
-import type { Card, Message, RelayState, SenderKind } from './types.js';
+import { UserError, type Attachment, type Card, type Message, type RelayState, type SenderKind } from './types.js';
 
 export interface NewMessage {
   groupId: string;
@@ -7,6 +7,7 @@ export interface NewMessage {
   senderId: string | null;
   senderName: string;
   content: string;
+  attachments?: Attachment[];
   card?: Card | null;
   /** Defaults to the new message's own id (an original message). */
   rootId?: string;
@@ -38,11 +39,23 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_name TEXT NOT NULL,
   content TEXT NOT NULL,
   card_json TEXT,
+  attachments_json TEXT,
   root_id TEXT NOT NULL,
   hop INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS messages_group_seq ON messages (group_id, seq);
+CREATE TABLE IF NOT EXISTS uploads (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  extracted_text TEXT,
+  message_id TEXT,
+  created_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS chains (
   root_id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -66,6 +79,7 @@ interface MessageRow {
   sender_name: string;
   content: string;
   card_json: string | null;
+  attachments_json: string | null;
   root_id: string;
   hop: number;
   created_at: number;
@@ -79,6 +93,7 @@ function toMessage(row: MessageRow): Message {
     senderId: row.sender_id,
     senderName: row.sender_name,
     content: row.content,
+    attachments: row.attachments_json ? JSON.parse(row.attachments_json) : [],
     card: row.card_json ? JSON.parse(row.card_json) : null,
     rootId: row.root_id,
     hop: row.hop,
@@ -95,10 +110,12 @@ export class SqlRoom {
   constructor(private db: SqlDriver) {
     runSchema(db, SCHEMA);
     // Databases from before cards existed.
-    try {
-      db.all('SELECT card_json FROM messages LIMIT 0');
-    } catch {
-      db.run('ALTER TABLE messages ADD COLUMN card_json TEXT');
+    for (const column of ['card_json', 'attachments_json']) {
+      try {
+        db.all(`SELECT ${column} FROM messages LIMIT 0`);
+      } catch {
+        db.run(`ALTER TABLE messages ADD COLUMN ${column} TEXT`);
+      }
     }
   }
 
@@ -114,14 +131,15 @@ export class SqlRoom {
       senderId: input.senderId,
       senderName: input.senderName,
       content: input.content,
+      attachments: input.attachments ?? [],
       card: input.card ?? null,
       rootId: input.rootId ?? id,
       hop: input.hop ?? 0,
       createdAt: Date.now(),
     };
     this.db.run(
-      `INSERT INTO messages (id, group_id, seq, sender_kind, sender_id, sender_name, content, card_json, root_id, hop, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messages (id, group_id, seq, sender_kind, sender_id, sender_name, content, card_json, attachments_json, root_id, hop, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       message.groupId,
       seq,
@@ -130,11 +148,52 @@ export class SqlRoom {
       message.senderName,
       message.content,
       message.card ? JSON.stringify(message.card) : null,
+      message.attachments?.length ? JSON.stringify(message.attachments) : null,
       message.rootId,
       message.hop,
       message.createdAt,
     );
     return message;
+  }
+
+  // ---- uploads ----
+
+  addUpload(groupId: string, attachment: Attachment, extractedText: string | null) {
+    this.db.run(
+      'INSERT INTO uploads (id, group_id, name, mime, size, kind, extracted_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      attachment.id,
+      groupId,
+      attachment.name,
+      attachment.mime,
+      attachment.size,
+      attachment.kind,
+      extractedText,
+      Date.now(),
+    );
+  }
+
+  /** The uploads a message may carry: they must exist in this group and not be used yet. */
+  checkUploads(groupId: string, ids: string[]): Attachment[] {
+    return ids.map((id) => {
+      const row = first<{ id: string; name: string; mime: string; size: number; kind: string; message_id: string | null }>(
+        this.db,
+        'SELECT id, name, mime, size, kind, message_id FROM uploads WHERE id = ? AND group_id = ?',
+        id,
+        groupId,
+      );
+      if (!row) throw new UserError('有文件找不到了，请重新上传', 404);
+      if (row.message_id) throw new UserError('这个文件已经发送过了', 409);
+      return { id: row.id, name: row.name, mime: row.mime, size: row.size, kind: row.kind as Attachment['kind'] };
+    });
+  }
+
+  claimUploads(ids: string[], messageId: string) {
+    for (const id of ids) this.db.run('UPDATE uploads SET message_id = ? WHERE id = ?', messageId, id);
+  }
+
+  /** Text extracted from a PDF at upload time. */
+  uploadText(id: string): string | null {
+    return first<{ extracted_text: string | null }>(this.db, 'SELECT extracted_text FROM uploads WHERE id = ?', id)?.extracted_text ?? null;
   }
 
   /** Replaces the card of a message and returns the updated message. */

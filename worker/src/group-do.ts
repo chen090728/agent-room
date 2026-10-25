@@ -4,15 +4,19 @@ import {
   defaultRegistry,
   first,
   parseLimits,
+  registerUpload,
   SqlRoom,
   UserError,
+  type Attachment,
   type CoordinatorDirectory,
+  type FileStore,
   type Message,
   type SqlDriver,
 } from '@agenthub/core';
 import { DurableObject } from 'cloudflare:workers';
 import { acceptSocket, broadcast, closeSocket, durableSql, onSocketMessage } from './durable.js';
 import { directoryStub, settings, type Env } from './env.js';
+import { R2FileStore } from './files.js';
 
 /**
  * One group: its messages, its relay queue and its chat WebSocket
@@ -23,6 +27,7 @@ export class GroupDO extends DurableObject<Env> {
   private db: SqlDriver;
   private room: SqlRoom;
   private coordinator: Coordinator;
+  private files: FileStore | null;
   private stepping = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -31,11 +36,13 @@ export class GroupDO extends DurableObject<Env> {
     this.db.run('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
     this.room = new SqlRoom(this.db);
     const limits = parseLimits(settings(env));
+    this.files = env.FILES ? new R2FileStore(env.FILES) : null;
     this.coordinator = new Coordinator(
       this.room,
       directoryStub(env) as unknown as CoordinatorDirectory,
       defaultRegistry(limits),
       defaultIntegrations(),
+      this.files,
       (event) => broadcast(ctx, JSON.stringify(event)),
       limits,
     );
@@ -56,11 +63,28 @@ export class GroupDO extends DurableObject<Env> {
 
   // ---- RPC ----
 
-  async post(groupId: string, content: string): Promise<Message> {
+  /** Expected failures (a bad attachment) come back as data: RPC drops custom error types. */
+  async post(
+    groupId: string,
+    content: string,
+    attachments: string[],
+  ): Promise<{ ok: true; message: Message } | { ok: false; status: number; error: string }> {
     this.remember(groupId);
-    const { message, pending } = await this.coordinator.postUserMessage(groupId, content);
-    if (pending) await this.schedule();
-    return message;
+    try {
+      const { message, pending } = await this.coordinator.postUserMessage(groupId, content, attachments);
+      if (pending) await this.schedule();
+      return { ok: true, message };
+    } catch (err) {
+      if (err instanceof UserError) return { ok: false, status: err.status, error: err.message };
+      throw err;
+    }
+  }
+
+  /** Records an uploaded file (and extracts a PDF's text); the bytes are already in R2. */
+  async registerUpload(groupId: string, attachment: Attachment): Promise<Attachment> {
+    if (!this.files) throw new Error('文件存储没有开通');
+    this.remember(groupId);
+    return registerUpload(this.room, this.files, groupId, attachment);
   }
 
   async messages(groupId: string, limit: number, before?: string): Promise<Message[]> {

@@ -52,6 +52,17 @@ export interface Member {
 
 export type SenderKind = 'user' | 'member' | 'system';
 
+export type AttachmentKind = 'image' | 'text' | 'pdf';
+
+/** A file sent with a message. The bytes live in the file store, not in the database. */
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  kind: AttachmentKind;
+}
+
 /** A file touched by a pull request. */
 export interface PullRequestFile {
   path: string;
@@ -93,6 +104,7 @@ export interface Message {
   senderId: string | null;
   senderName: string;
   content: string;
+  attachments?: Attachment[];
   card?: Card | null;
   /** Id of the original user message this one descends from. */
   rootId: string;

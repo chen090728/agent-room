@@ -3,6 +3,7 @@ import { createMockAdapter } from '../src/adapters/mock.js';
 import { AdapterRegistry } from '../src/adapters/registry.js';
 import type { MemberAdapter, ReplyContext } from '../src/adapters/types.js';
 import { Coordinator } from '../src/coordinator.js';
+import { MemoryFileStore } from '../src/files.js';
 import { createGitHubIntegration } from '../src/integrations/github.js';
 import { IntegrationRegistry } from '../src/integrations/registry.js';
 import { SecretBox } from '../src/crypto.js';
@@ -34,14 +35,15 @@ async function setup(adapter: MemberAdapter, names = ['甲', '乙', '丙']) {
   const group = created.value;
   const events: ChatEvent[] = [];
   const integrations = new IntegrationRegistry().register(createGitHubIntegration());
-  const coordinator = new Coordinator(room, directory, new AdapterRegistry().register(adapter), integrations, (e) => events.push(e), limits);
+  const files = new MemoryFileStore();
+  const coordinator = new Coordinator(room, directory, new AdapterRegistry().register(adapter), integrations, files, (e) => events.push(e), limits);
   const send = async (text: string) => {
     await coordinator.postUserMessage(group.id, text);
     let steps = 0;
     while (await coordinator.step(group.id)) steps++;
     return { msgs: room.recentMessages(group.id, 200), steps };
   };
-  return { directory, room, group, events, listEvents, send, coordinator };
+  return { directory, room, group, events, listEvents, send, coordinator, files };
 }
 
 describe('Coordinator', () => {

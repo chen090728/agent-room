@@ -33,6 +33,7 @@ const context = (tools?: ToolRuntime): ReplyContext => ({
   history: [trigger],
   trigger,
   tools,
+  supportsImages: true,
   signal: new AbortController().signal,
 });
 const runtime = (calls: string[]): ToolRuntime => ({

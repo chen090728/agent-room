@@ -1,2 +1,4 @@
 .wrangler/
 .dev.vars*
+wrangler.deploy.jsonc
+.wrangler-test.jsonc
