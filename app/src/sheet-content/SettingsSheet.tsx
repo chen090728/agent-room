@@ -13,13 +13,14 @@ import { pickPhoto, type PhotoSource } from '../photo';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView, useSheetClose } from '../sheets';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, THEME_PREFERENCE_LABELS, type ThemeColors, type ThemeShadows, type ThemePreference } from '../theme';
 
 /**
  * The settings form: "me" (name and photo) and the server. `firstRun` is the
  * full-screen "connect to a server" page; otherwise it is the body of the sheet.
  */
 export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?: boolean; onDone(): void }) {
+  const styles = useThemedStyles(createStyles);
   const { settings, status, profile, connect, disconnect, updateProfile } = useStore();
   const [nickname, setNickname] = useState(profile.nickname);
   const [photo, setPhoto] = useState<string | null>(profile.photo);
@@ -116,6 +117,9 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
           </View>
         </View>
 
+        {/* Own block. A language section belongs beside this one, not inside it. */}
+        <AppearanceSection />
+
         <View style={styles.section}>
           <SectionLabel
             right={
@@ -203,13 +207,42 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
   );
 }
 
+const THEME_OPTIONS: ThemePreference[] = ['system', 'light', 'dark'];
+
+function AppearanceSection() {
+  const { preference, setPreference } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.section}>
+      <SectionLabel>外观</SectionLabel>
+      <View style={styles.segment}>
+        {THEME_OPTIONS.map((option) => {
+          const selected = preference === option;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityLabel={THEME_PREFERENCE_LABELS[option]}
+              accessibilityState={{ selected }}
+              onPress={() => void setPreference(option)}
+              style={[styles.segmentItem, selected && styles.segmentOn]}
+            >
+              <Text style={selected ? styles.segmentOnText : styles.segmentOffText}>{THEME_PREFERENCE_LABELS[option]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 /** Settings as a bottom sheet. */
 export function SettingsSheet() {
   const close = useSheetClose();
   return <SettingsContent firstRun={false} onDone={() => close()} />;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   firstRunHeader: { alignItems: 'center', paddingTop: 22, paddingBottom: 6 },
   firstRunTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
@@ -235,4 +268,9 @@ const styles = StyleSheet.create({
   signOut: { alignItems: 'center', justifyContent: 'center', height: 48 },
   signOutText: { fontSize: 14, color: colors.danger },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },
+  segment: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.selected, borderRadius: 16 },
+  segmentItem: { flex: 1, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  segmentOn: { backgroundColor: colors.surface, boxShadow: shadows.segment },
+  segmentOnText: { fontSize: 14, fontWeight: '500', color: colors.text },
+  segmentOffText: { fontSize: 14, color: colors.textSecondary },
 });

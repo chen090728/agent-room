@@ -61,9 +61,7 @@ function useThemeState(): Theme {
 
 /**
  * Loads the saved appearance and provides it to the tree.
- * Mount this once around the app (the root layout) in step 2.
- * Until then, nothing calls it, and existing screens keep using the light
- * `colors` / `shadows` exports.
+ * Mounted once around the app in the root layout.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useThemeState();
@@ -85,11 +83,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
  * const { colors, shadows, statusBar, preference, setPreference } = useTheme();
  * ```
  *
- * Works outside `ThemeProvider` too (same store). Mount the provider once at
- * the root anyway: that is what tells React Native's Appearance module about
- * the saved choice. Do that in the same change that paints the root with
- * these colors — `app.json` currently forces `userInterfaceStyle: "light"`,
- * so "follow the system" stays light until that is `"automatic"`.
+ * Works outside `ThemeProvider` too (same store). The root layout mounts the
+ * provider, which is what tells React Native's Appearance module about the
+ * saved choice. `app.json` uses `userInterfaceStyle: "automatic"` so "follow
+ * the system" can see the device appearance.
  *
  * Do not read `colors` inside `StyleSheet.create` at module scope if the screen
  * should update when the appearance changes — that snapshot stays light.
@@ -99,4 +96,10 @@ export function useTheme(): Theme {
   const provided = useContext(ThemeContext);
   const local = useThemeState();
   return provided ?? local;
+}
+
+/** Build styles from the current palette. `factory` must be a stable module-level function. */
+export function useThemedStyles<T>(factory: (colors: ThemeColors, shadows: ThemeShadows) => T): T {
+  const { colors, shadows } = useTheme();
+  return useMemo(() => factory(colors, shadows), [colors, shadows, factory]);
 }

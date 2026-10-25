@@ -19,7 +19,7 @@ import { RoundButton } from '../../../components/ui';
 import { displayRows, rowKey, type ChatMessage, type ChatRow } from '../../../outgoing';
 import type { GroupMemberRef, RelayState } from '../../../protocol';
 import { useGroupChannel, useStore } from '../../../store';
-import { colors, type Avatar } from '../../../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows, type Avatar } from '../../../theme';
 
 const FALLBACK_AVATAR: Avatar = { shape: 'circle', color: 'gray' };
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -71,6 +71,7 @@ const MessageList = memo(function MessageList({
   onRetry: (clientKey: string) => void;
   fresh: (key: string) => boolean;
 }) {
+  const styles = useThemedStyles(createStyles);
   const freshRef = useRef(fresh);
   freshRef.current = fresh;
   const renderItem = useCallback(
@@ -83,7 +84,7 @@ const MessageList = memo(function MessageList({
     [onRetry],
   );
   const header = useMemo(() => <TypingHeader typing={typing} members={members} />, [typing, members]);
-  const emptyNode = useMemo(() => <Text style={styles.emptyText}>{empty}</Text>, [empty]);
+  const emptyNode = useMemo(() => <Text style={styles.emptyText}>{empty}</Text>, [empty, styles]);
 
   return (
     <FlatList
@@ -101,6 +102,7 @@ const MessageList = memo(function MessageList({
 });
 
 export default function ChatScreen() {
+  const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ id: string }>();
   const id = typeof params.id === 'string' ? params.id : params.id?.[0] ?? '';
   const insets = useSafeAreaInsets();
@@ -117,6 +119,7 @@ export default function ChatScreen() {
 }
 
 const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string; topInset: number }) {
+  const styles = useThemedStyles(createStyles);
   const id = groupId;
   const store = useStore();
   const { send, retry } = store;
@@ -253,6 +256,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
 });
 
 function RelayBar({ relay }: { relay: RelayState }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.relay}>
       <RelayDots relay={relay} r={3.5} gap={2.5} />
@@ -263,7 +267,7 @@ function RelayBar({ relay }: { relay: RelayState }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
   left: { width: 110, flexDirection: 'row', alignItems: 'center', gap: 10 },

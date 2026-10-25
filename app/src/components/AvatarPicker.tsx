@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { AVATAR_COLORS, AVATAR_SHAPES, COLOR_HEX, COLOR_LABELS, colors, SHAPE_LABELS, type Avatar } from '../theme';
+import { AVATAR_COLORS, AVATAR_SHAPES, COLOR_HEX, COLOR_LABELS, SHAPE_LABELS, useThemedStyles, type Avatar, type ThemeColors, type ThemeShadows } from '../theme';
 import { Blob } from './Avatar';
 import { AnimatedBlob } from './AnimatedBlob';
 import { Card } from './ui';
 
 /** Large preview plus the 12 shapes and 11 colours to choose from. */
 export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onChange: (v: Avatar) => void; preview?: ReactNode }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.root}>
       <View style={styles.preview} accessibilityLabel="头像预览">
@@ -60,7 +61,7 @@ export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onCh
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { gap: 24 },
   preview: { alignItems: 'center' },
   section: { gap: 10 },
@@ -71,6 +72,6 @@ const styles = StyleSheet.create({
   colorGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 12, paddingHorizontal: 8, rowGap: 8 },
   colorCell: { width: '16.666%', alignItems: 'center' },
   ring: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
-  ringOn: { borderColor: '#BDBDBD' },
+  ringOn: { borderColor: colors.ring },
   swatch: { width: 32, height: 32, borderRadius: 16 },
 });

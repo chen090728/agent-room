@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MemberView } from '../protocol';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { Blob } from './Avatar';
 import { Card, CheckCircle } from './ui';
 
@@ -15,6 +15,7 @@ export function MemberChecklist({
   selected: string[];
   onToggle: (id: string) => void;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <Card>
       {members.map((m, i) => {
@@ -48,7 +49,7 @@ export function MemberChecklist({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 56 },
   divider: { height: 1, backgroundColor: colors.divider, marginLeft: 60 },
   text: { flex: 1, minWidth: 0, gap: 2 },

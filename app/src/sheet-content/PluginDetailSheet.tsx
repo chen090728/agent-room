@@ -4,10 +4,11 @@ import { confirmAction, showMessage } from '../dialogs';
 import { boundPlugins } from '../plugins';
 import { SheetHeader, useSheetClose, useSheets } from '../sheets';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Sheet: what a bound plugin does for this conversation, with a way to unbind or change it. */
 export function PluginDetailSheet({ params }: { params: Record<string, string> }) {
+  const styles = useThemedStyles(createStyles);
   const { api, groups, integrations, upsertGroup } = useStore();
   const close = useSheetClose();
   const sheets = useSheets();
@@ -57,7 +58,7 @@ export function PluginDetailSheet({ params }: { params: Record<string, string> }
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 12, gap: 16 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 16 },

@@ -2,10 +2,12 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { detectModelBrand } from '../modelBrand';
 import { MODEL_ICON_PATHS } from '../modelIcons';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Small badge showing which provider an assistant's model comes from. */
 export function ModelIcon({ model, baseUrl }: { model?: string; baseUrl?: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const brand = detectModelBrand(model, baseUrl);
   const paths = brand === 'generic' ? undefined : MODEL_ICON_PATHS[brand];
   return (
@@ -24,6 +26,6 @@ export function ModelIcon({ model, baseUrl }: { model?: string; baseUrl?: string
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   badge: { width: 20, height: 20, borderRadius: 6, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
 });

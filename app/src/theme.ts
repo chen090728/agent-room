@@ -1,10 +1,10 @@
 /**
  * Appearance tokens.
  *
- * `colors` and `shadows` are the light palette. Existing screens import them
- * and keep looking as they do today. Dark mode is opt-in through `useTheme()`
- * (see `theme/ThemeProvider.tsx`); the light and dark values live in
- * `theme/palette.ts`. Mac dots and avatar colors below do not change with the mode.
+ * `colors` and `shadows` stay the light palette so older imports keep working.
+ * Screens read the active palette from `useTheme()` (see `theme/ThemeProvider.tsx`);
+ * the light and dark values live in `theme/palette.ts`. Mac dots and avatar
+ * colors below do not change with the mode.
  */
 export {
   darkColors,
@@ -18,7 +18,7 @@ export {
 } from './theme/palette';
 export type { ColorScheme, ThemeColors, ThemeShadows } from './theme/palette';
 
-export { ThemeProvider, useTheme } from './theme/ThemeProvider';
+export { ThemeProvider, useTheme, useThemedStyles } from './theme/ThemeProvider';
 export type { Theme } from './theme/ThemeProvider';
 
 export {
