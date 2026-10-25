@@ -1,6 +1,18 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { createApi, socketUrl, type Api } from './api';
-import type { AdapterInfo, ChatEvent, GroupSummary, IntegrationView, ListEvent, MemberView, Message, RelayState } from './protocol';
+import {
+  acknowledge,
+  addIncoming,
+  appendOutgoing,
+  createOutgoing,
+  markFailed,
+  markSending,
+  mergeServerMessages,
+  nextClientKey,
+  replaceMessage,
+  type ChatMessage,
+} from './outgoing';
+import type { AdapterInfo, Attachment, ChatEvent, GroupSummary, IntegrationView, ListEvent, MemberView, Message, RelayState } from './protocol';
 import { openSocket, type SocketStatus } from './socket';
 import {
   clearSettings,
@@ -27,8 +39,8 @@ interface State {
   adapters: AdapterInfo[];
   integrations: IntegrationView[];
   integrationTypes: AdapterInfo[];
-  /** Loaded messages per group, oldest first. */
-  messages: Record<string, Message[]>;
+  /** Loaded messages per group, oldest first. Includes optimistic sends. */
+  messages: Record<string, ChatMessage[]>;
   /** Member ids currently composing a reply, per group. */
   typing: Record<string, string[]>;
   relays: Record<string, RelayState | undefined>;
@@ -45,7 +57,11 @@ type Action =
   | { type: 'integrations'; integrations: IntegrationView[]; types: AdapterInfo[] }
   | { type: 'messages'; groupId: string; messages: Message[] }
   | { type: 'group'; group: GroupSummary }
-  | { type: 'chat'; event: ChatEvent };
+  | { type: 'chat'; event: ChatEvent }
+  | { type: 'outgoing'; message: ChatMessage }
+  | { type: 'outgoing-sending'; groupId: string; clientKey: string }
+  | { type: 'outgoing-failed'; groupId: string; clientKey: string }
+  | { type: 'outgoing-ack'; clientKey: string; message: Message };
 
 const initial: State = {
   profile: DEFAULT_PROFILE,
@@ -66,11 +82,23 @@ const initial: State = {
 
 const byActivity = (a: GroupSummary, b: GroupSummary) => b.lastActivityAt - a.lastActivityAt;
 
-function mergeMessages(existing: Message[] = [], incoming: Message[]): Message[] {
-  const seen = new Set(existing.map((m) => m.id));
-  const added = incoming.filter((m) => !seen.has(m.id));
-  if (!added.length) return existing;
-  return [...existing, ...added].sort((a, b) => a.createdAt - b.createdAt);
+/** Swap in a new message list and point the group preview at its newest row. Same list means no update. */
+function commitMessages(state: State, groupId: string, list: ChatMessage[]): State {
+  if (state.messages[groupId] === list) return state;
+  const last = list[list.length - 1];
+  let groups = state.groups;
+  if (last) {
+    const index = groups.findIndex((g) => g.id === groupId);
+    if (index >= 0) {
+      const current = groups[index];
+      const lastActivityAt = Math.max(current.lastActivityAt, last.createdAt);
+      if (current.lastMessage !== last || current.lastActivityAt !== lastActivityAt) {
+        const updated = { ...current, lastMessage: last, lastActivityAt };
+        groups = groups.map((item, i) => (i === index ? updated : item)).sort(byActivity);
+      }
+    }
+  }
+  return { ...state, groups, messages: { ...state.messages, [groupId]: list } };
 }
 
 function reducer(state: State, action: Action): State {
@@ -103,36 +131,28 @@ function reducer(state: State, action: Action): State {
     case 'integrations':
       return { ...state, integrations: action.integrations, integrationTypes: action.types };
     case 'messages':
-      return {
-        ...state,
-        messages: { ...state.messages, [action.groupId]: mergeMessages(state.messages[action.groupId], action.messages) },
-      };
+      return commitMessages(state, action.groupId, mergeServerMessages(state.messages[action.groupId], action.messages));
     case 'chat':
       return applyChatEvent(state, action.event);
+    case 'outgoing':
+      return commitMessages(state, action.message.groupId, appendOutgoing(state.messages[action.message.groupId], action.message));
+    case 'outgoing-sending':
+      return commitMessages(state, action.groupId, markSending(state.messages[action.groupId] ?? [], action.clientKey));
+    case 'outgoing-failed':
+      return commitMessages(state, action.groupId, markFailed(state.messages[action.groupId] ?? [], action.clientKey));
+    case 'outgoing-ack':
+      return commitMessages(state, action.message.groupId, acknowledge(state.messages[action.message.groupId] ?? [], action.clientKey, action.message));
   }
 }
 
 function applyChatEvent(state: State, event: ChatEvent): State {
   switch (event.type) {
-    case 'message': {
-      const m = event.message;
-      const groups = state.groups
-        .map((g) => (g.id === m.groupId ? { ...g, lastMessage: m, lastActivityAt: m.createdAt } : g))
-        .sort(byActivity);
-      return {
-        ...state,
-        groups,
-        messages: { ...state.messages, [m.groupId]: mergeMessages(state.messages[m.groupId], [m]) },
-      };
-    }
+    case 'message':
+      return commitMessages(state, event.message.groupId, addIncoming(state.messages[event.message.groupId], event.message));
     case 'message_updated': {
-      const m = event.message;
-      const list = state.messages[m.groupId];
-      return {
-        ...state,
-        groups: state.groups.map((g) => (g.id === m.groupId && g.lastMessage?.id === m.id ? { ...g, lastMessage: m } : g)),
-        messages: list ? { ...state.messages, [m.groupId]: list.map((x) => (x.id === m.id ? m : x)) } : state.messages,
-      };
+      const list = state.messages[event.message.groupId];
+      if (!list) return state;
+      return commitMessages(state, event.message.groupId, replaceMessage(list, event.message));
     }
     case 'typing': {
       const current = (state.typing[event.groupId] ?? []).filter((id) => id !== event.memberId);
@@ -159,7 +179,10 @@ interface Store extends State {
   refreshMembers(): Promise<void>;
   refreshIntegrations(): Promise<void>;
   loadMessages(groupId: string): Promise<void>;
-  send(groupId: string, content: string, attachments?: string[]): Promise<void>;
+  /** Shows the message immediately, then delivers it. Does not touch storage. */
+  send(groupId: string, content: string, attachmentIds?: string[], attachments?: Attachment[]): void;
+  /** Retries a message that is showing "发送失败，点击重试". */
+  retry(groupId: string, clientKey: string): void;
   /** Inserts a group returned by the API right away, before the next refresh. */
   upsertGroup(group: GroupSummary): void;
 }
@@ -169,6 +192,63 @@ const StoreContext = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initial);
   const api = useMemo(() => (state.settings ? createApi(state.settings) : null), [state.settings]);
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const profileRef = useRef(state.profile);
+  profileRef.current = state.profile;
+  const messagesRef = useRef(state.messages);
+  messagesRef.current = state.messages;
+  const inflight = useRef(new Set<string>());
+
+  const deliver = useCallback((groupId: string, clientKey: string, content: string, attachmentIds: string[]) => {
+    inflight.current.add(clientKey);
+    // After the optimistic row has been painted. Nothing on this path reads or writes storage.
+    setTimeout(() => {
+      const apiNow = apiRef.current;
+      if (!apiNow) {
+        inflight.current.delete(clientKey);
+        dispatch({ type: 'outgoing-failed', groupId, clientKey });
+        return;
+      }
+      void apiNow
+        .send(groupId, content, attachmentIds)
+        .then((message) => {
+          inflight.current.delete(clientKey);
+          dispatch({ type: 'outgoing-ack', clientKey, message });
+        })
+        .catch(() => {
+          inflight.current.delete(clientKey);
+          dispatch({ type: 'outgoing-failed', groupId, clientKey });
+        });
+    }, 0);
+  }, []);
+
+  const send = useCallback((groupId: string, content: string, attachmentIds: string[] = [], attachments: Attachment[] = []) => {
+    const clientKey = nextClientKey();
+    const message = createOutgoing({
+      groupId,
+      content,
+      attachmentIds,
+      attachments,
+      senderName: profileRef.current.nickname || '我',
+      now: Date.now(),
+      clientKey,
+    });
+    if (!apiRef.current) {
+      dispatch({ type: 'outgoing', message: { ...message, delivery: 'failed' } });
+      return;
+    }
+    dispatch({ type: 'outgoing', message });
+    deliver(groupId, clientKey, content, attachmentIds);
+  }, [deliver]);
+
+  const retry = useCallback((groupId: string, clientKey: string) => {
+    const message = messagesRef.current[groupId]?.find((item) => item.clientKey === clientKey);
+    if (!message?.pending || message.delivery === 'sending' || inflight.current.has(clientKey)) return;
+    if (!apiRef.current) return;
+    dispatch({ type: 'outgoing-sending', groupId, clientKey });
+    deliver(groupId, clientKey, message.pending.content, message.pending.attachmentIds);
+  }, [deliver]);
 
   useEffect(() => {
     loadProfile().then((profile) => dispatch({ type: 'profile', profile }));
@@ -242,11 +322,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshMembers,
     refreshIntegrations,
     loadMessages,
-    async send(groupId, content, attachments = []) {
-      if (!api) return;
-      const message = await api.send(groupId, content, attachments);
-      dispatch({ type: 'chat', event: { type: 'message', message } });
-    },
+    send,
+    retry,
     upsertGroup(group) {
       dispatch({ type: 'group', group });
     },
