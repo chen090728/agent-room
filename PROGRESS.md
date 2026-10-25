@@ -14,7 +14,7 @@
 - PR 链接：
   - 任务 1 → https://github.com/chen090728/agent-room/pull/1
   - 任务 2 → https://github.com/chen090728/agent-room/pull/2
-  - 任务 3 → （开启后填写）
+  - 任务 3 → https://github.com/chen090728/agent-room/pull/3
 - 你醒来要做什么：
   1. 按《手机部署指南》填 5 个 GitHub Secrets（只能你自己做）。
   2. 按顺序合并 PR：#1 → 任务 2 → 任务 3（后面的分支包含前面的全部提交）。
