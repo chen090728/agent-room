@@ -460,6 +460,105 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
       });
     });
 
+    describe('work assistant (bridge)', () => {
+      /** Plays the bridge program: connects out with its credentials and answers jobs. */
+      const connectBridge = (creds: { bridgeId: string; token: string }) =>
+        new Promise<{ ws: WebSocket; jobs: any[]; close(): void } | number>((resolve) => {
+          const ws = new WebSocket(`${target().baseUrl.replace(/^http/, 'ws')}/ws/bridge`);
+          const jobs: any[] = [];
+          ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', ...creds })));
+          ws.on('message', (raw) => {
+            const frame = JSON.parse(raw.toString());
+            if (frame.type === 'hello') resolve({ ws, jobs, close: () => ws.close() });
+            else if (frame.type === 'job') jobs.push(frame);
+          });
+          ws.on('close', (code) => resolve(code));
+        });
+      const waitUntil = async (check: () => boolean | Promise<boolean>, what: string) => {
+        for (let i = 0; i < 100; i++) {
+          if (await check()) return;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        throw new Error(`timed out waiting for ${what}`);
+      };
+
+      it('pairs a computer with a code, runs jobs on it, and reports when it is offline', async () => {
+        // Creating the assistant: only known tools are accepted.
+        const body = (config: Record<string, string>) => JSON.stringify({ name: '工人', type: 'bridge', avatar: { shape: 'hexagon', color: 'black' }, role: '工作助手', config });
+        expect((await api('/api/members', { method: 'POST', body: body({ tool: 'bash' }) })).status).toBe(400);
+        const created = await api('/api/members', { method: 'POST', body: body({ tool: 'claude', write: 'false' }) });
+        expect(created.status).toBe(201);
+        expect(created.body).toMatchObject({ type: 'bridge', typeLabel: '工作助手', config: { tool: 'claude' } });
+        const memberId = created.body.id;
+        const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '工人');
+        expect((await api('/api/adapters')).body.map((a: any) => a.type)).toContain('bridge');
+
+        // Before pairing.
+        expect((await api(`/api/members/${memberId}/bridge`)).body).toEqual({ paired: false, online: false, name: null, tools: [], lastSeen: null });
+        const offlineTry = await sendAndSettle(direct.id, '看一下代码', true);
+        expect(offlineTry.events.find((e) => e.type === 'message' && e.message.senderKind === 'system')!.message.content).toContain('还没有和电脑配对');
+
+        // The code is only for work assistants, and the pairing endpoint needs no access token but does need a valid code.
+        expect((await api('/api/members/nope/pairing', { method: 'POST' })).status).toBe(400);
+        const mock = (await api('/api/members')).body.find((m: any) => m.type === 'mock');
+        expect((await api(`/api/members/${mock.id}/pairing`, { method: 'POST' })).status).toBe(400);
+        const pairing = await api(`/api/members/${memberId}/pairing`, { method: 'POST' });
+        expect(pairing.status).toBe(200);
+        expect(pairing.body.code).toMatch(/^[A-Z2-9]{8}$/);
+        const pair = (code: string) => api('/api/bridge/pair', { method: 'POST', body: JSON.stringify({ code, name: '测试电脑', tools: ['claude', 'codex', 'evil'] }) }, '');
+        expect(await pair('WRONGCODE')).toEqual({ status: 400, body: { error: '配对码无效或已过期，请回到 App 重新获取' } });
+        const paired = await pair(`${pairing.body.code.slice(0, 4)}-${pairing.body.code.slice(4).toLowerCase()}`);
+        expect(paired.status).toBe(200);
+        expect(paired.body).toMatchObject({ memberName: '工人', tool: 'claude' });
+        const creds = { bridgeId: paired.body.bridgeId, token: paired.body.token };
+        expect((await pair(pairing.body.code)).status).toBe(400); // single use
+        expect((await api('/api/members/x/bridge', {}, '')).status).toBe(401); // everything else still needs the token
+
+        expect((await api(`/api/members/${memberId}/bridge`)).body).toMatchObject({ paired: true, online: false, name: '测试电脑', tools: ['claude', 'codex'] });
+
+        // A paired but disconnected computer: the chat says so.
+        const offline = await sendAndSettle(direct.id, '看一下代码', true);
+        expect(offline.events.find((e) => e.type === 'message' && e.message.senderKind === 'system')!.message.content).toContain('没有连接');
+
+        // Bad credentials are refused; good ones connect.
+        expect(await connectBridge({ bridgeId: creds.bridgeId, token: 'wrong' })).toBe(4401);
+        expect(await connectBridge({ bridgeId: 'unknown', token: creds.token })).toBe(4401);
+        const bridge = await connectBridge(creds);
+        if (typeof bridge === 'number') throw new Error(`bridge was refused (${bridge})`);
+        bridge.ws.send(JSON.stringify({ type: 'tools', tools: ['claude', 'evil'] }));
+        await waitUntil(async () => (await api(`/api/members/${memberId}/bridge`)).body.online === true, 'the bridge to show as online');
+        await waitUntil(async () => (await api(`/api/members/${memberId}/bridge`)).body.tools.length === 1, 'the bridge\'s tools');
+        expect((await api(`/api/members/${memberId}/bridge`)).body).toMatchObject({ online: true, tools: ['claude'] });
+
+        // A job goes to the bridge and its answer becomes the assistant's reply.
+        const chat = await openSocket(`/ws/groups/${direct.id}`);
+        const sent = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '总结一下 src 目录' }) });
+        await waitUntil(() => bridge.jobs.length === 1, 'the job to reach the bridge');
+        expect(bridge.jobs[0]).toMatchObject({ type: 'job', tool: 'claude', write: false });
+        expect(bridge.jobs[0].prompt).toContain('用户: 总结一下 src 目录');
+        bridge.ws.send(JSON.stringify({ type: 'result', id: bridge.jobs[0].id, ok: true, text: 'src 里有三个模块。' }));
+        await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent.body.id && !e.relay.active);
+        expect(chat.events.find((e) => e.type === 'message' && e.message.senderName === '工人')!.message.content).toBe('src 里有三个模块。');
+
+        // A failing tool shows its reason in the chat.
+        const before = chat.events.length;
+        const sent2 = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '再看一次' }) });
+        await waitUntil(() => bridge.jobs.length === 2, 'the second job');
+        bridge.ws.send(JSON.stringify({ type: 'result', id: bridge.jobs[1].id, ok: false, error: 'Claude Code 运行失败（退出码 1）' }));
+        await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent2.body.id && !e.relay.active);
+        expect(chat.events.slice(before).find((e) => e.type === 'message' && e.message.senderKind === 'system')!.message.content).toBe('工人 回复失败：Claude Code 运行失败（退出码 1）');
+
+        // A computer that disconnects mid-job fails that job at once.
+        const sent3 = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '第三次' }) });
+        await waitUntil(() => bridge.jobs.length === 3, 'the third job');
+        bridge.close();
+        await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent3.body.id && !e.relay.active);
+        expect(chat.events.filter((e) => e.type === 'message' && e.message.senderKind === 'system').at(-1)!.message.content).toContain('断开');
+        await waitUntil(async () => (await api(`/api/members/${memberId}/bridge`)).body.online === false, 'the bridge to show as offline');
+        chat.close();
+      });
+    });
+
     describe('files', () => {
       const servers: Server[] = [];
       const upload = (groupId: string, name: string, type: string, body: Uint8Array | string, token = target().token) =>
