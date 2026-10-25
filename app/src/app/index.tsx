@@ -21,6 +21,10 @@ export function roleLabel(role: string, type: string): string {
 function previewText(g: GroupSummary, myName: string): string {
   if (g.relay) return `${g.relay.thinking ?? '成员'} 正在思考…`;
   const m = g.lastMessage;
+  if (m && !m.content && m.attachments?.length) {
+    const label = m.attachments.every((a) => a.kind === 'image') ? '[图片]' : '[文件]';
+    return g.kind === 'direct' && m.senderKind !== 'user' ? label : `${m.senderKind === 'user' ? myName : m.senderName}：${label}`;
+  }
   if (!m) return g.kind === 'direct' ? '点开开始聊天' : '还没有消息';
   if (m.card?.type === 'pull_request' && m.card.state === 'open') {
     const text = `改了 ${m.card.files.length} 个文件，等你确认`;

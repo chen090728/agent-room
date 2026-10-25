@@ -116,6 +116,7 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 | `AGENTHUB_TOKEN` | 无（必填） | App 的访问令牌，至少 16 位 |
 | `AGENTHUB_SECRET` | 无（必填） | 加密 API Key 的密钥，至少 16 位，务必备份 |
 | `DB_PATH` | `./data/agenthub.db` | SQLite 数据库文件 |
+| `FILES_DIR` | `./data/files` | 上传文件的存放目录 |
 
 `.env` 和数据库文件已被 `.gitignore` 排除，不要提交。
 
@@ -160,6 +161,23 @@ Fine-grained tokens），Repository access 只选要给助手用的仓库，Repo
 **如何新增连接类型**：实现 `core/src/integrations/types.ts` 里的 `IntegrationType`（`fields`、`verify`、`listResources`、
 `createTools`、`cardAction`），在 `core/src/index.ts` 的 `defaultIntegrations()` 里注册即可，Node 版和 Cloudflare 版同时生效。
 `createTools` 返回的工具可以往 `cards` 里放确认卡片。参考 `core/src/integrations/github.ts`。
+
+## 上传文件
+
+聊天里点输入栏的"+"，可以发送**图片、PDF 和代码 / 文本文件**（单个最多 10 MB，一条消息最多 6 个）。选好后立即上传，随下一条消息发出。
+
+- **图片**：发给支持看图的模型（OpenAI 兼容的多模态格式）。新建助手时的"支持看图"开关可以关掉；模型拒绝图片时会自动去掉图片重试。
+  每次最多带最近的 4 张图片，超过 5 MB 的图片不会发给模型，被省略的会在文字里注明。
+- **文本和代码文件**：内容作为文字发给模型（单个文件最多 3 万字符，所有文件合计 10 万字符，超出部分注明被截断）。
+- **PDF**：上传时先提取文字再发送；扫描件没有文字层，提取不到内容，会注明。
+- 模拟助手不会读文件，但会说"收到你发的文件：xxx"，方便演示。
+
+存放位置：**Node 版**存在本地目录（`FILES_DIR`，默认 `./data/files`）；**Cloudflare 版**存在 R2。R2 是**可选**的：
+没开通也能正常部署和使用，只是发文件时会提示"服务器没有开通文件存储"。开通方法见《[手机部署指南](docs/手机部署指南.md)》的"可选：开通文件上传"，
+部署流程会自动创建存储桶并绑定。
+
+安全：只接受图片（PNG / JPEG / GIF / WebP，**不含 SVG**，因为它可以带脚本）、PDF 和常见文本 / 代码类型；下载文件需要访问令牌，
+或使用 10 分钟有效的签名链接（用于在手机浏览器里打开）；文件的类型由服务器决定，并带 `nosniff` 和严格的内容安全策略，上传的内容不可能被当成网页运行。
 
 ## 群聊规则
 
@@ -274,7 +292,10 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | GET / POST | `/api/groups` | 群列表（单聊和群聊，`kind` 为 `direct` 或 `group`，按最近活动排序）/ 建群 |
 | GET | `/api/groups/:id` | 群详情 |
 | PUT | `/api/groups/:id/members` | 设置群成员（单聊不可修改） |
-| GET / POST | `/api/groups/:id/messages` | 历史消息（`?before=<id>&limit=50`）/ 发消息 |
+| GET / POST | `/api/groups/:id/messages` | 历史消息（`?before=<id>&limit=50`）/ 发消息（`content`、`attachments: [附件 id]`，文字和附件至少有一样） |
+| POST | `/api/groups/:id/uploads` | 上传文件（请求体就是文件内容，头 `Content-Type` 是类型、`X-File-Name` 是 URL 编码的文件名），返回附件信息 |
+| GET | `/api/groups/:id/files/:fid` | 下载文件（需要令牌） |
+| POST | `/api/groups/:id/files/:fid/link` | 生成 10 分钟有效的签名下载链接 |
 | PUT | `/api/groups/:id/binding` | 绑定 / 解除代码仓库（`{"repo": {"integrationId", "repo"}}` 或 `{"repo": null}`） |
 | POST | `/api/groups/:id/messages/:mid/card` | 点确认卡片的按钮（`{"action": "merge" 或 "reject"}`） |
 | GET | `/api/integrations/types` | 可用的连接类型及表单字段 |

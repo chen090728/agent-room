@@ -1,6 +1,8 @@
-import type { AdapterInfo, GroupSummary, IntegrationView, MemberView, Message, ResourceInfo } from './protocol';
+import type { AdapterInfo, Attachment, GroupSummary, IntegrationView, MemberView, Message, ResourceInfo } from './protocol';
 import type { ConnectionSettings } from './storage';
 import type { Avatar } from './theme';
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export class ApiError extends Error {
   constructor(
@@ -59,7 +61,26 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
       request<GroupSummary>(`/api/groups/${groupId}/members`, { method: 'PUT', body: JSON.stringify({ memberIds }) }),
     messages: (groupId: string, before?: string) =>
       request<Message[]>(`/api/groups/${groupId}/messages?limit=50${before ? `&before=${before}` : ''}`),
-    send: (groupId: string, content: string) => post<Message>(`/api/groups/${groupId}/messages`, { content }),
+    send: (groupId: string, content: string, attachments: string[] = []) =>
+      post<Message>(`/api/groups/${groupId}/messages`, { content, attachments }),
+    /** Uploads a picked file (a local uri) and returns the attachment to send with the next message. */
+    upload: async (groupId: string, file: { uri: string; name: string; mime: string }) => {
+      let blob: Blob;
+      try {
+        blob = await (await fetch(file.uri)).blob();
+      } catch {
+        throw new ApiError('读取这个文件失败', 0);
+      }
+      if (blob.size > MAX_UPLOAD_BYTES) throw new ApiError('文件太大，最多 10 MB', 413);
+      return request<Attachment>(`/api/groups/${groupId}/uploads`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.mime || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+        body: blob,
+      });
+    },
+    /** A short-lived link that opens in the phone's browser without the token header. */
+    fileLink: async (groupId: string, fileId: string) =>
+      `${serverUrl}${(await post<{ path: string }>(`/api/groups/${groupId}/files/${fileId}/link`, {})).path}`,
     members: () => request<MemberView[]>('/api/members'),
     createMember: (input: {
       name: string;

@@ -3,6 +3,17 @@ import type { Avatar, AvatarColor } from './theme';
 
 export type SenderKind = 'user' | 'member' | 'system';
 
+export type AttachmentKind = 'image' | 'text' | 'pdf';
+
+/** A file sent with a message. */
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  kind: AttachmentKind;
+}
+
 export interface PullRequestFile {
   path: string;
   status: string;
@@ -38,6 +49,7 @@ export interface Message {
   senderId: string | null;
   senderName: string;
   content: string;
+  attachments?: Attachment[];
   card?: Card | null;
   rootId: string;
   hop: number;
@@ -118,8 +130,10 @@ export interface MemberView {
 export interface FieldSpec {
   key: string;
   label: string;
-  kind: 'text' | 'url' | 'password' | 'textarea';
+  /** 'boolean' is an on/off switch stored as 'true' or 'false'. */
+  kind: 'text' | 'url' | 'password' | 'textarea' | 'boolean';
   required: boolean;
+  defaultValue?: string;
   placeholder?: string;
   secret?: boolean;
 }

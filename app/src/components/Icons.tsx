@@ -161,3 +161,33 @@ export function ChevronRightIcon({ size = 16, color = colors.textSecondary }: Ic
     </Svg>
   );
 }
+
+export function ImageIcon({ size = 20, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x={3.5} y={4.5} width={17} height={15} rx={3} />
+      <Circle cx={9} cy={10} r={1.6} />
+      <Path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5" />
+    </Svg>
+  );
+}
+
+export function FileIcon({ size = 20, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z" />
+      <Path d="M14 3.5V8h4.5" />
+      <Line x1={8.5} y1={13} x2={15.5} y2={13} />
+      <Line x1={8.5} y1={16.5} x2={13} y2={16.5} />
+    </Svg>
+  );
+}
+
+export function AtIcon({ size = 20, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={12} cy={12} r={3.4} />
+      <Path d="M15.4 8.6v5a2.4 2.4 0 0 0 4.8 0V12a8.2 8.2 0 1 0-3.2 6.5" />
+    </Svg>
+  );
+}

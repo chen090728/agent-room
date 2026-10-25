@@ -114,7 +114,20 @@ export default function NewMemberScreen() {
                 <Switch label="模拟助手" value={mock} onChange={setMock} />
               </View>
               {!mock &&
-                fields.map((f) => (
+                fields.map((f) =>
+                  f.kind === 'boolean' ? (
+                    <View key={f.key} style={[styles.switchRow, styles.switchDivider]}>
+                      <View style={styles.switchText}>
+                        <Text style={styles.switchTitle}>{f.label}</Text>
+                        <Text style={styles.switchSub}>关闭后不会把图片发给这个模型</Text>
+                      </View>
+                      <Switch
+                        label={f.label}
+                        value={(config[f.key] ?? f.defaultValue ?? 'false') === 'true'}
+                        onChange={(v) => setConfig((c) => ({ ...c, [f.key]: String(v) }))}
+                      />
+                    </View>
+                  ) : (
                   <FieldRow
                     key={f.key}
                     label={f.label}
@@ -126,7 +139,8 @@ export default function NewMemberScreen() {
                     autoCapitalize="none"
                     multiline={f.kind === 'textarea'}
                   />
-                ))}
+                  ),
+                )}
             </Card>
           </View>
 
@@ -169,5 +183,6 @@ const styles = StyleSheet.create({
   switchText: { flex: 1, gap: 2 },
   switchTitle: { fontSize: 15, color: colors.text },
   switchSub: { fontSize: 12, color: colors.textSecondary },
+  switchDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },
 });

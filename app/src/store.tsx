@@ -153,7 +153,7 @@ interface Store extends State {
   refreshMembers(): Promise<void>;
   refreshIntegrations(): Promise<void>;
   loadMessages(groupId: string): Promise<void>;
-  send(groupId: string, content: string): Promise<void>;
+  send(groupId: string, content: string, attachments?: string[]): Promise<void>;
   /** Inserts a group returned by the API right away, before the next refresh. */
   upsertGroup(group: GroupSummary): void;
 }
@@ -235,9 +235,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshMembers,
     refreshIntegrations,
     loadMessages,
-    async send(groupId, content) {
+    async send(groupId, content, attachments = []) {
       if (!api) return;
-      const message = await api.send(groupId, content);
+      const message = await api.send(groupId, content, attachments);
       dispatch({ type: 'chat', event: { type: 'message', message } });
     },
     upsertGroup(group) {

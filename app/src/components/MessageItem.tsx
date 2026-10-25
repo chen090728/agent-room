@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { separatorTime } from '../format';
 import type { Message } from '../protocol';
 import { colors, shadows, type Avatar } from '../theme';
+import { Attachments } from './Attachments';
 import { Blob } from './Avatar';
 import { PullRequestCard } from './PullRequestCard';
 
@@ -29,11 +30,17 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
   if (m.senderKind === 'system') return <Text style={styles.system}>{m.content}</Text>;
 
   if (m.senderKind === 'user') {
+    const files = m.attachments ?? [];
     return (
-      <View style={styles.mine}>
-        <Text style={styles.mineText} selectable>
-          {m.content}
-        </Text>
+      <View style={[styles.mineWrap, { marginVertical: 11 }]}>
+        {files.length > 0 && <Attachments groupId={m.groupId} attachments={files} align="flex-end" />}
+        {m.content ? (
+          <View style={styles.mine}>
+            <Text style={styles.mineText} selectable>
+              {m.content}
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -44,11 +51,14 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
         <Blob avatar={avatar} size={28} />
         <Text style={styles.senderName}>{m.senderName}</Text>
       </View>
-      <View style={styles.bubble}>
-        <Text style={styles.bubbleText} selectable>
-          {m.content}
-        </Text>
-      </View>
+      {m.attachments?.length ? <Attachments groupId={m.groupId} attachments={m.attachments} /> : null}
+      {m.content ? (
+        <View style={styles.bubble}>
+          <Text style={styles.bubbleText} selectable>
+            {m.content}
+          </Text>
+        </View>
+      ) : null}
       {m.card?.type === 'pull_request' && <PullRequestCard message={m} card={m.card} />}
     </View>
   );
@@ -74,14 +84,14 @@ const styles = StyleSheet.create({
     marginVertical: 11,
     paddingHorizontal: 24,
   },
+  mineWrap: { alignSelf: 'flex-end', maxWidth: '82%', gap: 6, alignItems: 'flex-end' },
   mine: {
     alignSelf: 'flex-end',
-    maxWidth: '82%',
+    maxWidth: '100%',
     backgroundColor: colors.text,
     borderRadius: 20,
     paddingHorizontal: 15,
     paddingVertical: 11,
-    marginVertical: 11,
   },
   mineText: { color: '#FFFFFF', fontSize: 14, lineHeight: 22 },
   theirs: { maxWidth: '86%', gap: 8, marginVertical: 11, alignSelf: 'flex-start' },

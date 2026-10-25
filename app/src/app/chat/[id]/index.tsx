@@ -40,9 +40,9 @@ export default function ChatScreen() {
   // The list is inverted so it starts at the bottom; rows go newest first.
   const rows = useMemo(() => buildRows(messages ?? [], avatarOf).reverse(), [messages, avatarOf]);
 
-  const onSend = async (content: string) => {
+  const onSend = async (content: string, attachmentIds: string[]) => {
     try {
-      await send(id, content);
+      await send(id, content, attachmentIds);
     } catch (e) {
       showMessage('发送失败', (e as Error).message);
       throw e;
@@ -120,7 +120,16 @@ export default function ChatScreen() {
         {relay && <RelayBar relay={relay} />}
 
         <View style={styles.composer}>
-          <Composer members={group.members} onSend={onSend} placeholder={direct ? `给${group.name}发消息` : '给群里发消息，@ 点名'} showMention={!direct} />
+          <Composer
+            members={group.members}
+            onSend={onSend}
+            onUpload={(file) => {
+              if (!store.api) throw new Error('还没有连接服务器');
+              return store.api.upload(id, file);
+            }}
+            placeholder={direct ? `给${group.name}发消息` : '给群里发消息，@ 点名'}
+            showMention={!direct}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
