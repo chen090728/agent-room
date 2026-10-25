@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BridgeMembers } from '../components/BridgeMembers';
 import { AddPersonIcon } from '../components/Icons';
 import { MemberChecklist } from '../components/MemberChecklist';
 import { ErrorText, PrimaryButton, SectionLabel } from '../components/ui';
-import { SheetHeader, useSheets } from '../sheets';
+import { SheetHeader, SheetScrollView, useSheets } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
 
@@ -45,7 +45,7 @@ export function ChatSettingsSheet({ params }: { params: Record<string, string> }
   return (
     <View style={styles.root}>
       <SheetHeader title={group ? group.name : '对话设置'} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {group && isGroup && (
           <View style={styles.section}>
             <SectionLabel>{`群成员 · 已选 ${selected.length} 位`}</SectionLabel>
@@ -67,7 +67,7 @@ export function ChatSettingsSheet({ params }: { params: Record<string, string> }
           <Text style={styles.empty}>这是和 {group.name} 的单聊。点输入框左边的加号，可以给这个对话添加插件（GitHub、部署平台）。</Text>
         )}
         {!group && <Text style={styles.empty}>找不到这个对话</Text>}
-      </ScrollView>
+      </SheetScrollView>
     </View>
   );
 }

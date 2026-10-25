@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddPersonIcon } from '../components/Icons';
 import { MemberChecklist } from '../components/MemberChecklist';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
-import { SheetHeader, useSheetClose, useSheets } from '../sheets';
+import { SheetHeader, SheetScrollView, useSheetClose, useSheets } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
 
@@ -40,7 +40,7 @@ export function NewGroupSheet() {
     <View style={styles.root}>
       <KeyboardAvoider style={styles.root}>
         <SheetHeader title="新建群聊" />
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Card>
             <FieldRow first label="群名" value={name} onChangeText={setName} placeholder="例如：产品讨论组" maxLength={40} />
           </Card>
@@ -53,7 +53,7 @@ export function NewGroupSheet() {
               <Text style={styles.addText}>新建助手</Text>
             </Pressable>
           </View>
-        </ScrollView>
+        </SheetScrollView>
         <View style={styles.footer}>
           <ErrorText>{error}</ErrorText>
           <PrimaryButton title="创建群聊" onPress={create} disabled={!name.trim()} busy={busy} />

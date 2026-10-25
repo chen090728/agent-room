@@ -128,6 +128,19 @@ test('history reload keeps an unsent message and the objects already on screen',
   assert.equal(echoed[1].delivery, undefined);
 });
 
+test('history reload applies an older card edit and keeps unknown message fields', () => {
+  const card = { type: 'pull_request', state: 'open' };
+  const older = { ...server({ id: 'a', content: 'earlier', createdAt: 1_000, card: card as never }), clientKey: 'a' };
+  const fresh = server({ id: 'a', content: 'earlier', createdAt: 1_000, card: { ...card, state: 'merged' } as never });
+  const withNotice = { ...fresh, notice: { code: 'demo.welcome', params: { name: '小橙' } } };
+  const merged = mergeServerMessages([older], [withNotice]);
+
+  assert.equal(merged[0].clientKey, 'a');
+  assert.equal((merged[0].card as { state: string }).state, 'merged');
+  assert.deepEqual((merged[0] as { notice?: unknown }).notice, withNotice.notice);
+  assert.equal(mergeServerMessages(merged, [withNotice]), merged);
+});
+
 test('adding a message reuses the previous row objects', () => {
   const older = { ...server({ id: 'a', content: 'earlier', createdAt: 1_000, senderKind: 'member', senderId: 'm1', senderName: '小橙' }), clientKey: 'a' };
   const pending = outgoing('hello', 2_000, 'local-1');

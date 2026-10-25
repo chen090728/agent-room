@@ -1,5 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAfterTransition } from './afterTransition';
 import { createApi, socketUrl, type Api } from './api';
+import { buildSnapshot, readRoomCache, writeRoomCache, type RoomSnapshot } from './cache';
+import { applyGroupSummary, chatEventFromList, historySyncNeeded, typingMemberIds } from './live';
 import {
   acknowledge,
   addIncoming,
@@ -49,7 +53,7 @@ interface State {
 type Action =
   | { type: 'profile'; profile: Profile }
   | { type: 'files'; enabled: boolean }
-  | { type: 'settings'; settings: ConnectionSettings | null }
+  | { type: 'settings'; settings: ConnectionSettings | null; snap?: RoomSnapshot | null }
   | { type: 'status'; status: SocketStatus }
   | { type: 'groups'; groups: GroupSummary[] }
   | { type: 'members'; members: MemberView[] }
@@ -82,6 +86,20 @@ const initial: State = {
 
 const byActivity = (a: GroupSummary, b: GroupSummary) => b.lastActivityAt - a.lastActivityAt;
 
+function cachedMessages(snap: RoomSnapshot): Record<string, ChatMessage[]> {
+  const messages: Record<string, ChatMessage[]> = {};
+  for (const [groupId, list] of Object.entries(snap.messages)) {
+    messages[groupId] = list.map((item) => ({ ...item, clientKey: item.clientKey || item.id }));
+  }
+  return messages;
+}
+
+function sameIds(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 /** Swap in a new message list and point the group preview at its newest row. Same list means no update. */
 function commitMessages(state: State, groupId: string, list: ChatMessage[]): State {
   if (state.messages[groupId] === list) return state;
@@ -107,8 +125,27 @@ function reducer(state: State, action: Action): State {
       return { ...state, profile: action.profile };
     case 'files':
       return { ...state, filesEnabled: action.enabled };
-    case 'settings':
-      return { ...initial, profile: state.profile, settingsLoaded: true, settings: action.settings };
+    case 'settings': {
+      const base: State = { ...initial, profile: state.profile, settingsLoaded: true, settings: action.settings };
+      const snap = action.snap;
+      if (!snap) return base;
+      const relays: State['relays'] = {};
+      const typing: State['typing'] = {};
+      for (const group of snap.groups) {
+        relays[group.id] = group.relay ?? undefined;
+        const ids = typingMemberIds(group);
+        if (ids.length) typing[group.id] = ids;
+      }
+      return {
+        ...base,
+        groupsLoaded: true,
+        groups: [...snap.groups].sort(byActivity),
+        members: snap.members,
+        messages: cachedMessages(snap),
+        relays,
+        typing,
+      };
+    }
     case 'status':
       return { ...state, status: action.status };
     case 'groups': {
@@ -118,10 +155,15 @@ function reducer(state: State, action: Action): State {
     }
     case 'group': {
       const g = action.group;
+      const folded = applyGroupSummary(state.messages[g.id], g);
+      const typing = folded.typing;
+      const prevTyping = state.typing[g.id] ?? [];
       return {
         ...state,
         groups: [g, ...state.groups.filter((x) => x.id !== g.id)].sort(byActivity),
         relays: { ...state.relays, [g.id]: g.relay ?? undefined },
+        messages: folded.changed ? { ...state.messages, [g.id]: folded.messages ?? [] } : state.messages,
+        typing: sameIds(prevTyping, typing) ? state.typing : { ...state.typing, [g.id]: typing },
       };
     }
     case 'members':
@@ -199,6 +241,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const messagesRef = useRef(state.messages);
   messagesRef.current = state.messages;
   const inflight = useRef(new Set<string>());
+  const syncTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const deliver = useCallback((groupId: string, clientKey: string, content: string, attachmentIds: string[]) => {
     inflight.current.add(clientKey);
@@ -251,15 +294,59 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [deliver]);
 
   useEffect(() => {
-    loadProfile().then((profile) => dispatch({ type: 'profile', profile }));
+    let cancelled = false;
+    loadProfile().then((profile) => {
+      if (!cancelled) dispatch({ type: 'profile', profile });
+    });
     loadSettings()
-      .then((settings) => dispatch({ type: 'settings', settings }))
-      .catch(() => dispatch({ type: 'settings', settings: null }));
+      .then(async (settings) => {
+        const snap = settings ? await readRoomCache(AsyncStorage, settings.serverUrl) : null;
+        if (!cancelled) dispatch({ type: 'settings', settings, snap });
+      })
+      .catch(() => {
+        if (!cancelled) dispatch({ type: 'settings', settings: null });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const loadMessages = useCallback(
+    async (groupId: string) => {
+      if (api) dispatch({ type: 'messages', groupId, messages: await api.messages(groupId) });
+    },
+    [api],
+  );
+  const loadRef = useRef(loadMessages);
+  loadRef.current = loadMessages;
+
+  const scheduleHistorySync = useCallback((groupId: string) => {
+    const pending = syncTimers.current.get(groupId);
+    if (pending) clearTimeout(pending);
+    syncTimers.current.set(
+      groupId,
+      setTimeout(() => {
+        syncTimers.current.delete(groupId);
+        loadRef.current(groupId).catch(() => {});
+      }, 300),
+    );
+  }, []);
+
+  useEffect(
+    () => () => {
+      for (const timer of syncTimers.current.values()) clearTimeout(timer);
+    },
+    [],
+  );
+
   const refreshGroups = useCallback(async () => {
-    if (api) dispatch({ type: 'groups', groups: await api.groups() });
-  }, [api]);
+    if (!api) return;
+    const groups = await api.groups();
+    dispatch({ type: 'groups', groups });
+    for (const group of groups) {
+      if (historySyncNeeded(messagesRef.current[group.id], group.lastMessage)) scheduleHistorySync(group.id);
+    }
+  }, [api, scheduleHistorySync]);
 
   const refreshMembers = useCallback(async () => {
     if (!api) return;
@@ -274,14 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'integrations', integrations, types });
   }, [api]);
 
-  const loadMessages = useCallback(
-    async (groupId: string) => {
-      if (api) dispatch({ type: 'messages', groupId, messages: await api.messages(groupId) });
-    },
-    [api],
-  );
-
-  // Group-list connection (/ws): stays open while the App is connected.
+  // One WebSocket for the whole app (/ws). Chat screens do not open their own.
   useEffect(() => {
     if (!api || !state.settings) return;
     refreshGroups().catch(() => {});
@@ -293,12 +373,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       onStatus: (status) => dispatch({ type: 'status', status }),
       onReconnect: () => refreshGroups().catch(() => {}),
       onEvent: (event: ListEvent) => {
-        if (event.type === 'group_updated') dispatch({ type: 'group', group: event.group });
-        else if (event.type === 'groups_changed') refreshGroups().catch(() => {});
+        const chat = chatEventFromList(event);
+        if (chat) {
+          dispatch({ type: 'chat', event: chat });
+          return;
+        }
+        if (event.type === 'group_updated') {
+          dispatch({ type: 'group', group: event.group });
+          if (historySyncNeeded(messagesRef.current[event.group.id], event.group.lastMessage)) scheduleHistorySync(event.group.id);
+        } else if (event.type === 'groups_changed') refreshGroups().catch(() => {});
         else if (event.type === 'members_changed') refreshMembers().catch(() => {});
       },
     });
-  }, [api, state.settings, refreshGroups, refreshMembers]);
+  }, [api, state.settings, refreshGroups, refreshMembers, scheduleHistorySync]);
+
+  useEffect(() => {
+    if (!state.settings || !state.groupsLoaded) return;
+    const snapshot = buildSnapshot(state.settings.serverUrl, state.groups, state.members, state.messages);
+    const handle = setTimeout(() => {
+      writeRoomCache(AsyncStorage, snapshot).catch(() => {});
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [state.settings, state.groupsLoaded, state.groups, state.members, state.messages]);
 
   const store: Store = {
     ...state,
@@ -308,7 +404,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Verify before saving so a typo never locks the user out.
       await createApi(settings).groups();
       await saveSettings(settings);
-      dispatch({ type: 'settings', settings });
+      const snap = await readRoomCache(AsyncStorage, settings.serverUrl);
+      dispatch({ type: 'settings', settings, snap });
     },
     async disconnect() {
       await clearSettings();
@@ -339,27 +436,19 @@ export function useStore(): Store {
 }
 
 /**
- * Chat connection (/ws/groups/:id) for the group on screen: loads its history
- * and streams new messages, typing and relay progress while mounted.
+ * The chat on screen. History is whatever is already cached; a refresh is
+ * deferred until the push transition ends. Live rows come from the app socket.
  */
 export function useGroupChannel(groupId: string | undefined): { status: SocketStatus; error: string | null } {
-  const { settings, dispatch, loadMessages } = useStore();
-  const [status, setStatus] = useState<SocketStatus>('connecting');
+  const { settings, status, loadMessages } = useStore();
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!groupId || !settings) return;
-    setError(null);
-    const load = () => loadMessages(groupId).then(() => setError(null), (e) => setError(e.message));
-    load();
-    return openSocket({
-      url: socketUrl(settings.serverUrl, groupId),
-      token: settings.token,
-      onStatus: setStatus,
-      onReconnect: load,
-      onEvent: (event: ChatEvent) => dispatch({ type: 'chat', event }),
-    });
-  }, [groupId, settings, dispatch, loadMessages]);
-
+  const sync = useCallback(() => {
+    if (!groupId) return;
+    loadMessages(groupId).then(
+      () => setError(null),
+      (e: Error) => setError(e.message),
+    );
+  }, [groupId, loadMessages]);
+  useAfterTransition(sync, Boolean(groupId && settings));
   return { status, error };
 }
