@@ -1,4 +1,4 @@
-import type { AdapterInfo, GroupSummary, MemberView, Message } from './protocol';
+import type { AdapterInfo, GroupSummary, IntegrationView, MemberView, Message, ResourceInfo } from './protocol';
 import type { ConnectionSettings } from './storage';
 import type { Avatar } from './theme';
 
@@ -69,6 +69,16 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
       persona: string;
       config: Record<string, string>;
     }) => post<MemberView>('/api/members', input),
+    integrationTypes: () => request<AdapterInfo[]>('/api/integrations/types'),
+    integrations: () => request<IntegrationView[]>('/api/integrations'),
+    createIntegration: (input: { type: string; name?: string; config: Record<string, string> }) =>
+      post<IntegrationView>('/api/integrations', input),
+    deleteIntegration: (id: string) => request<{ ok: true }>(`/api/integrations/${id}`, { method: 'DELETE' }),
+    integrationResources: (id: string) => request<ResourceInfo[]>(`/api/integrations/${id}/resources`),
+    setBinding: (groupId: string, repo: { integrationId: string; repo: string } | null) =>
+      request<GroupSummary>(`/api/groups/${groupId}/binding`, { method: 'PUT', body: JSON.stringify({ repo }) }),
+    cardAction: (groupId: string, messageId: string, action: 'merge' | 'reject') =>
+      post<Message>(`/api/groups/${groupId}/messages/${messageId}/card`, { action }),
     deleteMember: (id: string) => request<{ ok: true }>(`/api/members/${id}`, { method: 'DELETE' }),
   };
 }

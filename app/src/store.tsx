@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import { createApi, socketUrl, type Api } from './api';
-import type { AdapterInfo, ChatEvent, GroupSummary, ListEvent, MemberView, Message, RelayState } from './protocol';
+import type { AdapterInfo, ChatEvent, GroupSummary, IntegrationView, ListEvent, MemberView, Message, RelayState } from './protocol';
 import { openSocket, type SocketStatus } from './socket';
 import {
   clearSettings,
@@ -23,6 +23,8 @@ interface State {
   groups: GroupSummary[];
   members: MemberView[];
   adapters: AdapterInfo[];
+  integrations: IntegrationView[];
+  integrationTypes: AdapterInfo[];
   /** Loaded messages per group, oldest first. */
   messages: Record<string, Message[]>;
   /** Member ids currently composing a reply, per group. */
@@ -37,6 +39,7 @@ type Action =
   | { type: 'groups'; groups: GroupSummary[] }
   | { type: 'members'; members: MemberView[] }
   | { type: 'adapters'; adapters: AdapterInfo[] }
+  | { type: 'integrations'; integrations: IntegrationView[]; types: AdapterInfo[] }
   | { type: 'messages'; groupId: string; messages: Message[] }
   | { type: 'group'; group: GroupSummary }
   | { type: 'chat'; event: ChatEvent };
@@ -50,6 +53,8 @@ const initial: State = {
   groups: [],
   members: [],
   adapters: [],
+  integrations: [],
+  integrationTypes: [],
   messages: {},
   typing: {},
   relays: {},
@@ -89,6 +94,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, members: action.members };
     case 'adapters':
       return { ...state, adapters: action.adapters };
+    case 'integrations':
+      return { ...state, integrations: action.integrations, integrationTypes: action.types };
     case 'messages':
       return {
         ...state,
@@ -110,6 +117,15 @@ function applyChatEvent(state: State, event: ChatEvent): State {
         ...state,
         groups,
         messages: { ...state.messages, [m.groupId]: mergeMessages(state.messages[m.groupId], [m]) },
+      };
+    }
+    case 'message_updated': {
+      const m = event.message;
+      const list = state.messages[m.groupId];
+      return {
+        ...state,
+        groups: state.groups.map((g) => (g.id === m.groupId && g.lastMessage?.id === m.id ? { ...g, lastMessage: m } : g)),
+        messages: list ? { ...state.messages, [m.groupId]: list.map((x) => (x.id === m.id ? m : x)) } : state.messages,
       };
     }
     case 'typing': {
@@ -135,6 +151,7 @@ interface Store extends State {
   updateProfile(profile: Profile): Promise<void>;
   refreshGroups(): Promise<void>;
   refreshMembers(): Promise<void>;
+  refreshIntegrations(): Promise<void>;
   loadMessages(groupId: string): Promise<void>;
   send(groupId: string, content: string): Promise<void>;
   /** Inserts a group returned by the API right away, before the next refresh. */
@@ -163,6 +180,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const [members, adapters] = await Promise.all([api.members(), api.adapters()]);
     dispatch({ type: 'members', members });
     dispatch({ type: 'adapters', adapters });
+  }, [api]);
+
+  const refreshIntegrations = useCallback(async () => {
+    if (!api) return;
+    const [integrations, types] = await Promise.all([api.integrations(), api.integrationTypes()]);
+    dispatch({ type: 'integrations', integrations, types });
   }, [api]);
 
   const loadMessages = useCallback(
@@ -210,6 +233,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     refreshGroups,
     refreshMembers,
+    refreshIntegrations,
     loadMessages,
     async send(groupId, content) {
       if (!api) return;

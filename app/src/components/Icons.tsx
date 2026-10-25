@@ -132,3 +132,32 @@ export function SearchIcon({ size = 18, color = colors.icon }: IconProps) {
     </Svg>
   );
 }
+
+export function BranchIcon({ size = 14, color = colors.textSecondary }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={6} cy={5} r={2.4} />
+      <Circle cx={6} cy={19} r={2.4} />
+      <Circle cx={18} cy={9} r={2.4} />
+      <Path d="M6 7.4v9.2" />
+      <Path d="M18 11.4c0 4-6 3-11 6.2" />
+    </Svg>
+  );
+}
+
+export function LinkIcon({ size = 20, color = colors.icon }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <Path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+    </Svg>
+  );
+}
+
+export function ChevronRightIcon({ size = 16, color = colors.textSecondary }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="9 5 16 12 9 19" />
+    </Svg>
+  );
+}

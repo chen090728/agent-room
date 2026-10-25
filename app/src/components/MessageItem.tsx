@@ -4,6 +4,7 @@ import { separatorTime } from '../format';
 import type { Message } from '../protocol';
 import { colors, shadows, type Avatar } from '../theme';
 import { Blob } from './Avatar';
+import { PullRequestCard } from './PullRequestCard';
 
 export type ChatRow =
   | { kind: 'time'; key: string; at: number }
@@ -48,6 +49,7 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
           {m.content}
         </Text>
       </View>
+      {m.card?.type === 'pull_request' && <PullRequestCard message={m} card={m.card} />}
     </View>
   );
 });

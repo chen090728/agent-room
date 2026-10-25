@@ -1,11 +1,12 @@
 import { Redirect, router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GroupAvatar, MacDots, MeAvatar } from '../components/Avatar';
 import { AddPersonIcon, NewChatIcon, NewMenuIcon, SearchIcon, ThinPlusIcon } from '../components/Icons';
 import { ModelIcon } from '../components/ModelIcon';
 import { RelayDots } from '../components/RelayDots';
+import { confirmAction, showMessage } from '../dialogs';
 import { shortTime } from '../format';
 import type { GroupSummary, MemberView } from '../protocol';
 import { useStore } from '../store';
@@ -21,6 +22,10 @@ function previewText(g: GroupSummary, myName: string): string {
   if (g.relay) return `${g.relay.thinking ?? '成员'} 正在思考…`;
   const m = g.lastMessage;
   if (!m) return g.kind === 'direct' ? '点开开始聊天' : '还没有消息';
+  if (m.card?.type === 'pull_request' && m.card.state === 'open') {
+    const text = `改了 ${m.card.files.length} 个文件，等你确认`;
+    return g.kind === 'direct' ? text : `${m.senderName}：${text}`;
+  }
   if (m.senderKind === 'system') return m.content;
   if (g.kind === 'direct') return m.senderKind === 'user' ? `${myName}：${m.content}` : m.content;
   return `${m.senderKind === 'user' ? myName : m.senderName}：${m.content}`;
@@ -57,22 +62,21 @@ export default function HomeScreen() {
     router.push(path);
   };
 
-  const confirmDelete = (member: MemberView) =>
-    Alert.alert(`删除「${member.name}」？`, '会同时删除和它的单聊入口；它在群聊里发过的消息会保留。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api?.deleteMember(member.id);
-            await Promise.all([refreshGroups(), refreshMembers()]);
-          } catch (e) {
-            Alert.alert('删除失败', (e as Error).message);
-          }
-        },
-      },
-    ]);
+  const confirmDelete = async (member: MemberView) => {
+    const ok = await confirmAction({
+      title: `删除「${member.name}」？`,
+      message: '会同时删除和它的单聊入口；它在群聊里发过的消息会保留。',
+      confirmText: '删除',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api?.deleteMember(member.id);
+      await Promise.all([refreshGroups(), refreshMembers()]);
+    } catch (e) {
+      showMessage('删除失败', (e as Error).message);
+    }
+  };
 
   const renderRow = ({ item: g }: { item: GroupSummary }) => {
     const direct = g.kind === 'direct' ? g.members[0] : undefined;
@@ -101,6 +105,8 @@ export default function HomeScreen() {
             </Text>
             {g.relay ? (
               <RelayDots relay={g.relay} />
+            ) : g.lastMessage?.card?.state === 'open' ? (
+              <View style={styles.pendingDot} accessibilityLabel="待处理" />
             ) : member && member.type !== 'mock' ? (
               <ModelIcon model={member.config.model} baseUrl={member.config.baseUrl} />
             ) : null}
@@ -208,6 +214,7 @@ const styles = StyleSheet.create({
   time: { fontSize: 12, color: colors.textSecondary },
   rowBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 20 },
   preview: { flex: 1, minWidth: 0, fontSize: 14, color: colors.textSecondary },
+  pendingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#E0703F' },
   empty: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, paddingVertical: 32, paddingHorizontal: 24 },
   bottom: { paddingHorizontal: 16, paddingTop: 8 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

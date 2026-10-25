@@ -1,16 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MacDots } from '../../components/Avatar';
-import { Composer } from '../../components/Composer';
-import { AddPersonIcon, MenuIcon, NewChatIcon } from '../../components/Icons';
-import { buildRows, MessageItem, TypingRow } from '../../components/MessageItem';
-import { RelayDots } from '../../components/RelayDots';
-import { RoundButton } from '../../components/ui';
-import type { RelayState } from '../../protocol';
-import { useGroupChannel, useStore } from '../../store';
-import { colors, shadows, type Avatar } from '../../theme';
+import { MacDots } from '../../../components/Avatar';
+import { Composer } from '../../../components/Composer';
+import { AddPersonIcon, MenuIcon, NewChatIcon } from '../../../components/Icons';
+import { buildRows, MessageItem, TypingRow } from '../../../components/MessageItem';
+import { RelayDots } from '../../../components/RelayDots';
+import { showMessage } from '../../../dialogs';
+import { RoundButton } from '../../../components/ui';
+import type { RelayState } from '../../../protocol';
+import { useGroupChannel, useStore } from '../../../store';
+import { colors, shadows, type Avatar } from '../../../theme';
 
 const FALLBACK_AVATAR: Avatar = { shape: 'circle', color: 'gray' };
 
@@ -43,7 +44,7 @@ export default function ChatScreen() {
     try {
       await send(id, content);
     } catch (e) {
-      Alert.alert('发送失败', (e as Error).message);
+      showMessage('发送失败', (e as Error).message);
       throw e;
     }
   };
@@ -70,8 +71,8 @@ export default function ChatScreen() {
           </RoundButton>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={direct ? group.name : `${group.name}，查看群成员`}
-            onPress={direct ? undefined : () => router.push({ pathname: '/group/[id]/members', params: { id } })}
+            accessibilityLabel={`${group.name}，对话设置`}
+            onPress={() => router.push({ pathname: '/chat/[id]/settings', params: { id } })}
             style={styles.titlePill}
           >
             <MacDots small />

@@ -132,6 +132,34 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 - **模型小图标**：非模拟助手的行右侧会显示所用模型的提供方图标，根据模型名和接口地址推断，
   认不出就用通用图标（图标来自 LobeHub Icons，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
 - **我的昵称和头像**只保存在这台手机上，不会传到服务器。
+- **对话设置**：点聊天页顶部的名字胶囊，可以改群成员（群聊）和绑定代码仓库。
+
+## 连接（Integrations）：GitHub
+
+设置里的"连接"页管理和外部服务的连接，目前支持 GitHub。写法和成员适配器一致：按类型注册、
+用表单字段描述需要填什么、敏感字段加密保存、并向助手暴露工具。
+
+**连接 GitHub**：在 GitHub 网页创建一个**细粒度访问令牌**（Settings → Developer settings → Personal access tokens →
+Fine-grained tokens），Repository access 只选要给助手用的仓库，Repository permissions 里把 **Contents** 和
+**Pull requests** 设为 Read and write。把令牌填进 App 的"设置 → 连接 → GitHub"，服务器会先验证再保存；
+令牌加密存在你的服务器上，App 里只显示打码后的样子。
+
+**绑定仓库**：打开某个对话（群聊或单聊）→ 点顶部的名字胶囊 → "代码仓库"，选一个仓库。之后这个对话里的助手
+（需要是"OpenAI 兼容接口"类型，模拟助手没有这个能力；模型要支持函数调用，不支持时会自动降级成普通回复）会有三个工具：
+
+| 工具 | 作用 |
+| --- | --- |
+| `list_directory` | 列出默认分支里某个目录 |
+| `read_file` | 读取默认分支里的一个文本文件 |
+| `create_pull_request` | 把修改提交到**新分支**并开 PR |
+
+**助手改代码要经过你确认**：开 PR 后，聊天里会出现一张确认卡片（改了哪些文件、增删行数），点"同意合并"才会合并（squash），
+点"拒绝"会关掉 PR。助手没有任何合并的工具，所以不可能自己合并。另外，助手**不能修改 `.github/workflows/` 里的文件**
+（CI 工作流会带着仓库的密钥运行）。合并或拒绝后，临时分支会被删除。
+
+**如何新增连接类型**：实现 `core/src/integrations/types.ts` 里的 `IntegrationType`（`fields`、`verify`、`listResources`、
+`createTools`、`cardAction`），在 `core/src/index.ts` 的 `defaultIntegrations()` 里注册即可，Node 版和 Cloudflare 版同时生效。
+`createTools` 返回的工具可以往 `cards` 里放确认卡片。参考 `core/src/integrations/github.ts`。
 
 ## 群聊规则
 
@@ -153,6 +181,7 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 - API Key 用 Web Crypto 的 AES-256-GCM 加密后存进 SQLite，密钥由 `AGENTHUB_SECRET` 经 HKDF-SHA256 派生。接口永远不会返回 Key 明文，App 里只显示 `sk-…abcd` 这样的打码形式。
 - App 把访问令牌存在系统安全存储里（iOS Keychain / Android Keystore，通过 `expo-secure-store`），服务器地址等普通设置存在 AsyncStorage。
 - 公网访问请务必使用 HTTPS（Cloudflare 版自带）。
+- 连接的令牌（如 GitHub）和 API Key 一样加密保存，接口不返回明文，也不会出现在发给模型的内容和错误信息里。
 
 ### 从旧版本升级
 
@@ -246,8 +275,14 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | GET | `/api/groups/:id` | 群详情 |
 | PUT | `/api/groups/:id/members` | 设置群成员（单聊不可修改） |
 | GET / POST | `/api/groups/:id/messages` | 历史消息（`?before=<id>&limit=50`）/ 发消息 |
+| PUT | `/api/groups/:id/binding` | 绑定 / 解除代码仓库（`{"repo": {"integrationId", "repo"}}` 或 `{"repo": null}`） |
+| POST | `/api/groups/:id/messages/:mid/card` | 点确认卡片的按钮（`{"action": "merge" 或 "reject"}`） |
+| GET | `/api/integrations/types` | 可用的连接类型及表单字段 |
+| GET / POST | `/api/integrations` | 已有连接（令牌打码）/ 添加连接（先验证再保存） |
+| DELETE | `/api/integrations/:id` | 删除连接（同时解除用到它的绑定） |
+| GET | `/api/integrations/:id/resources` | 这个连接能看到的仓库列表 |
 | WS | `/ws` | 群列表事件：`group_updated`、`groups_changed`、`members_changed` |
-| WS | `/ws/groups/:id` | 单个群的聊天事件：`message`、`typing`、`relay`（接力进度） |
+| WS | `/ws/groups/:id` | 单个群的聊天事件：`message`、`message_updated`（比如卡片被合并）、`typing`、`relay`（接力进度） |
 
 两个 WebSocket 连上后都要先发 `{"type":"auth","token":"..."}`，收到 `{"type":"hello"}` 后才开始推送。
 

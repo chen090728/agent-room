@@ -3,6 +3,34 @@ import type { Avatar, AvatarColor } from './theme';
 
 export type SenderKind = 'user' | 'member' | 'system';
 
+export interface PullRequestFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
+export type CardState = 'open' | 'merged' | 'closed' | 'failed';
+
+/** A pull request an assistant opened, waiting for the user's decision. */
+export interface PullRequestCard {
+  type: 'pull_request';
+  integrationId: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  base: string;
+  files: PullRequestFile[];
+  additions: number;
+  deletions: number;
+  state: CardState;
+  error?: string;
+}
+
+export type Card = PullRequestCard;
+
 export interface Message {
   id: string;
   groupId: string;
@@ -10,6 +38,7 @@ export interface Message {
   senderId: string | null;
   senderName: string;
   content: string;
+  card?: Card | null;
   rootId: string;
   hop: number;
   createdAt: number;
@@ -36,6 +65,27 @@ export interface GroupMemberRef {
   type: string;
 }
 
+export interface GroupBinding {
+  repo?: { integrationId: string; repo: string };
+}
+
+/** A saved connection to an outside service; secrets arrive masked. */
+export interface IntegrationView {
+  id: string;
+  type: string;
+  typeLabel: string;
+  name: string;
+  config: Record<string, string>;
+  secrets: Record<string, string>;
+  createdAt: number;
+}
+
+export interface ResourceInfo {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 /** 'direct' is a one-to-one chat with a single assistant. */
 export type GroupKind = 'group' | 'direct';
 
@@ -48,6 +98,7 @@ export interface GroupSummary {
   lastMessage: Message | null;
   lastActivityAt: number;
   relay: RelayState | null;
+  binding: GroupBinding | null;
 }
 
 export interface MemberView {
@@ -83,6 +134,7 @@ export interface AdapterInfo {
 /** Events for one group's chat, sent over /ws/groups/:id. */
 export type ChatEvent =
   | { type: 'message'; message: Message }
+  | { type: 'message_updated'; message: Message }
   | { type: 'typing'; groupId: string; memberId: string; active: boolean }
   | { type: 'relay'; relay: RelayState };
 

@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeServerUrl } from '../api';
 import { MacDots, MeAvatar } from '../components/Avatar';
+import { confirmAction } from '../dialogs';
 import { AvatarPicker } from '../components/AvatarPicker';
-import { CloseIcon, LockIcon } from '../components/Icons';
+import { ChevronRightIcon, CloseIcon, LinkIcon, LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, RoundButton, ScreenHeader, SectionLabel } from '../components/ui';
 import { useStore } from '../store';
 import { colors, type Avatar } from '../theme';
@@ -43,18 +44,17 @@ export default function SettingsScreen() {
     }
   };
 
-  const signOut = () =>
-    Alert.alert('断开服务器', '会清除本机保存的地址和访问令牌。服务器上的数据不受影响。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '断开',
-        style: 'destructive',
-        onPress: async () => {
-          await disconnect();
-          router.replace('/settings');
-        },
-      },
-    ]);
+  const signOut = async () => {
+    const ok = await confirmAction({
+      title: '断开服务器',
+      message: '会清除本机保存的地址和访问令牌。服务器上的数据不受影响。',
+      confirmText: '断开',
+      destructive: true,
+    });
+    if (!ok) return;
+    await disconnect();
+    router.replace('/settings');
+  };
 
   return (
     <SafeAreaView style={styles.root}>
@@ -134,6 +134,22 @@ export default function SettingsScreen() {
           </View>
 
           {settings && (
+            <View style={styles.section}>
+              <SectionLabel>连接</SectionLabel>
+              <Card>
+                <Pressable accessibilityRole="button" accessibilityLabel="连接" onPress={() => router.push('/integrations')} style={styles.linkRow}>
+                  <LinkIcon />
+                  <View style={styles.linkText}>
+                    <Text style={styles.linkTitle}>外部服务</Text>
+                    <Text style={styles.linkSub}>GitHub：让助手读取代码、提交修改</Text>
+                  </View>
+                  <ChevronRightIcon />
+                </Pressable>
+              </Card>
+            </View>
+          )}
+
+          {settings && (
             <Pressable accessibilityRole="button" onPress={signOut} style={styles.signOut}>
               <Text style={styles.signOutText}>断开服务器</Text>
             </Pressable>
@@ -165,6 +181,10 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 12, color: colors.textSecondary },
   resetAvatar: { alignSelf: 'center', paddingVertical: 4 },
   resetText: { fontSize: 13, color: colors.textSecondary, textDecorationLine: 'underline' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  linkText: { flex: 1, minWidth: 0, gap: 2 },
+  linkTitle: { fontSize: 15, color: colors.text },
+  linkSub: { fontSize: 12, color: colors.textSecondary },
   signOut: { alignItems: 'center', justifyContent: 'center', height: 48 },
   signOutText: { fontSize: 14, color: colors.danger },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },
