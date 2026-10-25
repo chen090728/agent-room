@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AddPersonIcon, BackIcon } from '../../../components/Icons';
 import { MemberChecklist } from '../../../components/MemberChecklist';
+import { DeployBinding } from '../../../components/DeployBinding';
 import { RepoBinding } from '../../../components/RepoBinding';
 import { ErrorText, PrimaryButton, RoundButton, ScreenHeader, SectionLabel } from '../../../components/ui';
 import { useStore } from '../../../store';
@@ -74,6 +75,7 @@ export default function ChatSettingsScreen() {
           </View>
         )}
         {group && <RepoBinding group={group} />}
+        {group?.binding?.repo && <DeployBinding group={group} />}
         {!group && <Text style={styles.empty}>找不到这个对话</Text>}
       </ScrollView>
     </SafeAreaView>

@@ -103,6 +103,7 @@ App 里的服务器地址填 `https://agenthub.example.com`（App 会自动改�
 | `LLM_TIMEOUT_MS` | `60000` | 单次模型请求超时 |
 | `USER_DISPLAY_NAME` | `用户` | 发给模型的聊天记录里，你的显示名 |
 | `MOCK_DELAY_MS` | `400-1400` | 模拟成员回复前的随机等待（毫秒，范围） |
+| `DEPLOY_POLL_MS` | `10000` | 合并后多久查一次部署进度（毫秒） |
 
 Cloudflare 版：上面这些写在 `worker/wrangler.jsonc` 的 `vars` 里；`AGENTHUB_TOKEN` 和 `AGENTHUB_SECRET`
 是 Wrangler secrets，由部署流程从 GitHub Secrets 写入，**不要写进仓库**。
@@ -161,6 +162,29 @@ Fine-grained tokens），Repository access 只选要给助手用的仓库，Repo
 **如何新增连接类型**：实现 `core/src/integrations/types.ts` 里的 `IntegrationType`（`fields`、`verify`、`listResources`、
 `createTools`、`cardAction`），在 `core/src/index.ts` 的 `defaultIntegrations()` 里注册即可，Node 版和 Cloudflare 版同时生效。
 `createTools` 返回的工具可以往 `cards` 里放确认卡片。参考 `core/src/integrations/github.ts`。
+
+## 部署平台：合并后自动跟踪部署
+
+"连接"里除了 GitHub，还能连接托管平台：**Cloudflare Pages、Vercel、Netlify、Render**。它们和 GitHub 一样，
+令牌加密保存、App 里只显示打码后的样子，添加时服务器会先验证再保存。
+
+| 平台 | 需要填 | 合并后 |
+| --- | --- | --- |
+| Vercel | 访问令牌（项目属于团队时再填团队 ID） | 平台自己部署，AgentHub 跟踪；Vercel 没法从这里触发 |
+| Netlify | 访问令牌 | 跟踪；约 90 秒还没开始部署就替你触发一次 |
+| Render | API Key | 同上 |
+| Cloudflare Pages | API 令牌（Cloudflare Pages：编辑）+ 账户 ID | 同上 |
+
+**使用**：先在平台里把项目连到这个 GitHub 仓库并开着自动部署；然后打开对话 → 点顶部名字胶囊 →
+"部署平台"，选一个项目（要先绑定了代码仓库才会出现这一栏）。之后只要你在聊天里点"同意合并"，群里就会出现一张
+**部署卡片**：平台和项目、排队 / 部署中 / 已上线 / 失败、合并的提交，上线后有"打开预览"按钮；失败会写出原因。
+服务器每隔 `DEPLOY_POLL_MS`（默认 10 秒）查一次平台，Node 版用定时器、Cloudflare 版用 Durable Object 的 alarm，
+重启后会接着跟踪。约 5 分钟找不到对应的部署、或部署超过 20 分钟还没结束，会停止跟踪并在卡片上说明。
+
+注意：只有**通过 AgentHub 卡片合并**的修改才会被跟踪（在 GitHub 网页上直接合并不会）。
+
+**如何新增托管平台**：实现 `IntegrationType` 并提供 `deploy: { find, trigger?, status }`（按提交找部署、可选的触发、查状态），
+在 `defaultIntegrations()` 里注册。参考 `core/src/integrations/platforms/`。
 
 ## 上传文件
 
@@ -296,12 +320,12 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | POST | `/api/groups/:id/uploads` | 上传文件（请求体就是文件内容，头 `Content-Type` 是类型、`X-File-Name` 是 URL 编码的文件名），返回附件信息 |
 | GET | `/api/groups/:id/files/:fid` | 下载文件（需要令牌） |
 | POST | `/api/groups/:id/files/:fid/link` | 生成 10 分钟有效的签名下载链接 |
-| PUT | `/api/groups/:id/binding` | 绑定 / 解除代码仓库（`{"repo": {"integrationId", "repo"}}` 或 `{"repo": null}`） |
+| PUT | `/api/groups/:id/binding` | 绑定 / 解除代码仓库和部署项目。两个键都可省略（省略 = 保持不变），`null` = 清除：`{"repo": {"integrationId", "repo"}, "deploy": {"integrationId", "project", "name"}}` |
 | POST | `/api/groups/:id/messages/:mid/card` | 点确认卡片的按钮（`{"action": "merge" 或 "reject"}`） |
 | GET | `/api/integrations/types` | 可用的连接类型及表单字段 |
 | GET / POST | `/api/integrations` | 已有连接（令牌打码）/ 添加连接（先验证再保存） |
 | DELETE | `/api/integrations/:id` | 删除连接（同时解除用到它的绑定） |
-| GET | `/api/integrations/:id/resources` | 这个连接能看到的仓库列表 |
+| GET | `/api/integrations/:id/resources` | 这个连接能看到的仓库 / 部署项目列表 |
 | WS | `/ws` | 群列表事件：`group_updated`、`groups_changed`、`members_changed` |
 | WS | `/ws/groups/:id` | 单个群的聊天事件：`message`、`message_updated`（比如卡片被合并）、`typing`、`relay`（接力进度） |
 

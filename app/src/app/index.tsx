@@ -30,6 +30,10 @@ function previewText(g: GroupSummary, myName: string): string {
     const text = `改了 ${m.card.files.length} 个文件，等你确认`;
     return g.kind === 'direct' ? text : `${m.senderName}：${text}`;
   }
+  if (m.card?.type === 'deployment') {
+    const c = m.card;
+    return c.state === 'ready' ? `${c.platformLabel} 部署完成` : c.state === 'error' ? `${c.platformLabel} 部署失败` : `正在部署到 ${c.platformLabel}`;
+  }
   if (m.senderKind === 'system') return m.content;
   if (g.kind === 'direct') return m.senderKind === 'user' ? `${myName}：${m.content}` : m.content;
   return `${m.senderKind === 'user' ? myName : m.senderName}：${m.content}`;

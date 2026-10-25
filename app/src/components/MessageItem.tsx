@@ -5,6 +5,7 @@ import type { Message } from '../protocol';
 import { colors, shadows, type Avatar } from '../theme';
 import { Attachments } from './Attachments';
 import { Blob } from './Avatar';
+import { DeploymentCard } from './DeploymentCard';
 import { PullRequestCard } from './PullRequestCard';
 
 export type ChatRow =
@@ -27,6 +28,13 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
   if (row.kind === 'time') return <Text style={styles.time}>{separatorTime(row.at)}</Text>;
   const { message: m, avatar } = row;
 
+  if (m.card?.type === 'deployment') {
+    return (
+      <View style={styles.deployWrap}>
+        <DeploymentCard card={m.card} />
+      </View>
+    );
+  }
   if (m.senderKind === 'system') return <Text style={styles.system}>{m.content}</Text>;
 
   if (m.senderKind === 'user') {
@@ -84,6 +92,7 @@ const styles = StyleSheet.create({
     marginVertical: 11,
     paddingHorizontal: 24,
   },
+  deployWrap: { alignSelf: 'center', width: '86%', maxWidth: 420, marginVertical: 11 },
   mineWrap: { alignSelf: 'flex-end', maxWidth: '82%', gap: 6, alignItems: 'flex-end' },
   mine: {
     alignSelf: 'flex-end',

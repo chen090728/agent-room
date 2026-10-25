@@ -56,7 +56,7 @@ export default function IntegrationsScreen() {
                     </Text>
                     <Text style={styles.sub} numberOfLines={1}>
                       {i.typeLabel}
-                      {i.secrets.token ? ` · 令牌 ${i.secrets.token}` : ''}
+                      {Object.values(i.secrets)[0] ? ` · 令牌 ${Object.values(i.secrets)[0]}` : ''}
                     </Text>
                   </View>
                   <Pressable accessibilityRole="button" accessibilityLabel={`删除 ${i.name}`} onPress={() => remove(i.id, i.name)} hitSlop={8}>

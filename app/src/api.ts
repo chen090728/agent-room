@@ -96,8 +96,9 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
       post<IntegrationView>('/api/integrations', input),
     deleteIntegration: (id: string) => request<{ ok: true }>(`/api/integrations/${id}`, { method: 'DELETE' }),
     integrationResources: (id: string) => request<ResourceInfo[]>(`/api/integrations/${id}/resources`),
-    setBinding: (groupId: string, repo: { integrationId: string; repo: string } | null) =>
-      request<GroupSummary>(`/api/groups/${groupId}/binding`, { method: 'PUT', body: JSON.stringify({ repo }) }),
+    /** Each key is optional: leave it out to keep it, send null to clear it. */
+    setBinding: (groupId: string, patch: { repo?: { integrationId: string; repo: string } | null; deploy?: { integrationId: string; project: string; name: string } | null }) =>
+      request<GroupSummary>(`/api/groups/${groupId}/binding`, { method: 'PUT', body: JSON.stringify(patch) }),
     cardAction: (groupId: string, messageId: string, action: 'merge' | 'reject') =>
       post<Message>(`/api/groups/${groupId}/messages/${messageId}/card`, { action }),
     deleteMember: (id: string) => request<{ ok: true }>(`/api/members/${id}`, { method: 'DELETE' }),

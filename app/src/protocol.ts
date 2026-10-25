@@ -40,7 +40,29 @@ export interface PullRequestCard {
   error?: string;
 }
 
-export type Card = PullRequestCard;
+export type DeployState = 'queued' | 'building' | 'ready' | 'error';
+
+/** The progress of deploying a merged change to a hosting platform. */
+export interface DeploymentCard {
+  type: 'deployment';
+  integrationId: string;
+  platform: string;
+  platformLabel: string;
+  project: string;
+  projectName: string;
+  repo: string;
+  title: string;
+  commit: string;
+  branch: string;
+  state: DeployState;
+  url?: string;
+  deployId?: string;
+  error?: string;
+  startedAt: number;
+  updatedAt: number;
+}
+
+export type Card = PullRequestCard | DeploymentCard;
 
 export interface Message {
   id: string;
@@ -79,6 +101,7 @@ export interface GroupMemberRef {
 
 export interface GroupBinding {
   repo?: { integrationId: string; repo: string };
+  deploy?: { integrationId: string; project: string; name: string };
 }
 
 /** A saved connection to an outside service; secrets arrive masked. */

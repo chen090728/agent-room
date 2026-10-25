@@ -53,7 +53,7 @@ export function RepoBinding({ group }: { group: GroupSummary }) {
     if (!api) return;
     setBusy(true);
     try {
-      const updated = await api.setBinding(group.id, repo && current ? { integrationId: current.id, repo } : null);
+      const updated = await api.setBinding(group.id, { repo: repo && current ? { integrationId: current.id, repo } : null });
       upsertGroup(updated);
       setPicking(false);
       setQuery('');

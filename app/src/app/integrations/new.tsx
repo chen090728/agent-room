@@ -15,6 +15,25 @@ const HELP: Record<string, string[]> = {
     '3. Permissions → Repository permissions 里，把 Contents 和 Pull requests 设为 Read and write。',
     '4. 生成后复制令牌（以 github_pat_ 开头），粘贴到下面。',
   ],
+  vercel: [
+    '1. 在 Vercel 网页打开 Account Settings → Tokens，创建一个令牌（范围选你的账号或团队）。',
+    '2. 项目要已经在 Vercel 里连接了对应的 GitHub 仓库；合并后 Vercel 会自动部署，AgentHub 只负责跟踪进度。',
+    '3. 项目属于团队时，把团队 ID（team_ 开头）填到下面。',
+    '4. Vercel 不能从这里触发部署，所以必须开着自动部署。',
+  ],
+  netlify: [
+    '1. 在 Netlify 网页打开 User settings → Applications → Personal access tokens，新建一个令牌。',
+    '2. 站点要已经连接了对应的 GitHub 仓库。合并后如果 Netlify 没有自动开始部署，AgentHub 会替你触发一次。',
+  ],
+  render: [
+    '1. 在 Render 网页打开 Account Settings → API Keys，创建一个 API Key。',
+    '2. 服务要已经连接了对应的 GitHub 仓库。合并后如果 Render 没有自动开始部署，AgentHub 会替你触发一次。',
+  ],
+  'cloudflare-pages': [
+    '1. 在 Cloudflare 网页打开 My Profile → API Tokens，创建令牌，权限选 Account → Cloudflare Pages → Edit。',
+    '2. 账户 ID 在 Cloudflare 后台首页地址栏里（dash.cloudflare.com/ 后面那串 32 位字符）。',
+    '3. 项目要已经连接了对应的 GitHub 仓库。合并后如果 Pages 没有自动开始部署，AgentHub 会替你触发一次。',
+  ],
 };
 
 export default function NewIntegrationScreen() {
