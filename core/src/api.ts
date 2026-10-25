@@ -37,6 +37,8 @@ export interface ApiDeps {
   };
 }
 
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
 const memberName = z
   .string()
   .trim()
@@ -62,6 +64,8 @@ const pairBody = z.object({
   bridgeId: z.string().max(100).optional(),
   token: z.string().max(200).optional(),
 });
+
+const avatarImageBody = z.object({ image: z.object({ groupId: z.string(), fileId: z.string() }).nullable() });
 
 const createGroupBody = z.object({
   name: z.string().trim().min(1, '群名不能为空').max(40),
@@ -106,7 +110,7 @@ export async function handleApi(request: Request, deps: ApiDeps): Promise<Respon
   if (!path.startsWith('/api/')) return null;
 
   if (path === '/api/health') {
-    return json(200, { ok: true, name: 'AgentHub', configured: !deps.configError });
+    return json(200, { ok: true, name: 'AgentHub', configured: !deps.configError, files: !!deps.files });
   }
   if (deps.configError) return fail(503, deps.configError);
 
@@ -205,6 +209,20 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
       const online = info ? (await deps.bridges?.isOnline(info.id)) ?? false : false;
       return json(200, { paired: !!info, online, name: info?.name ?? null, tools: info?.tools ?? [], lastSeen: info?.lastSeen ?? null });
     }
+  }
+
+  const avatarMatch = path.match(/^\/api\/members\/([\w-]+)\/avatar-image$/);
+  if (avatarMatch && method === 'PUT') {
+    const { image } = avatarImageBody.parse(await body());
+    if (image) {
+      // The picture is an ordinary upload: it must exist in that group's storage and be a small image.
+      if (!deps.files) return fail(503, '服务器没有开通文件存储');
+      const stored = await deps.files.get(fileKey(image.groupId, image.fileId));
+      if (!stored || !stored.contentType.startsWith('image/')) return fail(400, '找不到这张图片');
+      if (stored.data.length > MAX_AVATAR_BYTES) return fail(413, '头像图片太大，最多 2 MB');
+    }
+    const updated = await directory.setMemberAvatarImage(avatarMatch[1], image);
+    return updated.ok ? json(200, memberView(updated.value)) : fail(404, updated.error);
   }
 
   const memberMatch = path.match(/^\/api\/members\/([\w-]+)$/);

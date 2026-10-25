@@ -1,6 +1,7 @@
 import { useId } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Polygon, RadialGradient, Stop } from 'react-native-svg';
+import { useStore } from '../store';
 import { COLOR_HEX, MAC_DOTS, type Avatar } from '../theme';
 
 const STAR = '20,4 24.5,14.5 36,15.5 27.2,23 30,34.5 20,28.5 10,34.5 12.8,23 4,15.5 15.5,14.5';
@@ -173,9 +174,18 @@ export function GroupAvatar({ avatars, size = 50 }: { avatars: Avatar[]; size?: 
   );
 }
 
-/** The silhouette shown for "me" until a profile avatar is chosen. */
-export function MeAvatar({ avatar, size = 38 }: { avatar: Avatar | null; size?: number }) {
+/**
+ * "Me": the user's photo when there is one, else a chosen blob, else a
+ * silhouette. `photo` overrides the saved one (used to preview a new photo);
+ * leave it out to show the saved photo.
+ */
+export function MeAvatar({ avatar, size = 38, photo }: { avatar: Avatar | null; size?: number; photo?: string | null }) {
   const gradient = 'me' + useId().replace(/[^a-zA-Z0-9]/g, '');
+  const { profile } = useStore();
+  const shownPhoto = photo === undefined ? profile.photo : photo;
+  if (shownPhoto) {
+    return <Image accessibilityLabel="我的头像" source={{ uri: shownPhoto }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#E7E6E2' }} />;
+  }
   if (avatar) return <Blob avatar={avatar} size={size} />;
   return (
     <Svg width={size} height={size} viewBox="0 0 38 38">

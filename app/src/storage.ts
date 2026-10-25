@@ -39,11 +39,13 @@ export async function clearSettings(): Promise<void> {
 /** Who "I" am in the App; kept on this device only. */
 export interface Profile {
   nickname: string;
-  /** null shows the default silhouette. */
+  /** Older profiles chose a shape and colour; null shows the default silhouette. */
   avatar: Avatar | null;
+  /** The user's own photo as a small square JPEG data URI. Stays on this phone. */
+  photo: string | null;
 }
 
-export const DEFAULT_PROFILE: Profile = { nickname: '我', avatar: null };
+export const DEFAULT_PROFILE: Profile = { nickname: '我', avatar: null, photo: null };
 
 export async function loadProfile(): Promise<Profile> {
   try {

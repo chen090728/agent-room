@@ -33,6 +33,8 @@ export type AvatarColor = (typeof AVATAR_COLORS)[number];
 export interface Avatar {
   shape: AvatarShape;
   color: AvatarColor;
+  /** An uploaded picture (a file in a group's storage) shown instead of the blob. */
+  image?: { groupId: string; fileId: string };
 }
 
 export interface Member {

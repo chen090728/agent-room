@@ -97,6 +97,9 @@ export class DirectoryDO extends DurableObject<Env> implements Directory {
     await this.ready();
     return this.dir.createMember(input);
   }
+  async setMemberAvatarImage(id: string, image: { groupId: string; fileId: string } | null) {
+    return this.dir.setMemberAvatarImage(id, image);
+  }
   async deleteMember(id: string) {
     return this.dir.deleteMember(id);
   }
