@@ -438,7 +438,10 @@ export class SqlDirectory implements Directory {
       // Conversations bound through this connection lose their binding.
       for (const g of this.db.all<GroupRow>('SELECT * FROM groups WHERE binding_json IS NOT NULL')) {
         const binding: GroupBinding = JSON.parse(g.binding_json!);
-        if (binding.repo?.integrationId === id) this.db.run('UPDATE groups SET binding_json = NULL WHERE id = ?', g.id);
+        if (binding.repo?.integrationId === id) delete binding.repo;
+        if (binding.deploy?.integrationId === id) delete binding.deploy;
+        const empty = !binding.repo && !binding.deploy;
+        this.db.run('UPDATE groups SET binding_json = ? WHERE id = ?', empty ? null : JSON.stringify(binding), g.id);
       }
       return true;
     });
@@ -462,8 +465,14 @@ export class SqlDirectory implements Directory {
     if (binding?.repo && !first(this.db, 'SELECT 1 FROM integrations WHERE id = ?', binding.repo.integrationId)) {
       return { ok: false, error: '这个连接不存在' };
     }
-    const empty = !binding || !binding.repo;
-    this.db.run('UPDATE groups SET binding_json = ? WHERE id = ?', empty ? null : JSON.stringify(binding), groupId);
+    if (binding?.deploy && !first(this.db, 'SELECT 1 FROM integrations WHERE id = ?', binding.deploy.integrationId)) {
+      return { ok: false, error: '这个部署平台的连接不存在' };
+    }
+    const kept: GroupBinding = {};
+    if (binding?.repo) kept.repo = binding.repo;
+    if (binding?.deploy) kept.deploy = binding.deploy;
+    const empty = !kept.repo && !kept.deploy;
+    this.db.run('UPDATE groups SET binding_json = ? WHERE id = ?', empty ? null : JSON.stringify(kept), groupId);
     this.emit({ type: 'group_updated', group: this.summary(this.groupRow(groupId)!) });
     return { ok: true, value: (await this.getGroup(groupId))! };
   }

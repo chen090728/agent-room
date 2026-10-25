@@ -20,6 +20,16 @@ export interface ChainState {
   depthNoticeSent: boolean;
 }
 
+/** A deployment card whose progress is being followed. */
+export interface Watch {
+  messageId: string;
+  groupId: string;
+  dueAt: number;
+  polls: number;
+  errors: number;
+  triggered: boolean;
+}
+
 export interface Task {
   seq: number;
   rootId: string;
@@ -61,6 +71,14 @@ CREATE TABLE IF NOT EXISTS chains (
   group_id TEXT NOT NULL,
   ord INTEGER NOT NULL,
   state_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS watches (
+  message_id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  polls INTEGER NOT NULL DEFAULT 0,
+  errors INTEGER NOT NULL DEFAULT 0,
+  triggered INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS tasks (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,6 +212,31 @@ export class SqlRoom {
   /** Text extracted from a PDF at upload time. */
   uploadText(id: string): string | null {
     return first<{ extracted_text: string | null }>(this.db, 'SELECT extracted_text FROM uploads WHERE id = ?', id)?.extracted_text ?? null;
+  }
+
+  // ---- deployment watches ----
+
+  addWatch(messageId: string, groupId: string, dueAt: number) {
+    this.db.run('INSERT OR REPLACE INTO watches (message_id, group_id, due_at) VALUES (?, ?, ?)', messageId, groupId, dueAt);
+  }
+
+  dueWatches(groupId: string, now: number): Watch[] {
+    return this.db
+      .all<any>('SELECT * FROM watches WHERE group_id = ? AND due_at <= ? ORDER BY due_at', groupId, now)
+      .map((r) => ({ messageId: r.message_id, groupId: r.group_id, dueAt: r.due_at, polls: r.polls, errors: r.errors, triggered: !!r.triggered }));
+  }
+
+  updateWatch(w: Watch) {
+    this.db.run('UPDATE watches SET due_at = ?, polls = ?, errors = ?, triggered = ? WHERE message_id = ?', w.dueAt, w.polls, w.errors, w.triggered ? 1 : 0, w.messageId);
+  }
+
+  removeWatch(messageId: string) {
+    this.db.run('DELETE FROM watches WHERE message_id = ?', messageId);
+  }
+
+  /** When the next watch of this group is due, if any. */
+  nextWatchDue(groupId: string): number | undefined {
+    return first<{ d: number | null }>(this.db, 'SELECT MIN(due_at) AS d FROM watches WHERE group_id = ?', groupId)?.d ?? undefined;
   }
 
   /** Replaces the card of a message and returns the updated message. */

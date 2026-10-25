@@ -92,10 +92,40 @@ export interface PullRequestCard {
   state: CardState;
   /** Why the last merge attempt failed, when state is 'failed'. */
   error?: string;
+  /** The commit the merge created on the base branch; deployments are matched to it. */
+  mergeSha?: string;
+}
+
+export type DeployState = 'queued' | 'building' | 'ready' | 'error';
+
+/** The progress of deploying a merged change to a hosting platform. */
+export interface DeploymentCard {
+  type: 'deployment';
+  integrationId: string;
+  /** Integration type, e.g. 'vercel'. */
+  platform: string;
+  platformLabel: string;
+  /** Platform-specific project id, used for API calls. */
+  project: string;
+  /** What to call the project in the chat. */
+  projectName: string;
+  repo: string;
+  /** Title of the pull request that was merged. */
+  title: string;
+  commit: string;
+  branch: string;
+  state: DeployState;
+  /** Where the deployment can be opened, once the platform has one. */
+  url?: string;
+  /** The platform's id of the deployment, once found. */
+  deployId?: string;
+  error?: string;
+  startedAt: number;
+  updatedAt: number;
 }
 
 /** Structured content attached to a message. */
-export type Card = PullRequestCard;
+export type Card = PullRequestCard | DeploymentCard;
 
 export interface Message {
   id: string;
@@ -138,6 +168,8 @@ export interface GroupMemberRef {
 /** What a conversation is connected to: a code repository today, deploy targets later. */
 export interface GroupBinding {
   repo?: { integrationId: string; repo: string };
+  /** Where merged changes are deployed. */
+  deploy?: { integrationId: string; project: string; name: string };
 }
 
 /** A saved connection to an outside service, as shown to the App (secrets masked). */

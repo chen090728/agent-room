@@ -15,6 +15,11 @@ export * from './uploads.js';
 export * from './integrations/types.js';
 export { IntegrationRegistry } from './integrations/registry.js';
 export { createGitHubIntegration, GitHubClient, GitHubError } from './integrations/github.js';
+export { createVercelIntegration } from './integrations/platforms/vercel.js';
+export { createNetlifyIntegration } from './integrations/platforms/netlify.js';
+export { createRenderIntegration } from './integrations/platforms/render.js';
+export { createCloudflarePagesIntegration } from './integrations/platforms/cloudflare-pages.js';
+export { PlatformError } from './integrations/platforms/http.js';
 export type { ContextMessage, FieldSpec, MemberAdapter, ReplyContext, ResolvedAttachment } from './adapters/types.js';
 export { AdapterRegistry } from './adapters/registry.js';
 export { createMockAdapter, type MockOptions } from './adapters/mock.js';
@@ -25,6 +30,10 @@ import { createOpenAICompatibleAdapter } from './adapters/openai-compatible.js';
 import { AdapterRegistry } from './adapters/registry.js';
 import type { Limits } from './config.js';
 import { createGitHubIntegration } from './integrations/github.js';
+import { createCloudflarePagesIntegration } from './integrations/platforms/cloudflare-pages.js';
+import { createNetlifyIntegration } from './integrations/platforms/netlify.js';
+import { createRenderIntegration } from './integrations/platforms/render.js';
+import { createVercelIntegration } from './integrations/platforms/vercel.js';
 import { IntegrationRegistry } from './integrations/registry.js';
 
 /** The adapters every deployment ships with. Register new member types here. */
@@ -36,5 +45,10 @@ export function defaultRegistry(limits: Pick<Limits, 'mockDelayMs'>): AdapterReg
 
 /** The connections every deployment ships with. Register new kinds of connection here. */
 export function defaultIntegrations(): IntegrationRegistry {
-  return new IntegrationRegistry().register(createGitHubIntegration());
+  return new IntegrationRegistry()
+    .register(createGitHubIntegration())
+    .register(createCloudflarePagesIntegration())
+    .register(createVercelIntegration())
+    .register(createNetlifyIntegration())
+    .register(createRenderIntegration());
 }

@@ -24,6 +24,7 @@ export function parseLimits(env: Env): Limits {
     contextSize: int(env, 'CONTEXT_SIZE', 30),
     llmTimeoutMs: int(env, 'LLM_TIMEOUT_MS', 60000),
     userDisplayName: env.USER_DISPLAY_NAME || '用户',
+    deployPollMs: int(env, 'DEPLOY_POLL_MS', 10000),
     mockDelayMs: [delay[0] || 0, delay[1] ?? delay[0] ?? 0],
   };
 }

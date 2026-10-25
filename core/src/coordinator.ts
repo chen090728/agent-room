@@ -7,8 +7,9 @@ import type { Directory } from './directory.js';
 import { parseMentions } from './mentions.js';
 import type { IntegrationRegistry } from './integrations/registry.js';
 import type { ToolRuntime } from './integrations/types.js';
-import type { ChainState, SqlRoom } from './room.js';
-import { UserError, type Card, type ChatEvent, type Member, type Message } from './types.js';
+import type { ChainState, SqlRoom, Watch } from './room.js';
+import type { DeployStatus } from './integrations/types.js';
+import { UserError, type Card, type ChatEvent, type DeploymentCard, type Member, type Message } from './types.js';
 
 export interface CoordinatorOptions {
   maxHops: number;
@@ -16,6 +17,8 @@ export interface CoordinatorOptions {
   contextSize: number;
   llmTimeoutMs: number;
   userDisplayName: string;
+  /** How often a running deployment is checked; defaults to 10 s. */
+  deployPollMs?: number;
 }
 
 /** The part of the directory the coordinator needs (an RPC stub on Cloudflare). */
@@ -219,7 +222,7 @@ export class Coordinator {
     if (repo) {
       const integration = await this.directory.getIntegration(repo.integrationId);
       const type = integration && this.integrations.get(integration.type);
-      if (integration && type) {
+      if (integration && type?.createTools) {
         tools = type.createTools(repo.repo, { ...integration.config, ...integration.secrets }, { integrationId: integration.id, assistantName: member.name });
       }
     }
@@ -262,10 +265,10 @@ export class Coordinator {
    */
   async cardAction(groupId: string, messageId: string, action: 'merge' | 'reject'): Promise<Message> {
     const message = this.room.getMessage(messageId);
-    if (!message || message.groupId !== groupId || !message.card) throw new UserError('找不到这张卡片', 404);
+    if (!message || message.groupId !== groupId || message.card?.type !== 'pull_request') throw new UserError('找不到这张卡片', 404);
     const integration = await this.directory.getIntegration(message.card.integrationId);
     const type = integration && this.integrations.get(integration.type);
-    if (!integration || !type) throw new UserError('这个仓库的连接已经被删除了，请在 GitHub 上直接处理这个 PR');
+    if (!integration || !type?.cardAction) throw new UserError('这个仓库的连接已经被删除了，请在 GitHub 上直接处理这个 PR');
 
     let updated: Card;
     try {
@@ -278,9 +281,154 @@ export class Coordinator {
     // Keep the group list's preview in step when this is its latest message.
     const group = await this.directory.getGroup(groupId);
     if (group?.lastMessage?.id === messageId) await this.directory.recordActivity(groupId, { lastMessage: next });
+
+    if (updated.type === 'pull_request' && updated.state === 'merged' && updated.mergeSha && group?.binding?.deploy) {
+      await this.startDeployWatch(groupId, updated, group.binding.deploy);
+    }
     return next;
   }
+
+  // ---- deployments ----
+
+  /** Announces the deployment of a merged pull request and starts following it. */
+  private async startDeployWatch(
+    groupId: string,
+    pr: Extract<Card, { type: 'pull_request' }>,
+    target: { integrationId: string; project: string; name: string },
+  ) {
+    const integration = await this.directory.getIntegration(target.integrationId);
+    const type = integration && this.integrations.get(integration.type);
+    if (!integration || !type?.deploy) return;
+    const now = Date.now();
+    const card: DeploymentCard = {
+      type: 'deployment',
+      integrationId: integration.id,
+      platform: type.type,
+      platformLabel: type.label,
+      project: target.project,
+      projectName: target.name || target.project,
+      repo: pr.repo,
+      title: pr.title,
+      commit: pr.mergeSha!,
+      branch: pr.base,
+      state: 'queued',
+      startedAt: now,
+      updatedAt: now,
+    };
+    const message = this.room.addMessage({
+      groupId,
+      senderKind: 'system',
+      senderId: null,
+      senderName: '系统',
+      content: `已合并「${pr.title}」，正在部署到 ${type.label}`,
+      card,
+    });
+    this.room.addWatch(message.id, groupId, now + this.pollMs());
+    this.emit({ type: 'message', message });
+    await this.directory.recordActivity(groupId, { lastMessage: message });
+  }
+
+  private pollMs(): number {
+    return this.opts.deployPollMs ?? 10000;
+  }
+
+  /**
+   * Checks the deployments that are due. Returns when the next check is due,
+   * or undefined when nothing is being followed any more.
+   */
+  async pollWatches(groupId: string, now = Date.now()): Promise<number | undefined> {
+    for (const watch of this.room.dueWatches(groupId, now)) {
+      try {
+        await this.pollWatch(watch, now);
+      } catch (err) {
+        // A broken watch must not stop the others (or the relay queue sharing this alarm).
+        console.error('deploy watch failed', err);
+        this.room.removeWatch(watch.messageId);
+      }
+    }
+    return this.room.nextWatchDue(groupId);
+  }
+
+  private async pollWatch(watch: Watch, now: number) {
+    const message = this.room.getMessage(watch.messageId);
+    const card = message?.card;
+    if (!message || card?.type !== 'deployment') return this.room.removeWatch(watch.messageId);
+
+    const integration = await this.directory.getIntegration(card.integrationId);
+    const deploy = integration && this.integrations.get(integration.type)?.deploy;
+    if (!integration || !deploy) return this.finishWatch(watch, message.id, card, { state: 'error', error: '这个部署平台的连接已经被删除了' }, now);
+
+    const config = { ...integration.config, ...integration.secrets };
+    const ctx = { repo: card.repo, sha: card.commit, branch: card.branch, title: card.title };
+    watch.polls += 1;
+
+    let status: DeployStatus | null = null;
+    try {
+      if (card.deployId) status = await deploy.status(card.project, card.deployId, config);
+      else {
+        status = await deploy.find(card.project, ctx, config);
+        // The platform did not start anything by itself: start it if the API allows.
+        if (!status && !watch.triggered && deploy.trigger && watch.polls >= TRIGGER_AFTER_POLLS) {
+          watch.triggered = true;
+          status = await deploy.trigger(card.project, ctx, config);
+        }
+      }
+      watch.errors = 0;
+    } catch (err) {
+      watch.errors += 1;
+      if (watch.errors >= MAX_POLL_ERRORS) {
+        return this.finishWatch(watch, message.id, card, { state: 'error', error: describeError(err) }, now);
+      }
+    }
+
+    if (!status) {
+      if (!card.deployId && watch.polls >= FIND_GIVE_UP_POLLS) {
+        const hint = deploy.trigger ? '' : '，请确认这个项目在平台上连接了该仓库并开启了自动部署';
+        return this.finishWatch(watch, message.id, card, { state: 'error', error: `一直没有等到平台开始部署${hint}` }, now);
+      }
+      return this.reschedule(watch, now);
+    }
+
+    if (status.state === 'ready' || status.state === 'error') return this.finishWatch(watch, message.id, card, status, now);
+    if (watch.polls >= BUILD_GIVE_UP_POLLS) {
+      return this.finishWatch(watch, message.id, card, { ...status, state: 'error', error: '部署时间太长，已停止跟踪，请到平台查看' }, now);
+    }
+    await this.updateDeployCard(message.id, card, status, now);
+    this.reschedule(watch, now);
+  }
+
+  private reschedule(watch: Watch, now: number) {
+    watch.dueAt = now + this.pollMs();
+    this.room.updateWatch(watch);
+  }
+
+  private async finishWatch(watch: Watch, messageId: string, card: DeploymentCard, status: DeployStatus, now: number) {
+    this.room.removeWatch(watch.messageId);
+    await this.updateDeployCard(messageId, card, status, now);
+  }
+
+  private async updateDeployCard(messageId: string, card: DeploymentCard, status: DeployStatus, now: number) {
+    const next: DeploymentCard = {
+      ...card,
+      state: status.state,
+      deployId: status.id ?? card.deployId,
+      url: status.url ?? card.url,
+      error: status.state === 'error' ? status.error ?? '部署失败' : undefined,
+      updatedAt: now,
+    };
+    if (next.state === card.state && next.deployId === card.deployId && next.url === card.url && next.error === card.error) return;
+    const message = this.room.updateCard(messageId, next)!;
+    this.emit({ type: 'message_updated', message });
+    const group = await this.directory.getGroup(message.groupId);
+    if (group?.lastMessage?.id === messageId) await this.directory.recordActivity(message.groupId, { lastMessage: message });
+  }
 }
+
+/** Polls (not time) so the limits follow the configured interval. */
+const TRIGGER_AFTER_POLLS = 9;
+const FIND_GIVE_UP_POLLS = 30;
+const BUILD_GIVE_UP_POLLS = 120;
+const MAX_POLL_ERRORS = 5;
 
 function resolveMentions(text: string, members: Member[]): Member[] {
   return parseMentions(

@@ -65,11 +65,16 @@ const sendBody = z
   })
   .refine((b) => b.content.length > 0 || b.attachments.length > 0, '消息不能为空');
 const cardBody = z.object({ action: z.enum(['merge', 'reject']) });
+/** Each key is optional: leave it out to keep the current value, send null to clear it. */
 const bindingBody = z.object({
   repo: z
     .object({ integrationId: z.string(), repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, '仓库名要写成 所有者/仓库名') })
     .nullable()
-    .default(null),
+    .optional(),
+  deploy: z
+    .object({ integrationId: z.string(), project: z.string().min(1).max(200), name: z.string().max(200).default('') })
+    .nullable()
+    .optional(),
 });
 const createIntegrationBody = z.object({
   type: z.string(),
@@ -307,7 +312,9 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
 
     if (sub === '/binding' && method === 'PUT') {
       const input = bindingBody.parse(await body());
-      const updated = await directory.setBinding(groupId, input.repo ? { repo: input.repo } : null);
+      const current = (await directory.getGroup(groupId))?.binding ?? {};
+      const next = { repo: input.repo === undefined ? current.repo : input.repo ?? undefined, deploy: input.deploy === undefined ? current.deploy : input.deploy ?? undefined };
+      const updated = await directory.setBinding(groupId, next);
       if (!updated.ok) return fail(400, updated.error);
       return json(200, updated.value);
     }

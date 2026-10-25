@@ -103,7 +103,7 @@ function decodeBase64Utf8(text: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-export function createGitHubIntegration(fetchImpl: typeof fetch = fetch): IntegrationType {
+export function createGitHubIntegration(fetchImpl: typeof fetch = fetch): IntegrationType & Required<Pick<IntegrationType, 'createTools' | 'cardAction'>> {
   const client = (config: Record<string, string>) => new GitHubClient(config, fetchImpl);
 
   return {
@@ -327,8 +327,9 @@ async function pullRequestAction(gh: GitHubClient, card: PullRequestCard, action
     return { ...card, state: 'closed', error: undefined };
   }
 
+  let merged: { sha?: string } | undefined;
   try {
-    await gh.json('PUT', `${path}/merge`, { merge_method: 'squash', commit_title: `${card.title} (#${card.number})` });
+    merged = await gh.json('PUT', `${path}/merge`, { merge_method: 'squash', commit_title: `${card.title} (#${card.number})` });
   } catch (err) {
     if (err instanceof GitHubError && (err.status === 405 || err.status === 409 || err.status === 422)) {
       return { ...card, state: 'failed', error: `无法合并：${err.message.replace(/^GitHub 返回 \d+：/, '')}` };
@@ -336,5 +337,5 @@ async function pullRequestAction(gh: GitHubClient, card: PullRequestCard, action
     throw err;
   }
   await deleteBranch(gh, card);
-  return { ...card, state: 'merged', error: undefined };
+  return { ...card, state: 'merged', error: undefined, mergeSha: merged?.sha };
 }
