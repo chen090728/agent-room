@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GroupAvatar, MacDots, MeAvatar } from '../components/Avatar';
-import { AddPersonIcon, NewChatIcon, NewMenuIcon, SearchIcon, ThinPlusIcon } from '../components/Icons';
+import { BubbleMenu, useBubbleAnchor } from '../components/BubbleMenu';
+import { AddPersonIcon, NewChatIcon, SearchIcon, ThinPlusIcon } from '../components/Icons';
 import { ModelIcon } from '../components/ModelIcon';
 import { RelayDots } from '../components/RelayDots';
 import { confirmAction, showMessage } from '../dialogs';
@@ -43,6 +44,7 @@ function previewText(g: GroupSummary, myName: string): string {
 export default function HomeScreen() {
   const { settingsLoaded, settings, groupsLoaded, groups, members, profile, api, refreshGroups, refreshMembers, status } = useStore();
   const insets = useSafeAreaInsets();
+  const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(false);
 
@@ -69,6 +71,8 @@ export default function HomeScreen() {
     setMenu(false);
     router.push(path);
   };
+
+  const openMenu = () => measure(() => setMenu(true));
 
   const confirmDelete = async (member: MemberView) => {
     const ok = await confirmAction({
@@ -126,55 +130,44 @@ export default function HomeScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior="padding">
-      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
-        <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" accessibilityLabel="我的设置" onPress={() => router.push('/settings')} style={styles.round}>
-            <MeAvatar avatar={profile.avatar} />
-          </Pressable>
-          <MacDots />
-          {status !== 'online' && <Text style={styles.status}>{status === 'connecting' ? '连接中…' : '离线'}</Text>}
+      <View
+        ref={rootRef}
+        style={styles.root}
+        collapsable={false}
+        onLayout={onLayout}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+          <View style={styles.headerLeft}>
+            <Pressable accessibilityRole="button" accessibilityLabel="我的设置" onPress={() => router.push('/settings')} style={styles.round}>
+              <MeAvatar avatar={profile.avatar} />
+            </Pressable>
+            <MacDots />
+            {status !== 'online' && <Text style={styles.status}>{status === 'connecting' ? '连接中…' : '离线'}</Text>}
+          </View>
+          <View ref={plusRef} collapsable={false}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="新建"
+              accessibilityState={{ expanded: menu }}
+              onPress={() => (menu ? setMenu(false) : openMenu())}
+              style={styles.round}
+            >
+              <ThinPlusIcon />
+            </Pressable>
+          </View>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="新对话" onPress={() => router.push('/group/new')} style={styles.round}>
-          <ThinPlusIcon />
-        </Pressable>
-      </View>
 
-      <FlatList
-        style={styles.list}
-        data={rows}
-        keyExtractor={(g) => g.id}
-        renderItem={renderRow}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
-        ListEmptyComponent={<Text style={styles.empty}>{q ? '没有匹配的助手或群聊' : '还没有助手，点左下角的按钮新建一个'}</Text>}
-      />
+        <FlatList
+          style={styles.list}
+          data={rows}
+          keyExtractor={(g) => g.id}
+          renderItem={renderRow}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
+          ListEmptyComponent={<Text style={styles.empty}>{q ? '没有匹配的助手或群聊' : '还没有助手，点右上角的加号新建一个'}</Text>}
+        />
 
-      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
-        {menu && (
-          <>
-            <Pressable accessibilityLabel="关闭菜单" onPress={() => setMenu(false)} style={styles.backdrop} />
-            <View style={styles.popover}>
-              <Pressable accessibilityRole="button" onPress={() => go('/member/new')} style={({ pressed }) => [styles.menuItem, pressed && styles.rowPressed]}>
-                <AddPersonIcon size={20} />
-                <Text style={styles.menuText}>新建助手</Text>
-              </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => go('/group/new')} style={({ pressed }) => [styles.menuItem, pressed && styles.rowPressed]}>
-                <NewChatIcon />
-                <Text style={styles.menuText}>新建群聊</Text>
-              </Pressable>
-            </View>
-          </>
-        )}
-        <View style={styles.barRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="新建"
-            accessibilityState={{ expanded: menu }}
-            onPress={() => setMenu((v) => !v)}
-            style={styles.square}
-          >
-            <NewMenuIcon />
-          </Pressable>
+        <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
           <View style={styles.search}>
             <SearchIcon />
             <TextInput
@@ -189,6 +182,15 @@ export default function HomeScreen() {
             />
           </View>
         </View>
+        <BubbleMenu
+          open={menu}
+          anchor={anchor}
+          onClose={() => setMenu(false)}
+          items={[
+            { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => go('/member/new') },
+            { label: '新建群聊', icon: <NewChatIcon />, onPress: () => go('/group/new') },
+          ]}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -225,20 +227,7 @@ const styles = StyleSheet.create({
   pendingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#E0703F' },
   empty: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, paddingVertical: 32, paddingHorizontal: 24 },
   bottom: { paddingHorizontal: 16, paddingTop: 8 },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  square: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    boxShadow: shadows.bar,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   search: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -251,20 +240,4 @@ const styles = StyleSheet.create({
     boxShadow: shadows.bar,
   },
   searchInput: { flex: 1, minWidth: 0, height: 40, fontSize: 15, color: colors.text, padding: 0 },
-  backdrop: { position: 'absolute', left: -1000, right: -1000, top: -2000, bottom: -1000 },
-  popover: {
-    position: 'absolute',
-    left: 16,
-    bottom: '100%',
-    marginBottom: 4,
-    width: 220,
-    padding: 6,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    boxShadow: shadows.popover,
-  },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 48, paddingHorizontal: 12, borderRadius: 14 },
-  menuText: { fontSize: 15, color: colors.text },
 });

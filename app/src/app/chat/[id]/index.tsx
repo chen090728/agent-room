@@ -2,9 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Keyframe } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Blob, GroupAvatar, MacDots } from '../../../components/Avatar';
-import { BubbleMenu } from '../../../components/BubbleMenu';
+import { BubbleMenu, useBubbleAnchor } from '../../../components/BubbleMenu';
 import { PluginChips } from '../../../components/PluginChips';
 import { ThinPlusIcon } from '../../../components/Icons';
 import { Composer } from '../../../components/Composer';
@@ -37,6 +37,8 @@ export default function ChatScreen() {
   const { send, refreshIntegrations } = store;
   const sheets = useSheets();
   const [menu, setMenu] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
   const group = store.groups.find((g) => g.id === id);
   const messages = store.messages[id];
   const typing = store.typing[id] ?? [];
@@ -90,6 +92,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <View ref={rootRef} style={styles.root} collapsable={false} onLayout={onLayout}>
       <KeyboardAvoidingView style={styles.root} behavior="padding">
         <View style={styles.header}>
           <View style={styles.left}>
@@ -110,9 +113,11 @@ export default function ChatScreen() {
             </Text>
           </Pressable>
           <View style={styles.right}>
-            <RoundButton label="更多" onPress={() => setMenu((v) => !v)}>
-              <ThinPlusIcon />
-            </RoundButton>
+            <View ref={plusRef} collapsable={false}>
+              <RoundButton label="更多" onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
+                <ThinPlusIcon />
+              </RoundButton>
+            </View>
           </View>
         </View>
 
@@ -171,14 +176,15 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
 
       <BubbleMenu
-        visible={menu}
+        open={menu}
+        anchor={anchor}
         onClose={() => setMenu(false)}
-        top={72}
         items={[
-          { label: '新建助手', icon: <AddPersonIcon size={19} />, onPress: () => sheets.open('member-new', direct ? {} : { groupId: id }) },
-          { label: '新建群聊', icon: <NewChatIcon size={19} />, onPress: () => sheets.open('group-new') },
+          { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => sheets.open('member-new', direct ? {} : { groupId: id }) },
+          { label: '新建群聊', icon: <NewChatIcon size={20} />, onPress: () => sheets.open('group-new') },
         ]}
       />
+      </View>
     </SafeAreaView>
   );
 }
