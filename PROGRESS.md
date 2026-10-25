@@ -4,7 +4,8 @@
 
 > 每次运行结束时更新本节：本次完成了什么、PR 链接、用户醒来要做什么。
 
-- 状态：**任务 1–6 已完成并各开了 PR**。任务 7 进行中。
+- 状态：**任务 1–7 全部完成，各开了 PR（#1–#7）**。
+- 任务 7（公开前打磨）：PR #7。README 加了截图、"Deploy to Cloudflare"按钮（实验性）和路线图；新增 SECURITY.md；扫描过仓库，没有密钥和数据库文件被提交。
 - 任务 6（bridge 工作助手）：PR #6。bridge 在本机调用已登录的 Claude Code / Codex，配对码配对，默认只读；用假脚本和真实服务器测过，没有用真实的 Claude Code / Codex 跑过（见“任务 6 的决定”）。
 - 任务 5（托管平台 + 部署卡片）：PR #5。合并 PR 后，群里出现部署卡片并自动更新到“已上线 / 失败”；四个平台只用假服务器测过，没有真实验证（见“任务 5 的决定”）。
 - 任务 1（Cloudflare 部署 + 《手机部署指南》）：PR #1。任务 2（界面改版）：PR #2。任务 3（连接 + GitHub）：PR #3。
@@ -20,11 +21,13 @@
   - 任务 4 → https://github.com/chen090728/agent-room/pull/4
   - 任务 5 → https://github.com/chen090728/agent-room/pull/5
   - 任务 6 → https://github.com/chen090728/agent-room/pull/6
+  - 任务 7 → https://github.com/chen090728/agent-room/pull/7
 - 你醒来要做什么：
   1. 按《手机部署指南》填 5 个 GitHub Secrets（只能你自己做）。
-  2. 按顺序合并 PR：#1 → #2 → #3 → 任务 4（后面的分支包含前面的全部提交）。
+  2. 按顺序合并 PR：#1 → #2 → #3 → #4 → #5 → #6 → #7（后面的分支包含前面的全部提交，所以也可以只合并最后的 #7，其余 PR 会自动变成已合并）。
   3. 想用文件上传：按指南"可选：开通文件上传"开通 R2（可能要绑定付款方式）。
-  4. 看"待我确认"里的决定。任务 3 的 GitHub 部分、任务 4 在真机上选图片 / 文件的部分，都没在真实环境验证过。
+  4. 看"待我确认"里的决定。这些都**没在真实环境验证过**：GitHub 部分（任务 3）、真机上选图片 / 文件（任务 4）、四个托管平台的接口字段（任务 5）、真实的 Claude Code / Codex 和 Codex 命令行参数（任务 6）、Deploy to Cloudflare 按钮（任务 7）。第一次真实使用出问题时，把报错或平台返回的内容发给我。
+  5. 想用工作助手：在自己电脑上 `git clone`、`npm install`、`npm run build -w bridge`，按 App 里"连接电脑"页的步骤配对（见 bridge/README.md）。
 
 ## 工作规则（来自用户）
 
@@ -77,7 +80,7 @@
   - 项目不接触任何 Claude.ai 账号凭证；README 说明使用条款需用户自行确认
   - 新建助手页的"工作助手"选项启用，用配对码绑定 bridge
 
-- [ ] **任务 7：公开前打磨**
+- [x] **任务 7：公开前打磨**
   - README 加"一键部署到 Cloudflare"按钮、截图、路线图更新
 
 ## 待我确认
@@ -161,3 +164,11 @@
 - **没有"解除配对 / 吊销 bridge"的界面**：要停用一台电脑，可以删除这个工作助手（它的配对码和成员记录会一起删掉，但 bridge 记录仍留在数据库里，凭证只能连接、不能做别的）。如果需要，以后加"吊销 bridge"。
 - **App 的配对页只显示命令，不能一键复制**（可以长按选中）。网页预览截图核对过页面，手机上的体验没验证。
 - **App 网页预览的小改动**：`expo-secure-store` 没有网页实现，所以 `storage.ts` 在网页上改用 `localStorage` 存令牌（手机上仍然是系统钥匙串）。这只影响开发时的网页预览，用来截图核对界面。
+
+### 任务 7 的决定
+
+- **"Deploy to Cloudflare"按钮指向仓库根目录，而不是 `worker/`。** 我查了 Cloudflare 文档：按钮带子目录时，应用必须在这个子目录里完全独立（包括依赖），否则构建失败；我们的 Worker 依赖仓库里的 `core/`，所以不能指向 `worker/`。做法：在根目录加了一份 `wrangler.jsonc`（和 `worker/wrangler.jsonc` 内容一致，只有入口路径不同，有测试保证两份同步）、`.dev.vars.example`（让按钮提示填 `AGENTHUB_TOKEN`、`AGENTHUB_SECRET`），以及根 `package.json` 里的 `deploy` 脚本和 `cloudflare.bindings` 说明。根目录 `wrangler deploy --dry-run` 打包成功。**但按钮本身没法在这里点，所以真实效果没验证**，README 里标成"实验"并写明限制：没有 R2、不发布 App、更新靠 Cloudflare 自己的 Git 构建。推荐的方式仍是 GitHub Actions。
+- **截图是用假数据生成的**（模拟的 GitHub / Vercel、脚本化的"模型"、模拟成员），在浏览器里用 react-native-web 渲染，不是手机真机截图；README 里注明了。截图里部署卡片的提交号显示成 `commit-`，是因为假 GitHub 的提交号形如 `commit-3`，真实的 40 位提交号会显示前 7 位。
+- **路线图只写了"想做"，没有时间承诺**。"流式回复"和"语音输入"是你在第一阶段明确去掉的，放在了路线图里。
+- **加了 `SECURITY.md`**（私下报告漏洞的方式），没有加 CONTRIBUTING、issue 模板或徽章：许可证是 Elastic License 2.0，不是 OSI 意义上的开源，我不想在你没决定前写太多"欢迎贡献"的话。
+- **仓库扫描**：查了常见密钥格式（`sk-`、`ghp_`、`github_pat_`、AWS Key），没有命中；`.env`、数据库文件没有被 git 跟踪。

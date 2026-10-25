@@ -8,8 +8,28 @@
 - **不填 Key 也能玩**：首次启动自动创建"演示群"，里面有三位模拟成员（小橙、阿蓝、小绿）。
 - **不绑定服务商**：通用的"OpenAI 兼容接口"适配器，接口地址、Key、模型名都由你在 App 里填写。
 - **有上限，不会刷屏**：每条原始消息最多接力 5 轮、总共最多 10 次回复。
+- **能干活**：连接 GitHub 后，助手可以读代码、开 PR，**你点"同意合并"才会合并**；合并后群里自动显示部署进度和预览链接（Cloudflare Pages / Vercel / Netlify / Render）。
+- **能用你电脑上的 Claude Code / Codex**：通过运行在你自己电脑上的 bridge 接入，项目不接触任何网页账号凭证。
+- **能发文件**：图片、PDF、代码文件都可以发给助手。
 
 > 本项目不实现任何 Claude.ai / ChatGPT 网页登录，只通过你自己提供的 API 接口工作。
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/01-home.png" width="200" alt="助手和群聊列表"></td>
+    <td><img src="docs/screenshots/02-group-chat.png" width="200" alt="群里用 @ 点名，成员互相接力"></td>
+    <td><img src="docs/screenshots/03-pull-request.png" width="200" alt="助手开的 PR 等你确认"></td>
+    <td><img src="docs/screenshots/05-deployed.png" width="200" alt="合并后显示部署进度和预览链接"></td>
+  </tr>
+  <tr>
+    <td align="center">助手和群聊</td>
+    <td align="center">@ 点名，互相接力</td>
+    <td align="center">改代码要你确认</td>
+    <td align="center">合并后看部署</td>
+  </tr>
+</table>
+
+（截图是本地用模拟的 GitHub / Vercel 和脚本化的模型生成的演示界面。）
 
 ## 目录结构
 
@@ -38,6 +58,18 @@ Node 版和 Cloudflare 版共用 `core/` 里的全部业务逻辑，对 App 暴�
 3. 合并到 `main`，等 Actions 变绿，在运行摘要里找到服务器地址和打开 App 的链接。
 
 > **务必备份 `AGENTHUB_SECRET`。** 它加密你保存的 API Key，以后修改会导致已保存的 Key 无法解密。
+
+### 实验：Deploy to Cloudflare 按钮
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chen090728/agent-room)
+
+点按钮会在你的 Cloudflare 账号里把本仓库建成一个 Worker，并让你填 `AGENTHUB_TOKEN` 和 `AGENTHUB_SECRET`（仓库根目录的
+`wrangler.jsonc` 和 `.dev.vars.example` 就是为它准备的）。**这条路没有在真实账号上验证过**，已知的限制：
+
+- 按钮部署的是**最基础的版本**，没有文件上传（R2）；要上传文件请用下面的 GitHub Actions 方式。
+- 它不发布 App（EAS Update），App 仍需要你按指南用 Expo Go 打开，并填入部署后得到的 `*.workers.dev` 地址。
+- 之后更新要靠 Cloudflare 自己连的 Git 构建；想要"推送即自动部署 + 自动发布 App"，用 GitHub Actions 方式（见《手机部署指南》）。
+- 同样要备份 `AGENTHUB_SECRET`。
 
 ### 备选：自己的服务器（Node 版）
 
@@ -357,6 +389,22 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | WS | `/ws/groups/:id` | 单个群的聊天事件：`message`、`message_updated`（比如卡片被合并）、`typing`、`relay`（接力进度） |
 
 两个 WebSocket 连上后都要先发 `{"type":"auth","token":"..."}`，收到 `{"type":"hello"}` 后才开始推送。
+
+## 路线图
+
+已经做到的：多成员群聊与接力规则、模拟 + OpenAI 兼容适配器、Node 版和 Cloudflare 版服务器、手机 App（Expo）、
+GitHub 连接（读代码、PR 确认卡片）、文件上传、托管平台部署卡片、bridge 工作助手。
+
+接下来想做的（没有承诺时间，欢迎提 issue）：
+
+- **流式回复**：模型边写边显示（现在是写完一次性出现）。
+- **语音输入**。
+- **更多连接类型**：比如 GitLab、Linear / Jira 工单；部署状态用 webhook 替代轮询。
+- **更多适配器**：原生的 Anthropic / Gemini 接口、本地模型（Ollama）。
+- **bridge**：吊销 / 管理已配对的电脑、支持更多本地工具、`npx` 一键运行（需要先发布到 npm）。
+- **上传文件的清理**：自动清理没被消息引用的文件。
+- **多用户 / 多账号**：现在是"一个人一台服务器"。
+- **App 商店版本**：目前通过 Expo Go + EAS Update 使用。
 
 ## 许可证
 
