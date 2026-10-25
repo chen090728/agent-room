@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CloseIcon, LockIcon } from '../../components/Icons';
 import { AvatarPicker } from '../../components/AvatarPicker';
@@ -11,6 +11,11 @@ import { colors, shadows, type Avatar } from '../../theme';
 // The App's "chat assistant" with the mock switch off maps to this adapter;
 // its input fields come from the server, so new fields need no App change.
 const CHAT_ADAPTER = 'openai-compatible';
+const WORK_ADAPTER = 'bridge';
+const WORK_TOOLS = [
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex' },
+];
 
 export default function NewMemberScreen() {
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
@@ -21,6 +26,9 @@ export default function NewMemberScreen() {
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
   const [persona, setPersona] = useState('');
+  const [work, setWork] = useState(false);
+  const [tool, setTool] = useState('claude');
+  const [write, setWrite] = useState(false);
   const [mock, setMock] = useState(false);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [joinGroup, setJoinGroup] = useState(true);
@@ -28,7 +36,7 @@ export default function NewMemberScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const fields = adapters.find((a) => a.type === CHAT_ADAPTER)?.fields ?? [];
-  const missing = !name.trim() || (!mock && fields.some((f) => f.required && !config[f.key]?.trim()));
+  const missing = !name.trim() || (!work && !mock && fields.some((f) => f.required && !config[f.key]?.trim()));
 
   const create = async () => {
     if (!api) return;
@@ -37,17 +45,19 @@ export default function NewMemberScreen() {
     try {
       const member = await api.createMember({
         name: name.trim(),
-        type: mock ? 'mock' : CHAT_ADAPTER,
+        type: work ? WORK_ADAPTER : mock ? 'mock' : CHAT_ADAPTER,
         avatar,
         role: role.trim(),
         persona: persona.trim(),
-        config: mock ? {} : config,
+        config: work ? { tool, write: String(write) } : mock ? {} : config,
       });
       if (group && joinGroup) {
         await api.setGroupMembers(group.id, [...group.members.map((m) => m.id), member.id]);
         await refreshGroups();
       }
-      router.back();
+      // A work assistant is useless until a computer is paired, so go straight there.
+      if (work) router.replace({ pathname: '/member/pair', params: { memberId: member.id } });
+      else router.back();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -85,15 +95,57 @@ export default function NewMemberScreen() {
           <View style={styles.section}>
             <SectionLabel>类型</SectionLabel>
             <View style={styles.segment}>
-              <View style={[styles.segmentItem, styles.segmentOn]} accessibilityRole="button" accessibilityState={{ selected: true }}>
-                <Text style={styles.segmentOnText}>聊天助手</Text>
-              </View>
-              <View style={styles.segmentItem} accessibilityRole="button" accessibilityState={{ disabled: true }}>
-                <Text style={styles.segmentOffText}>工作助手 · 即将推出</Text>
-              </View>
+              <Pressable
+                style={[styles.segmentItem, !work && styles.segmentOn]}
+                onPress={() => setWork(false)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !work }}
+              >
+                <Text style={!work ? styles.segmentOnText : styles.segmentOffText}>聊天助手</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.segmentItem, work && styles.segmentOn]}
+                onPress={() => setWork(true)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: work }}
+              >
+                <Text style={work ? styles.segmentOnText : styles.segmentOffText}>工作助手</Text>
+              </Pressable>
             </View>
           </View>
 
+          {work && (
+            <View style={styles.section}>
+              <SectionLabel>电脑上的工具</SectionLabel>
+              <Card>
+                <View style={styles.toolRow}>
+                  {WORK_TOOLS.map((t) => (
+                    <Pressable
+                      key={t.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: tool === t.id }}
+                      onPress={() => setTool(t.id)}
+                      style={[styles.toolChip, tool === t.id && styles.toolChipOn]}
+                    >
+                      <Text style={[styles.toolText, tool === t.id && styles.toolTextOn]}>{t.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={[styles.switchRow, styles.switchDivider]}>
+                  <View style={styles.switchText}>
+                    <Text style={styles.switchTitle}>允许修改文件</Text>
+                    <Text style={styles.switchSub}>默认只读，只看代码和回答问题；电脑上的 bridge 也要同意才行</Text>
+                  </View>
+                  <Switch label="允许修改文件" value={write} onChange={setWrite} />
+                </View>
+              </Card>
+              <Text style={styles.note}>
+                创建后会给你一个配对码，在你的电脑上运行 bridge 并配对。它调用的是电脑里已经登录的 {tool === 'codex' ? 'Codex' : 'Claude Code'}，AgentHub 不会接触你的登录信息；使用它们要遵守各自的使用条款，请自行确认。
+              </Text>
+            </View>
+          )}
+
+          {!work && (
           <View style={styles.section}>
             <SectionLabel
               right={
@@ -143,6 +195,7 @@ export default function NewMemberScreen() {
                 )}
             </Card>
           </View>
+          )}
 
           {group && group.kind === 'group' && (
             <Card>
@@ -161,7 +214,7 @@ export default function NewMemberScreen() {
 
         <View style={styles.footer}>
           <ErrorText>{error}</ErrorText>
-          <PrimaryButton title="创建助手" onPress={create} disabled={missing} busy={busy} />
+          <PrimaryButton title={work ? '创建并去配对' : '创建助手'} onPress={create} disabled={missing} busy={busy} />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -183,6 +236,12 @@ const styles = StyleSheet.create({
   switchText: { flex: 1, gap: 2 },
   switchTitle: { fontSize: 15, color: colors.text },
   switchSub: { fontSize: 12, color: colors.textSecondary },
+  toolRow: { flexDirection: 'row', gap: 8, padding: 12 },
+  toolChip: { flex: 1, height: 40, borderRadius: 20, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
+  toolChipOn: { backgroundColor: colors.text },
+  toolText: { fontSize: 14, color: colors.text },
+  toolTextOn: { color: '#FFFFFF' },
+  note: { fontSize: 12, lineHeight: 18, color: colors.textSecondary, paddingHorizontal: 4 },
   switchDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },
 });

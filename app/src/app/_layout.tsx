@@ -19,6 +19,7 @@ export default function RootLayout() {
             <Stack.Screen name="integrations/new" />
             <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="member/new" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="member/pair" />
             <Stack.Screen name="group/new" options={{ animation: 'slide_from_bottom' }} />
           </Stack>
         </StoreProvider>

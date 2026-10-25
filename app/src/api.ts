@@ -1,4 +1,4 @@
-import type { AdapterInfo, Attachment, GroupSummary, IntegrationView, MemberView, Message, ResourceInfo } from './protocol';
+import type { AdapterInfo, Attachment, BridgeStatus, GroupSummary, IntegrationView, MemberView, Message, ResourceInfo } from './protocol';
 import type { ConnectionSettings } from './storage';
 import type { Avatar } from './theme';
 
@@ -90,6 +90,9 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
       persona: string;
       config: Record<string, string>;
     }) => post<MemberView>('/api/members', input),
+    /** A one-time code to pair a computer with a work assistant. */
+    createPairing: (memberId: string) => post<{ code: string; expiresAt: number }>(`/api/members/${memberId}/pairing`, {}),
+    bridgeStatus: (memberId: string) => request<BridgeStatus>(`/api/members/${memberId}/bridge`),
     integrationTypes: () => request<AdapterInfo[]>('/api/integrations/types'),
     integrations: () => request<IntegrationView[]>('/api/integrations'),
     createIntegration: (input: { type: string; name?: string; config: Record<string, string> }) =>

@@ -168,6 +168,15 @@ export interface AdapterInfo {
   fields: FieldSpec[];
 }
 
+/** Whether a work assistant's computer is paired and connected. */
+export interface BridgeStatus {
+  paired: boolean;
+  online: boolean;
+  name: string | null;
+  tools: string[];
+  lastSeen: number | null;
+}
+
 /** Events for one group's chat, sent over /ws/groups/:id. */
 export type ChatEvent =
   | { type: 'message'; message: Message }
