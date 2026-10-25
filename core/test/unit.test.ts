@@ -3,6 +3,8 @@ import type { ReplyContext } from '../src/adapters/types.js';
 import { buildChatMessages, stripSelfPrefix } from '../src/context.js';
 import { maskSecret, safeEqual, SecretBox } from '../src/crypto.js';
 import { parseMentions } from '../src/mentions.js';
+import { encodeChatFrames, isValidAuth, readClientFrame } from '../src/realtime.js';
+import type { ChatEvent } from '../src/types.js';
 
 describe('parseMentions', () => {
   const names = ['小橙', '阿蓝', '小橙子', 'Bob'];
@@ -88,6 +90,43 @@ describe('SecretBox', () => {
 
   it('masks secrets', () => {
     expect(maskSecret('sk-abcdefghijkl')).toBe('sk-…ijkl');
+  });
+});
+
+describe('app socket frames', () => {
+  const token = 'token-token-token';
+
+  it('accepts auth with extra keys and a later subscribe', () => {
+    const auth = JSON.stringify({ type: 'auth', token, lang: 'en' });
+    expect(isValidAuth(auth, token)).toBe(true);
+    expect(readClientFrame(auth)).toEqual({ kind: 'auth', token, extra: { lang: 'en' } });
+    expect(isValidAuth(JSON.stringify({ type: 'auth', token: 'nope' }), token)).toBe(false);
+    expect(readClientFrame(JSON.stringify({ type: 'subscribe', lang: 'zh', room: 'later' }))).toEqual({
+      kind: 'subscribe',
+      extra: { lang: 'zh', room: 'later' },
+    });
+    expect(readClientFrame('not json')).toBeNull();
+  });
+
+  it('wraps a chat event for /ws without dropping unknown fields', () => {
+    const event = {
+      type: 'message' as const,
+      message: {
+        id: 'm',
+        groupId: 'g',
+        senderKind: 'system' as const,
+        senderId: null,
+        senderName: '系统',
+        content: 'hi',
+        rootId: 'm',
+        hop: 0,
+        createdAt: 1,
+        notice: { code: 'relay.failed', params: { name: '小橙' } },
+      },
+    } as ChatEvent;
+    const frames = encodeChatFrames(event);
+    expect(JSON.parse(frames.group)).toEqual(event);
+    expect(JSON.parse(frames.list)).toEqual({ type: 'chat', event });
   });
 });
 

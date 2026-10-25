@@ -1,30 +1,21 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { separatorTime } from '../format';
-import type { Message } from '../protocol';
+import type { ChatRow } from '../outgoing';
 import { colors, shadows, type Avatar } from '../theme';
 import { Attachments } from './Attachments';
 import { Blob } from './Avatar';
 import { DeploymentCard } from './DeploymentCard';
 import { PullRequestCard } from './PullRequestCard';
 
-export type ChatRow =
-  | { kind: 'time'; key: string; at: number }
-  | { kind: 'message'; key: string; message: Message; avatar: Avatar };
-
-/** Inserts a time separator before messages that follow a 5-minute gap. */
-export function buildRows(messages: Message[], avatarOf: (memberId: string | null) => Avatar): ChatRow[] {
-  const rows: ChatRow[] = [];
-  let prev = 0;
-  for (const m of messages) {
-    if (m.createdAt - prev > 5 * 60 * 1000) rows.push({ kind: 'time', key: `t-${m.id}`, at: m.createdAt });
-    rows.push({ kind: 'message', key: m.id, message: m, avatar: avatarOf(m.senderId) });
-    prev = m.createdAt;
-  }
-  return rows;
+function sameRow(prev: { row: ChatRow; onRetry?: (clientKey: string) => void }, next: { row: ChatRow; onRetry?: (clientKey: string) => void }): boolean {
+  if (prev.onRetry !== next.onRetry || prev.row.kind !== next.row.kind) return false;
+  if (prev.row.kind === 'time' && next.row.kind === 'time') return prev.row.at === next.row.at;
+  if (prev.row.kind === 'message' && next.row.kind === 'message') return prev.row.message === next.row.message && prev.row.avatar === next.row.avatar;
+  return false;
 }
 
-export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) {
+export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: ChatRow; onRetry?: (clientKey: string) => void }) {
   if (row.kind === 'time') return <Text style={styles.time}>{separatorTime(row.at)}</Text>;
   const { message: m, avatar } = row;
 
@@ -39,15 +30,25 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
 
   if (m.senderKind === 'user') {
     const files = m.attachments ?? [];
+    const sending = m.delivery === 'sending';
+    const failed = m.delivery === 'failed';
     return (
       <View style={[styles.mineWrap, { marginVertical: 11 }]}>
-        {files.length > 0 && <Attachments groupId={m.groupId} attachments={files} align="flex-end" />}
-        {m.content ? (
-          <View style={styles.mine}>
-            <Text style={styles.mineText} selectable>
-              {m.content}
-            </Text>
-          </View>
+        <View style={sending ? styles.sending : undefined}>
+          {files.length > 0 && <Attachments groupId={m.groupId} attachments={files} align="flex-end" />}
+          {m.content ? (
+            <View style={styles.mine}>
+              <Text style={styles.mineText} selectable>
+                {m.content}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {sending ? <Text style={styles.delivery}>发送中</Text> : null}
+        {failed ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="发送失败，点击重试" hitSlop={8} onPress={() => onRetry?.(m.clientKey)}>
+            <Text style={styles.failed}>发送失败，点击重试</Text>
+          </Pressable>
         ) : null}
       </View>
     );
@@ -70,7 +71,7 @@ export const MessageItem = memo(function MessageItem({ row }: { row: ChatRow }) 
       {m.card?.type === 'pull_request' && <PullRequestCard message={m} card={m.card} />}
     </View>
   );
-});
+}, sameRow);
 
 export function TypingRow({ name, avatar }: { name: string; avatar: Avatar }) {
   return (
@@ -103,6 +104,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   mineText: { color: '#FFFFFF', fontSize: 14, lineHeight: 22 },
+  sending: { opacity: 0.45 },
+  delivery: { alignSelf: 'flex-end', fontSize: 11, lineHeight: 16, color: colors.textSecondary },
+  failed: { alignSelf: 'flex-end', fontSize: 11, lineHeight: 16, color: colors.warning },
   theirs: { maxWidth: '86%', gap: 8, marginVertical: 11, alignSelf: 'flex-start' },
   sender: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   senderName: { fontSize: 12, color: colors.textSecondary },

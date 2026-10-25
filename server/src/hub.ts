@@ -5,10 +5,12 @@ import {
   registerUpload,
   defaultIntegrations,
   defaultRegistry,
+  encodeChatFrames,
   handleApi,
   HELLO,
   isValidAuth,
   parseBridgeAuth,
+  readClientFrame,
   SecretBox,
   seedIfEmpty,
   socketTarget,
@@ -71,7 +73,9 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     files,
     (e: ChatEvent) => {
       const groupId = e.type === 'message' || e.type === 'message_updated' ? e.message.groupId : e.type === 'relay' ? e.relay.groupId : e.groupId;
-      send(groupSockets.get(groupId) ?? [], JSON.stringify(e));
+      const frames = encodeChatFrames(e);
+      send(groupSockets.get(groupId) ?? [], frames.group);
+      send(listSockets, frames.list);
     },
     config,
     bridgeDispatcher,
@@ -158,6 +162,11 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
   });
 
   const wss = new WebSocketServer({ noServer: true });
+  // Extra keys from auth / subscribe (for example a future `lang`). This version stores them and does not branch.
+  const clientParams = new WeakMap<WebSocket, Record<string, unknown>>();
+  const noteClient = (ws: WebSocket, extra: Record<string, unknown>) => {
+    clientParams.set(ws, { ...clientParams.get(ws), ...extra });
+  };
   server.on('upgrade', (req, socket, head) => {
     const target = socketTarget(new URL(req.url ?? '/', 'http://localhost').pathname);
     if (!target) return socket.destroy();
@@ -166,10 +175,16 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
       let authed = false;
       const timer = setTimeout(() => !authed && ws.close(UNAUTHORIZED_CODE, 'auth timeout'), AUTH_TIMEOUT_MS);
       ws.on('message', (raw) => {
-        if (authed) return;
-        if (!isValidAuth(raw.toString(), config.token)) return ws.close(UNAUTHORIZED_CODE, 'unauthorized');
+        const text = raw.toString();
+        const frame = readClientFrame(text);
+        if (authed) {
+          if (frame?.kind === 'subscribe') noteClient(ws, frame.extra);
+          return;
+        }
+        if (frame?.kind !== 'auth' || !isValidAuth(text, config.token)) return ws.close(UNAUTHORIZED_CODE, 'unauthorized');
         authed = true;
         clearTimeout(timer);
+        noteClient(ws, frame.extra);
         if (target === 'list') {
           listSockets.add(ws);
         } else {
@@ -181,6 +196,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
       });
       ws.on('close', () => {
         clearTimeout(timer);
+        clientParams.delete(ws);
         listSockets.delete(ws);
         if (target !== 'list') groupSockets.get(target.groupId)?.delete(ws);
       });

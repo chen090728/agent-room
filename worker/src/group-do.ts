@@ -1,4 +1,5 @@
 import {
+  encodeChatFrames,
   Coordinator,
   defaultIntegrations,
   defaultRegistry,
@@ -43,7 +44,13 @@ export class GroupDO extends DurableObject<Env> {
       defaultRegistry(limits),
       defaultIntegrations(),
       this.files,
-      (event) => broadcast(ctx, JSON.stringify(event)),
+      (event) => {
+        const frames = encodeChatFrames(event);
+        broadcast(ctx, frames.group);
+        // The list socket lives on the directory object. The frame is already
+        // JSON, so a later field such as `notice` is not rebuilt on the way.
+        void directoryStub(env).publishChat(frames.list).catch(() => {});
+      },
       limits,
       {
         // Jobs run on the directory object, which holds the bridges' sockets.

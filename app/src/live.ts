@@ -1,4 +1,4 @@
-import type { RelayState } from './protocol';
+import type { ChatEvent, RelayState } from './protocol';
 
 function stableClientKey(message: { id: string; clientKey?: string }): string {
   return message.clientKey || message.id;
@@ -7,16 +7,21 @@ function stableClientKey(message: { id: string; clientKey?: string }): string {
 /**
  * Live chat updates that arrive on the single app WebSocket (`/ws`).
  *
- * The server pushes full chat events only on `/ws/groups/:id`. Opening that
- * socket per screen is what made every chat reconnect. The list socket already
- * stays open for the whole app and sends `group_updated` (latest message,
- * relay). This module folds those into the open history and says when a
- * background history fetch should fill anything the summary could not carry.
- * It never touches the send button.
+ * Chat events arrive as `{ type: 'chat', event }` where `event` is the same
+ * object the old per-group socket used. `chatEventFromList` returns that
+ * object unchanged so a field this app does not know (a future `notice`) is
+ * not stripped. `group_updated` still folds the latest message into history.
+ * This module never touches the send button.
  *
  * `clientKey` on a row already on screen is kept, including when a pending
  * send is reconciled with the server copy of the same text.
  */
+
+/** The chat event inside a `/ws` envelope, or null. The object is not copied. */
+export function chatEventFromList(frame: { type?: unknown; event?: ChatEvent } | null | undefined): ChatEvent | null {
+  if (!frame || frame.type !== 'chat' || !frame.event || typeof frame.event !== 'object' || Array.isArray(frame.event)) return null;
+  return frame.event;
+}
 
 export interface LiveMessage {
   id: string;

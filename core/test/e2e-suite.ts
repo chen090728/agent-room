@@ -16,6 +16,7 @@ export interface E2ETarget {
 interface Socket {
   events: any[];
   waitFor(pred: (e: any) => boolean, timeoutMs?: number): Promise<any>;
+  send(frame: unknown): void;
   close(): void;
 }
 
@@ -28,7 +29,7 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
     return { status: res.status, body: await res.json() };
   };
 
-  const openSocket = (path: string, token = target().token): Promise<Socket> =>
+  const openSocket = (path: string, token = target().token, extra: Record<string, unknown> = {}): Promise<Socket> =>
     new Promise((resolve, reject) => {
       const ws = new WebSocket(target().baseUrl.replace(/^http/, 'ws') + path);
       const events: any[] = [];
@@ -43,9 +44,10 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
             waiters.push({ pred, resolve: (e) => (clearTimeout(timer), res(e)) });
           });
         },
+        send: (frame) => ws.send(JSON.stringify(frame)),
         close: () => ws.close(),
       };
-      ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', token })));
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', token, ...extra })));
       ws.on('message', (raw) => {
         const e = JSON.parse(raw.toString());
         if (e.type === 'hello') return resolve(socket);
@@ -132,6 +134,14 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
       // The list socket saw the relay running and then finishing.
       await list.waitFor((e) => e.type === 'group_updated' && e.group.relay === null && e.group.lastMessage?.rootId === sent.id);
       expect(list.events.some((e) => e.type === 'group_updated' && e.group.relay?.active)).toBe(true);
+      // The list socket is a second connection, so wait for its frames instead of
+      // reading them the moment the group socket's last frame arrives.
+      await list.waitFor((e) => e.type === 'chat' && e.event?.type === 'message' && e.event.message?.id === sent.id);
+      await list.waitFor((e) => e.type === 'chat' && e.event?.type === 'message' && e.event.message?.senderKind === 'member');
+      await list.waitFor((e) => e.type === 'chat' && e.event?.type === 'typing' && e.event.active);
+      await list.waitFor((e) => e.type === 'chat' && e.event?.type === 'relay' && e.event.relay?.rootId === sent.id && e.event.relay?.thinking);
+      await list.waitFor((e) => e.type === 'chat' && e.event?.type === 'relay' && e.event.relay?.rootId === sent.id && !e.event.relay?.active);
+      expect(events.some((e) => e.type === 'chat')).toBe(false);
       list.close();
 
       const { body: history } = await api(`/api/groups/${groupId}/messages`);
@@ -333,6 +343,8 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
 
           // 3. Ask for a change; the reply carries a confirmation card and nothing is merged yet.
           const chat = await openSocket(`/ws/groups/${direct.id}`);
+          const list = await openSocket('/ws', target().token, { lang: 'en' });
+          list.send({ type: 'subscribe', lang: 'en' });
           const sent = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '给 README 加一行问候' }) });
           await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent.body.id && !e.relay.active);
           const withCard = chat.events.find((e) => e.type === 'message' && e.message.card)!.message;
@@ -358,6 +370,8 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           expect(merged.body.card.state).toBe('merged');
           const updated = await chat.waitFor((e) => e.type === 'message_updated' && e.message.id === withCard.id);
           expect(updated.message.card.state).toBe('merged');
+          const onList = await list.waitFor((e) => e.type === 'chat' && e.event?.type === 'message_updated' && e.event.message?.id === withCard.id);
+          expect(onList.event).toEqual(updated);
           expect(gh.files('main')['README.md']).toBe('# Hello\nHello from the assistant\n');
           expect((await api(`/api/groups/${direct.id}/messages`)).body.find((m: any) => m.id === withCard.id).card.state).toBe('merged');
 
@@ -378,6 +392,7 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           expect((await api(`/api/groups/${direct.id}/messages/does-not-exist/card`, { method: 'POST', body: JSON.stringify({ action: 'merge' }) })).status).toBe(404);
           expect((await api(`/api/groups/${direct.id}/messages/${withCard.id}/card`, { method: 'POST', body: JSON.stringify({ action: 'delete' }) })).status).toBe(400);
           chat.close();
+          list.close();
 
           // 7. An unbound conversation gets no tools; deleting the connection clears the binding.
           expect((await api(`/api/members/${member.body.id}`, { method: 'GET' })).status).toBe(404);

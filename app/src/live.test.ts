@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   applyGroupSummary,
+  chatEventFromList,
   connectionBannerVisible,
   historySyncNeeded,
   mergeHistory,
@@ -138,5 +139,19 @@ describe('mergeHistory', () => {
 
   it('turns an unknown history into an empty list once the server says there is nothing', () => {
     assert.deepEqual(mergeHistory(undefined, []), []);
+  });
+});
+
+describe('list socket envelope', () => {
+  it('returns the chat event unchanged, including fields this app does not know', () => {
+    const event = {
+      type: 'message' as const,
+      message: { id: 'm', groupId: 'g', content: 'hi', notice: { code: 'demo.welcome' } },
+    };
+    const frame = { type: 'chat' as const, event };
+    assert.equal(chatEventFromList(frame), event);
+    assert.equal(chatEventFromList({ type: 'group_updated' }), null);
+    const folded = mergeLiveMessage(undefined, { id: 'm', createdAt: 1, content: 'hi', senderKind: 'system', notice: { code: 'demo.welcome' } } as LiveMessage);
+    assert.deepEqual((folded.messages[0] as { notice?: unknown }).notice, { code: 'demo.welcome' });
   });
 });

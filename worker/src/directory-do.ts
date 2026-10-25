@@ -140,6 +140,11 @@ export class DirectoryDO extends DurableObject<Env> implements Directory {
     return this.dir.recordActivity(groupId, patch);
   }
 
+  /** Fan a chat frame out to every app on `/ws`. `frame` is already the envelope JSON. */
+  async publishChat(frame: string) {
+    broadcast(this.ctx, frame, LIST_TAG);
+  }
+
   async createPairing(memberId: string) {
     return this.dir.createPairing(memberId);
   }

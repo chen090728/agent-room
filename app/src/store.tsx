@@ -3,8 +3,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAfterTransition } from './afterTransition';
 import { createApi, socketUrl, type Api } from './api';
 import { buildSnapshot, readRoomCache, writeRoomCache, type RoomSnapshot } from './cache';
-import { applyGroupSummary, historySyncNeeded, mergeHistory, mergeLiveMessage, typingMemberIds } from './live';
-import type { AdapterInfo, ChatEvent, GroupSummary, IntegrationView, ListEvent, MemberView, Message, RelayState } from './protocol';
+import { applyGroupSummary, chatEventFromList, historySyncNeeded, typingMemberIds } from './live';
+import {
+  acknowledge,
+  addIncoming,
+  appendOutgoing,
+  createOutgoing,
+  markFailed,
+  markSending,
+  mergeServerMessages,
+  nextClientKey,
+  replaceMessage,
+  type ChatMessage,
+} from './outgoing';
+import type { AdapterInfo, Attachment, ChatEvent, GroupSummary, IntegrationView, ListEvent, MemberView, Message, RelayState } from './protocol';
 import { openSocket, type SocketStatus } from './socket';
 import {
   clearSettings,
@@ -31,8 +43,8 @@ interface State {
   adapters: AdapterInfo[];
   integrations: IntegrationView[];
   integrationTypes: AdapterInfo[];
-  /** Loaded messages per group, oldest first. */
-  messages: Record<string, Message[]>;
+  /** Loaded messages per group, oldest first. Includes optimistic sends. */
+  messages: Record<string, ChatMessage[]>;
   /** Member ids currently composing a reply, per group. */
   typing: Record<string, string[]>;
   relays: Record<string, RelayState | undefined>;
@@ -49,7 +61,11 @@ type Action =
   | { type: 'integrations'; integrations: IntegrationView[]; types: AdapterInfo[] }
   | { type: 'messages'; groupId: string; messages: Message[] }
   | { type: 'group'; group: GroupSummary }
-  | { type: 'chat'; event: ChatEvent };
+  | { type: 'chat'; event: ChatEvent }
+  | { type: 'outgoing'; message: ChatMessage }
+  | { type: 'outgoing-sending'; groupId: string; clientKey: string }
+  | { type: 'outgoing-failed'; groupId: string; clientKey: string }
+  | { type: 'outgoing-ack'; clientKey: string; message: Message };
 
 const initial: State = {
   profile: DEFAULT_PROFILE,
@@ -70,10 +86,37 @@ const initial: State = {
 
 const byActivity = (a: GroupSummary, b: GroupSummary) => b.lastActivityAt - a.lastActivityAt;
 
+function cachedMessages(snap: RoomSnapshot): Record<string, ChatMessage[]> {
+  const messages: Record<string, ChatMessage[]> = {};
+  for (const [groupId, list] of Object.entries(snap.messages)) {
+    messages[groupId] = list.map((item) => ({ ...item, clientKey: item.clientKey || item.id }));
+  }
+  return messages;
+}
+
 function sameIds(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
+}
+
+/** Swap in a new message list and point the group preview at its newest row. Same list means no update. */
+function commitMessages(state: State, groupId: string, list: ChatMessage[]): State {
+  if (state.messages[groupId] === list) return state;
+  const last = list[list.length - 1];
+  let groups = state.groups;
+  if (last) {
+    const index = groups.findIndex((g) => g.id === groupId);
+    if (index >= 0) {
+      const current = groups[index];
+      const lastActivityAt = Math.max(current.lastActivityAt, last.createdAt);
+      if (current.lastMessage !== last || current.lastActivityAt !== lastActivityAt) {
+        const updated = { ...current, lastMessage: last, lastActivityAt };
+        groups = groups.map((item, i) => (i === index ? updated : item)).sort(byActivity);
+      }
+    }
+  }
+  return { ...state, groups, messages: { ...state.messages, [groupId]: list } };
 }
 
 function reducer(state: State, action: Action): State {
@@ -98,7 +141,7 @@ function reducer(state: State, action: Action): State {
         groupsLoaded: true,
         groups: [...snap.groups].sort(byActivity),
         members: snap.members,
-        messages: snap.messages,
+        messages: cachedMessages(snap),
         relays,
         typing,
       };
@@ -129,39 +172,29 @@ function reducer(state: State, action: Action): State {
       return { ...state, adapters: action.adapters };
     case 'integrations':
       return { ...state, integrations: action.integrations, integrationTypes: action.types };
-    case 'messages': {
-      const next = mergeHistory(state.messages[action.groupId], action.messages);
-      if (next === state.messages[action.groupId]) return state;
-      return { ...state, messages: { ...state.messages, [action.groupId]: next } };
-    }
+    case 'messages':
+      return commitMessages(state, action.groupId, mergeServerMessages(state.messages[action.groupId], action.messages));
     case 'chat':
       return applyChatEvent(state, action.event);
+    case 'outgoing':
+      return commitMessages(state, action.message.groupId, appendOutgoing(state.messages[action.message.groupId], action.message));
+    case 'outgoing-sending':
+      return commitMessages(state, action.groupId, markSending(state.messages[action.groupId] ?? [], action.clientKey));
+    case 'outgoing-failed':
+      return commitMessages(state, action.groupId, markFailed(state.messages[action.groupId] ?? [], action.clientKey));
+    case 'outgoing-ack':
+      return commitMessages(state, action.message.groupId, acknowledge(state.messages[action.message.groupId] ?? [], action.clientKey, action.message));
   }
 }
 
 function applyChatEvent(state: State, event: ChatEvent): State {
   switch (event.type) {
-    case 'message': {
-      const m = event.message;
-      const folded = mergeLiveMessage(state.messages[m.groupId], m);
-      const groups = state.groups
-        .map((g) => (g.id === m.groupId ? { ...g, lastMessage: m, lastActivityAt: m.createdAt } : g))
-        .sort(byActivity);
-      return {
-        ...state,
-        groups,
-        messages: folded.changed ? { ...state.messages, [m.groupId]: folded.messages } : state.messages,
-      };
-    }
+    case 'message':
+      return commitMessages(state, event.message.groupId, addIncoming(state.messages[event.message.groupId], event.message));
     case 'message_updated': {
-      const m = event.message;
-      const list = state.messages[m.groupId];
-      const folded = list ? mergeLiveMessage(list, m) : null;
-      return {
-        ...state,
-        groups: state.groups.map((g) => (g.id === m.groupId && g.lastMessage?.id === m.id ? { ...g, lastMessage: m } : g)),
-        messages: folded?.changed ? { ...state.messages, [m.groupId]: folded.messages } : state.messages,
-      };
+      const list = state.messages[event.message.groupId];
+      if (!list) return state;
+      return commitMessages(state, event.message.groupId, replaceMessage(list, event.message));
     }
     case 'typing': {
       const current = (state.typing[event.groupId] ?? []).filter((id) => id !== event.memberId);
@@ -188,7 +221,10 @@ interface Store extends State {
   refreshMembers(): Promise<void>;
   refreshIntegrations(): Promise<void>;
   loadMessages(groupId: string): Promise<void>;
-  send(groupId: string, content: string, attachments?: string[]): Promise<void>;
+  /** Shows the message immediately, then delivers it. Does not touch storage. */
+  send(groupId: string, content: string, attachmentIds?: string[], attachments?: Attachment[]): void;
+  /** Retries a message that is showing "发送失败，点击重试". */
+  retry(groupId: string, clientKey: string): void;
   /** Inserts a group returned by the API right away, before the next refresh. */
   upsertGroup(group: GroupSummary): void;
 }
@@ -198,9 +234,64 @@ const StoreContext = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initial);
   const api = useMemo(() => (state.settings ? createApi(state.settings) : null), [state.settings]);
-  const historyRef = useRef(state.messages);
-  historyRef.current = state.messages;
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const profileRef = useRef(state.profile);
+  profileRef.current = state.profile;
+  const messagesRef = useRef(state.messages);
+  messagesRef.current = state.messages;
+  const inflight = useRef(new Set<string>());
   const syncTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const deliver = useCallback((groupId: string, clientKey: string, content: string, attachmentIds: string[]) => {
+    inflight.current.add(clientKey);
+    // After the optimistic row has been painted. Nothing on this path reads or writes storage.
+    setTimeout(() => {
+      const apiNow = apiRef.current;
+      if (!apiNow) {
+        inflight.current.delete(clientKey);
+        dispatch({ type: 'outgoing-failed', groupId, clientKey });
+        return;
+      }
+      void apiNow
+        .send(groupId, content, attachmentIds)
+        .then((message) => {
+          inflight.current.delete(clientKey);
+          dispatch({ type: 'outgoing-ack', clientKey, message });
+        })
+        .catch(() => {
+          inflight.current.delete(clientKey);
+          dispatch({ type: 'outgoing-failed', groupId, clientKey });
+        });
+    }, 0);
+  }, []);
+
+  const send = useCallback((groupId: string, content: string, attachmentIds: string[] = [], attachments: Attachment[] = []) => {
+    const clientKey = nextClientKey();
+    const message = createOutgoing({
+      groupId,
+      content,
+      attachmentIds,
+      attachments,
+      senderName: profileRef.current.nickname || '我',
+      now: Date.now(),
+      clientKey,
+    });
+    if (!apiRef.current) {
+      dispatch({ type: 'outgoing', message: { ...message, delivery: 'failed' } });
+      return;
+    }
+    dispatch({ type: 'outgoing', message });
+    deliver(groupId, clientKey, content, attachmentIds);
+  }, [deliver]);
+
+  const retry = useCallback((groupId: string, clientKey: string) => {
+    const message = messagesRef.current[groupId]?.find((item) => item.clientKey === clientKey);
+    if (!message?.pending || message.delivery === 'sending' || inflight.current.has(clientKey)) return;
+    if (!apiRef.current) return;
+    dispatch({ type: 'outgoing-sending', groupId, clientKey });
+    deliver(groupId, clientKey, message.pending.content, message.pending.attachmentIds);
+  }, [deliver]);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,7 +344,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const groups = await api.groups();
     dispatch({ type: 'groups', groups });
     for (const group of groups) {
-      if (historySyncNeeded(historyRef.current[group.id], group.lastMessage)) scheduleHistorySync(group.id);
+      if (historySyncNeeded(messagesRef.current[group.id], group.lastMessage)) scheduleHistorySync(group.id);
     }
   }, [api, scheduleHistorySync]);
 
@@ -282,9 +373,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       onStatus: (status) => dispatch({ type: 'status', status }),
       onReconnect: () => refreshGroups().catch(() => {}),
       onEvent: (event: ListEvent) => {
+        const chat = chatEventFromList(event);
+        if (chat) {
+          dispatch({ type: 'chat', event: chat });
+          return;
+        }
         if (event.type === 'group_updated') {
           dispatch({ type: 'group', group: event.group });
-          if (historySyncNeeded(historyRef.current[event.group.id], event.group.lastMessage)) scheduleHistorySync(event.group.id);
+          if (historySyncNeeded(messagesRef.current[event.group.id], event.group.lastMessage)) scheduleHistorySync(event.group.id);
         } else if (event.type === 'groups_changed') refreshGroups().catch(() => {});
         else if (event.type === 'members_changed') refreshMembers().catch(() => {});
       },
@@ -323,11 +419,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshMembers,
     refreshIntegrations,
     loadMessages,
-    async send(groupId, content, attachments = []) {
-      if (!api) return;
-      const message = await api.send(groupId, content, attachments);
-      dispatch({ type: 'chat', event: { type: 'message', message } });
-    },
+    send,
+    retry,
     upsertGroup(group) {
       dispatch({ type: 'group', group });
     },
