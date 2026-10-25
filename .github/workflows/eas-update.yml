@@ -53,8 +53,10 @@ jobs:
       - name: Link EAS project
         run: eas init --non-interactive --force --json > "$RUNNER_TEMP/eas-init.json"
 
+      # --platform takes a single value, so "all" it is; app.json's expo.platforms is ["ios", "android"],
+      # which keeps the web export (and react-native-web) out of it.
       - name: Publish update
-        run: eas update --auto --branch main --non-interactive --json > "$RUNNER_TEMP/eas-update.json"
+        run: eas update --auto --branch main --platform all --non-interactive --json > "$RUNNER_TEMP/eas-update.json"
 
       - name: Write links to the run summary
         run: |
