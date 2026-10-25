@@ -1,3 +1,4 @@
+import i18n from 'i18next';
 import { Alert, Platform } from 'react-native';
 
 /** Shows a short message. */
@@ -19,7 +20,7 @@ export function confirmAction(opts: { title: string; message?: string; confirmTe
       opts.title,
       opts.message,
       [
-        { text: '取消', style: 'cancel', onPress: () => resolve(false) },
+        { text: i18n.isInitialized ? String(i18n.t('common.cancel')) : '取消', style: 'cancel', onPress: () => resolve(false) },
         { text: opts.confirmText, style: opts.destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
       ],
       { cancelable: true, onDismiss: () => resolve(false) },

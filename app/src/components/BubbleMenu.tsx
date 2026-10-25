@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { Pressable, StyleSheet, Text, type ViewInstance } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useAppTranslation } from '../i18n';
 import { colors, shadows } from '../theme';
 import { ThinPlusIcon } from './Icons';
 
@@ -89,6 +90,7 @@ export function BubbleMenu({
   onClose: () => void;
   onVisibility?: (visible: boolean) => void;
 }) {
+  const { t } = useAppTranslation();
   const [present, setPresent] = useState(false);
   const [interactive, setInteractive] = useState(false);
   const shown = useRef(false);
@@ -180,7 +182,7 @@ export function BubbleMenu({
 
   return (
     <>
-      <Pressable accessibilityLabel="关闭菜单" collapsable={false} onPress={onClose} style={styles.backdrop} />
+      <Pressable accessibilityLabel={t('sheets.closeMenuA11y')} collapsable={false} onPress={onClose} style={styles.backdrop} />
       <Animated.View collapsable={false} style={[styles.card, cardStyle]}>
         <Animated.View pointerEvents="none" style={[styles.plus, plusStyle]}>
           <ThinPlusIcon />
@@ -199,7 +201,9 @@ export function BubbleMenu({
               style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
             >
               {item.icon}
-              <Text style={styles.itemText}>{item.label}</Text>
+              <Text style={styles.itemText} numberOfLines={1}>
+                {item.label}
+              </Text>
             </Pressable>
           ))}
         </Animated.View>
@@ -223,5 +227,5 @@ const styles = StyleSheet.create({
   items: { padding: MENU_PAD },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, height: ITEM_HEIGHT, paddingHorizontal: 12, borderRadius: 14 },
   itemPressed: { backgroundColor: colors.selected },
-  itemText: { fontSize: 15, color: colors.text },
+  itemText: { flex: 1, flexShrink: 1, fontSize: 15, color: colors.text },
 });

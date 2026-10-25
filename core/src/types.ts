@@ -94,6 +94,8 @@ export interface PullRequestCard {
   state: CardState;
   /** Why the last merge attempt failed, when state is 'failed'. */
   error?: string;
+  /** Code for a new client. Old clients keep reading `error`. */
+  errorNotice?: Notice;
   /** The commit the merge created on the base branch; deployments are matched to it. */
   mergeSha?: string;
 }
@@ -122,12 +124,20 @@ export interface DeploymentCard {
   /** The platform's id of the deployment, once found. */
   deployId?: string;
   error?: string;
+  /** Code for a new client. Old clients keep reading `error`. */
+  errorNotice?: Notice;
   startedAt: number;
   updatedAt: number;
 }
 
 /** Structured content attached to a message. */
 export type Card = PullRequestCard | DeploymentCard;
+
+/** A stable sentence id. `content` stays the Chinese text old clients render. */
+export interface Notice {
+  code: string;
+  params?: Record<string, string | number>;
+}
 
 export interface Message {
   id: string;
@@ -136,6 +146,8 @@ export interface Message {
   senderId: string | null;
   senderName: string;
   content: string;
+  /** Present on system notices and a few member lines. Absent on older rows. */
+  notice?: Notice | null;
   attachments?: Attachment[];
   card?: Card | null;
   /** Id of the original user message this one descends from. */
@@ -222,10 +234,13 @@ export type ListEvent =
 
 /** An error whose message is meant for the user (shown in the App as is). */
 export class UserError extends Error {
+  readonly notice?: Notice;
   constructor(
     message: string,
     public status = 400,
+    notice?: Notice,
   ) {
     super(message);
+    this.notice = notice;
   }
 }

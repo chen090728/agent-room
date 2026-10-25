@@ -11,39 +11,44 @@ import { ModelIcon } from '../components/ModelIcon';
 import { RelayDots } from '../components/RelayDots';
 import { confirmAction, showMessage } from '../dialogs';
 import { shortTime } from '../format';
+import { useAppTranslation } from '../i18n';
+import { renderNotice } from '../i18n/notice';
 import type { GroupSummary, MemberView } from '../protocol';
+import { displayNickname } from '../storage';
 import { useStore } from '../store';
 import { colors, shadows } from '../theme';
 
 /** Role label next to an assistant's name; mock assistants are marked as such. */
-export function roleLabel(role: string, type: string): string {
-  const mock = type === 'mock' ? '模拟' : '';
+export function roleLabel(role: string, type: string, t: (key: string) => string): string {
+  const mock = type === 'mock' ? t('home.mockTag') : '';
   return [role, mock].filter(Boolean).join(' · ');
 }
 
-function previewText(g: GroupSummary, myName: string): string {
-  if (g.relay) return `${g.relay.thinking ?? '成员'} 正在思考…`;
+function previewText(g: GroupSummary, myName: string, t: ReturnType<typeof useAppTranslation>['t'], exists: (key: string) => boolean): string {
+  if (g.relay) return t('home.thinking', { name: g.relay.thinking ?? t('home.someone') });
   const m = g.lastMessage;
   if (m && !m.content && m.attachments?.length) {
-    const label = m.attachments.every((a) => a.kind === 'image') ? '[图片]' : '[文件]';
-    return g.kind === 'direct' && m.senderKind !== 'user' ? label : `${m.senderKind === 'user' ? myName : m.senderName}：${label}`;
+    const label = m.attachments.every((a) => a.kind === 'image') ? t('home.photo') : t('home.file');
+    return g.kind === 'direct' && m.senderKind !== 'user' ? label : t('home.from', { name: m.senderKind === 'user' ? myName : m.senderName, text: label });
   }
-  if (!m) return g.kind === 'direct' ? '点开开始聊天' : '还没有消息';
+  if (!m) return g.kind === 'direct' ? t('home.openDirect') : t('home.noMessages');
   if (m.card?.type === 'pull_request' && m.card.state === 'open') {
-    const text = `改了 ${m.card.files.length} 个文件，等你确认`;
-    return g.kind === 'direct' ? text : `${m.senderName}：${text}`;
+    const text = t('home.filesChanged', { count: m.card.files.length });
+    return g.kind === 'direct' ? text : t('home.from', { name: m.senderName, text });
   }
   if (m.card?.type === 'deployment') {
     const c = m.card;
-    return c.state === 'ready' ? `${c.platformLabel} 部署完成` : c.state === 'error' ? `${c.platformLabel} 部署失败` : `正在部署到 ${c.platformLabel}`;
+    return c.state === 'ready' ? t('home.deployReady', { platform: c.platformLabel }) : c.state === 'error' ? t('home.deployFailed', { platform: c.platformLabel }) : t('home.deploying', { platform: c.platformLabel });
   }
-  if (m.senderKind === 'system') return m.content;
-  if (g.kind === 'direct') return m.senderKind === 'user' ? `${myName}：${m.content}` : m.content;
-  return `${m.senderKind === 'user' ? myName : m.senderName}：${m.content}`;
+  const body = renderNotice(m.notice, m.content, t, exists);
+  if (m.senderKind === 'system') return body;
+  if (g.kind === 'direct') return m.senderKind === 'user' ? t('home.from', { name: myName, text: body }) : body;
+  return t('home.from', { name: m.senderKind === 'user' ? myName : m.senderName, text: body });
 }
 
 /** The app opens here: every assistant (one-to-one chat) and group, newest first. */
 export default function HomeScreen() {
+  const { t, i18n } = useAppTranslation();
   const { settingsLoaded, settings, groupsLoaded, groups, members, profile, api, refreshGroups, refreshMembers, status } = useStore();
   const insets = useSafeAreaInsets();
   const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
@@ -79,9 +84,9 @@ export default function HomeScreen() {
 
   const confirmDelete = async (member: MemberView) => {
     const ok = await confirmAction({
-      title: `删除「${member.name}」？`,
-      message: '会同时删除和它的单聊入口；它在群聊里发过的消息会保留。',
-      confirmText: '删除',
+      title: t('home.deleteTitle', { name: member.name }),
+      message: t('home.deleteMessage'),
+      confirmText: t('home.deleteConfirm'),
       destructive: true,
     });
     if (!ok) return;
@@ -89,7 +94,7 @@ export default function HomeScreen() {
       await api?.deleteMember(member.id);
       await Promise.all([refreshGroups(), refreshMembers()]);
     } catch (e) {
-      showMessage('删除失败', (e as Error).message);
+      showMessage(t('home.deleteFailed'), (e as Error).message);
     }
   };
 
@@ -110,18 +115,18 @@ export default function HomeScreen() {
           <View style={styles.rowTop}>
             <Text style={styles.nameWrap} numberOfLines={1}>
               <Text style={styles.name}>{g.name}</Text>
-              {direct && roleLabel(direct.role, direct.type) ? <Text style={styles.role}>{`  ${roleLabel(direct.role, direct.type)}`}</Text> : null}
+              {direct && roleLabel(direct.role, direct.type, t) ? <Text style={styles.role}>{`  ${roleLabel(direct.role, direct.type, t)}`}</Text> : null}
             </Text>
             <Text style={styles.time}>{time}</Text>
           </View>
           <View style={styles.rowBottom}>
             <Text style={styles.preview} numberOfLines={1}>
-              {previewText(g, profile.nickname)}
+              {previewText(g, displayNickname(profile.nickname), t, (key) => i18n.exists(key))}
             </Text>
             {g.relay ? (
               <RelayDots relay={g.relay} />
             ) : g.lastMessage?.card?.state === 'open' ? (
-              <View style={styles.pendingDot} accessibilityLabel="待处理" />
+              <View style={styles.pendingDot} accessibilityLabel={t('home.pendingA11y')} />
             ) : member && member.type !== 'mock' ? (
               <ModelIcon model={member.config.model} baseUrl={member.config.baseUrl} />
             ) : null}
@@ -141,7 +146,7 @@ export default function HomeScreen() {
       >
         <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <View style={styles.headerLeft}>
-            <Pressable accessibilityRole="button" accessibilityLabel="我的设置" onPress={() => router.push('/settings')} style={styles.round}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('home.settingsA11y')} onPress={() => router.push('/settings')} style={styles.round}>
               <MeAvatar avatar={profile.avatar} />
             </Pressable>
             <MacDots />
@@ -149,7 +154,7 @@ export default function HomeScreen() {
           <View ref={plusRef} collapsable={false} pointerEvents={menu || menuShown ? 'none' : 'auto'} style={{ opacity: menu || menuShown ? 0 : 1 }}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="新建"
+              accessibilityLabel={t('home.newA11y')}
               accessibilityState={{ expanded: menu }}
               onPress={() => (menu ? setMenu(false) : openMenu())}
               style={styles.round}
@@ -168,7 +173,7 @@ export default function HomeScreen() {
           renderItem={renderRow}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
-          ListEmptyComponent={<Text style={styles.empty}>{q ? '没有匹配的助手或群聊' : '还没有助手，点右上角的加号新建一个'}</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{q ? t('home.emptySearch') : t('home.empty')}</Text>}
         />
 
         <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
@@ -177,9 +182,9 @@ export default function HomeScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="搜索助手和群聊"
+              placeholder={t('home.searchPlaceholder')}
               placeholderTextColor="#A3A3A0"
-              accessibilityLabel="搜索助手和群聊"
+              accessibilityLabel={t('home.searchA11y')}
               style={styles.searchInput}
               returnKeyType="search"
               onFocus={() => setMenu(false)}
@@ -192,8 +197,8 @@ export default function HomeScreen() {
           onVisibility={setMenuShown}
           onClose={() => setMenu(false)}
           items={[
-            { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => go('/member/new') },
-            { label: '新建群聊', icon: <NewChatIcon />, onPress: () => go('/group/new') },
+            { label: t('common.newAssistant'), icon: <AddPersonIcon size={20} />, onPress: () => go('/member/new') },
+            { label: t('common.newGroup'), icon: <NewChatIcon />, onPress: () => go('/group/new') },
           ]}
         />
       </View>
@@ -225,7 +230,7 @@ const styles = StyleSheet.create({
   nameWrap: { flex: 1, minWidth: 0 },
   name: { fontSize: 16, fontWeight: '500', color: colors.text },
   role: { fontSize: 13, color: colors.textSecondary },
-  time: { fontSize: 12, color: colors.textSecondary },
+  time: { flexShrink: 0, fontSize: 12, color: colors.textSecondary },
   rowBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 20 },
   preview: { flex: 1, minWidth: 0, fontSize: 14, color: colors.textSecondary },
   pendingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#E0703F' },

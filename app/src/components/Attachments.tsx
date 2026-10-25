@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Attachment } from '../protocol';
 import { showMessage } from '../dialogs';
+import { useAppTranslation } from '../i18n';
 import { useStore } from '../store';
 import { colors } from '../theme';
 import { FileIcon } from './Icons';
@@ -41,6 +42,7 @@ function Thumbnail({ groupId, attachment, onPress }: { groupId: string; attachme
 
 /** The files of a message: images as thumbnails, everything else as a tappable chip. */
 export function Attachments({ groupId, attachments, align = 'flex-start' }: { groupId: string; attachments: Attachment[]; align?: 'flex-start' | 'flex-end' }) {
+  const { t } = useAppTranslation();
   const { api } = useStore();
   if (!api || !attachments.length) return null;
 
@@ -48,7 +50,7 @@ export function Attachments({ groupId, attachments, align = 'flex-start' }: { gr
     try {
       await Linking.openURL(await api.fileLink(groupId, a.id));
     } catch (e) {
-      showMessage('打不开这个文件', (e as Error).message);
+      showMessage(t('attachments.openFailed'), (e as Error).message);
     }
   };
 
@@ -58,14 +60,14 @@ export function Attachments({ groupId, attachments, align = 'flex-start' }: { gr
         a.kind === 'image' ? (
           <Thumbnail key={a.id} groupId={groupId} attachment={a} onPress={() => open(a)} />
         ) : (
-          <Pressable key={a.id} accessibilityRole="button" accessibilityLabel={`${a.name}，${formatSize(a.size)}`} onPress={() => open(a)} style={styles.chip}>
+          <Pressable key={a.id} accessibilityRole="button" accessibilityLabel={t('attachments.fileA11y', { name: a.name, size: formatSize(a.size) })} onPress={() => open(a)} style={styles.chip}>
             <FileIcon size={20} />
             <View style={styles.chipText}>
               <Text style={styles.name} numberOfLines={1}>
                 {a.name}
               </Text>
               <Text style={styles.size}>
-                {a.kind === 'pdf' ? 'PDF' : '文件'} · {formatSize(a.size)}
+                {a.kind === 'pdf' ? t('common.pdf') : t('common.file')} · {formatSize(a.size)}
               </Text>
             </View>
           </Pressable>

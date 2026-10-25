@@ -17,7 +17,7 @@ import {
   type NewMember,
 } from '@agenthub/core';
 import { DurableObject } from 'cloudflare:workers';
-import { acceptSocket, broadcast, closeSocket, durableSql, onSocketMessage } from './durable.js';
+import { acceptSocket, agreedSocketLanguage, broadcast, closeSocket, durableSql, onSocketMessage } from './durable.js';
 import { groupStub, settings, type Env } from './env.js';
 
 interface BridgeAttachment {
@@ -72,7 +72,7 @@ export class DirectoryDO extends DurableObject<Env> implements Directory {
 
   /** Creates the demo group on first use. */
   private ready(): Promise<void> {
-    this.seeded ??= seedIfEmpty(this.dir, (groupId, content) => groupStub(this.env, groupId).addSystemMessage(groupId, content))
+    this.seeded ??= seedIfEmpty(this.dir, (groupId, content, notice) => groupStub(this.env, groupId).addSystemMessage(groupId, content, notice))
       .then(() => undefined)
       .catch((err) => {
         this.seeded = undefined;
@@ -82,6 +82,11 @@ export class DirectoryDO extends DurableObject<Env> implements Directory {
   }
 
   // ---- RPC (the Directory interface) ----
+
+  /** Language of the apps connected to `/ws`, when they agree. */
+  async clientLanguage() {
+    return agreedSocketLanguage(this.ctx, LIST_TAG) ?? null;
+  }
 
   async isEmpty() {
     return this.dir.isEmpty();

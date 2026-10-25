@@ -5,12 +5,13 @@ type LeafKeys<T, P extends string = ''> = {
 }[keyof T & string];
 
 /**
- * Where each catalog key's Chinese text lives today.
- * Step 2 replaces those literals with `t(key)`. Do not edit the listed files in the i18n foundation step.
+ * Where each catalog key is read from. Screens call `t(key)` instead of the old literal.
  *
- * `settings.appearance.*` is not on main. The labels are hardcoded on branch
- * `dark/theme-foundation` (`app/src/theme/preference.ts`). Do not edit that branch.
- * `settings.language.*` has no screen yet; the row belongs on the settings sheet.
+ * `settings.appearance.*` is still hardcoded on branch `dark/theme-foundation`
+ * (`THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts`). Whichever PR
+ * merges second should wire those labels to these keys.
+ * `settings.language.*` is its own block on the settings sheet, between "me"
+ * and "server", immediately after where appearance will sit.
  */
 export const STRING_SOURCES: { [K in LeafKeys<Catalog>]: readonly string[] } = {
   'common.cancel': ["app/src/dialogs.ts"],
@@ -25,7 +26,7 @@ export const STRING_SOURCES: { [K in LeafKeys<Catalog>]: readonly string[] } = {
   'common.pdf': ["app/src/components/Attachments.tsx"],
   'common.newAssistant': ["app/src/app/index.tsx","app/src/app/chat/[id]/index.tsx","app/src/sheet-content/ChatSettingsSheet.tsx","app/src/sheet-content/NewGroupSheet.tsx","app/src/sheet-content/NewMemberSheet.tsx"],
   'common.newGroup': ["app/src/app/index.tsx","app/src/app/chat/[id]/index.tsx","app/src/sheet-content/NewGroupSheet.tsx"],
-  'common.connecting': ["app/src/app/index.tsx","app/src/sheet-content/SettingsSheet.tsx"],
+  'common.connecting': ["app/src/components/ConnectionBanner.tsx","app/src/sheet-content/SettingsSheet.tsx"],
   'common.actionFailed': ["app/src/components/PullRequestCard.tsx","app/src/sheet-content/PluginDetailSheet.tsx"],
   'home.settingsA11y': ["app/src/app/index.tsx"],
   'home.newA11y': ["app/src/app/index.tsx"],
@@ -58,7 +59,7 @@ export const STRING_SOURCES: { [K in LeafKeys<Catalog>]: readonly string[] } = {
   'chat.settingsA11y': ["app/src/app/chat/[id]/index.tsx"],
   'chat.moreA11y': ["app/src/app/chat/[id]/index.tsx"],
   'chat.connecting': ["app/src/app/chat/[id]/index.tsx"],
-  'chat.reconnecting': ["app/src/app/chat/[id]/index.tsx"],
+  'chat.reconnecting': ["app/src/components/ConnectionBanner.tsx"],
   'chat.emptyDirect': ["app/src/app/chat/[id]/index.tsx"],
   'chat.emptyGroup': ["app/src/app/chat/[id]/index.tsx"],
   'chat.notConnected': ["app/src/app/chat/[id]/index.tsx"],
@@ -335,4 +336,24 @@ export const STRING_SOURCES: { [K in LeafKeys<Catalog>]: readonly string[] } = {
   'chatSettings.saveMembers': ["app/src/sheet-content/ChatSettingsSheet.tsx"],
   'chatSettings.directHint': ["app/src/sheet-content/ChatSettingsSheet.tsx"],
   'chatSettings.missing': ["app/src/sheet-content/ChatSettingsSheet.tsx"],
+  'notice.relay.interrupted': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.relay.failed': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.relay.hopLimit': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.relay.replyLimit': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.relay.timeout': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.started': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.connectionDeleted': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.notStarted': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.notStartedNoTrigger': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.timedOut': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.failed': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.canceled': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.stageFailed': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.platformFailed': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.deploy.platformDetail': ["app/src/components/DeploymentCard.tsx","app/src/i18n/notice.ts"],
+  'notice.demo.welcome': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.github.connectionDeleted': ["app/src/components/PullRequestCard.tsx","app/src/i18n/notice.ts"],
+  'notice.card.missing': ["app/src/components/PullRequestCard.tsx","app/src/i18n/notice.ts"],
+  'notice.member.submitted': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
+  'notice.member.prLine': ["app/src/components/MessageItem.tsx","app/src/i18n/notice.ts"],
 };

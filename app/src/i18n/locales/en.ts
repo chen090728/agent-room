@@ -392,4 +392,38 @@ export const en = {
     directHint: 'This is your chat with {{name}}. Tap + by the message box to add plugins (GitHub, deploy platforms).',
     missing: 'Chat not found',
   },
+  notice: {
+    relay: {
+      interrupted: "{{name}}'s reply was interrupted and skipped.",
+      failed: "{{name}} couldn't reply: {{detail}}",
+      hopLimit: 'Stopped. This message reached the {{maxHops}}-round relay limit.',
+      replyLimit: 'Stopped. This message reached the limit of {{maxReplies}} replies.',
+      timeout: 'The request timed out',
+    },
+    deploy: {
+      started: 'Merged “{{title}}”. Deploying to {{platform}}',
+      connectionDeleted: "This hosting connection was deleted.",
+      notStarted: 'The platform never started deploying.',
+      notStartedNoTrigger: 'The platform never started deploying. Make sure the project is connected to this repo and auto-deploy is on.',
+      timedOut: 'Deployment took too long, so tracking stopped. Check the platform.',
+      failed: 'Deployment failed',
+      canceled: 'The deployment was canceled.',
+      stageFailed: 'The deployment failed at the “{{stage}}” step. Check the logs on {{platform}}.',
+      platformFailed: 'Deployment failed. Check the logs on {{platform}}.',
+      platformDetail: 'Deployment failed ({{platform}}): {{detail}}',
+    },
+    demo: {
+      welcome: 'Welcome to the demo group. These three members are simulated and don\'t need a key. Try “@小橙 hello”, or @ several of them and watch them hand off.',
+    },
+    github: {
+      connectionDeleted: "This repository's connection was deleted. Handle the pull request on GitHub.",
+    },
+    card: {
+      missing: "Can't find this card.",
+    },
+    member: {
+      submitted: 'I submitted changes. Please confirm them on the card below.',
+      prLine: 'PR #{{number}}: {{title}}',
+    },
+  },
 } satisfies CatalogShape;

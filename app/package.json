@@ -37,7 +37,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/*.test.ts src/i18n/*.test.ts"
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/*.test.ts src/i18n/*.test.ts",
     "check:animations": "node scripts/check-animations.mjs"
   },
   "private": true,

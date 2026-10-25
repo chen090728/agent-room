@@ -390,6 +390,40 @@ export const zh = {
     directHint: '这是和 {{name}} 的单聊。点输入框左边的加号，可以给这个对话添加插件（GitHub、部署平台）。',
     missing: '找不到这个对话',
   },
+  notice: {
+    relay: {
+      interrupted: '{{name}} 的回复被中断，已跳过。',
+      failed: '{{name}} 回复失败：{{detail}}',
+      hopLimit: '已达到 {{maxHops}} 轮传递上限，自动停止。',
+      replyLimit: '已达到每条消息最多 {{maxReplies}} 次回复的上限，自动停止。',
+      timeout: '请求超时',
+    },
+    deploy: {
+      started: '已合并「{{title}}」，正在部署到 {{platform}}',
+      connectionDeleted: '这个部署平台的连接已经被删除了',
+      notStarted: '一直没有等到平台开始部署',
+      notStartedNoTrigger: '一直没有等到平台开始部署，请确认这个项目在平台上连接了该仓库并开启了自动部署',
+      timedOut: '部署时间太长，已停止跟踪，请到平台查看',
+      failed: '部署失败',
+      canceled: '部署被取消了',
+      stageFailed: '部署在「{{stage}}」这一步失败了，请到 {{platform}} 查看日志',
+      platformFailed: '部署失败，请到 {{platform}} 查看日志',
+      platformDetail: '部署失败（{{platform}}）：{{detail}}',
+    },
+    demo: {
+      welcome: '欢迎来到演示群！这里的三位都是模拟成员，不需要任何 Key。试试发送「@小橙 你好」，或者同时 @ 好几位，看看成员之间怎么接力。',
+    },
+    github: {
+      connectionDeleted: '这个仓库的连接已经被删除了，请在 GitHub 上直接处理这个 PR',
+    },
+    card: {
+      missing: '找不到这张卡片',
+    },
+    member: {
+      submitted: '我提交了修改，请在下面的卡片里确认。',
+      prLine: 'PR #{{number}}：{{title}}',
+    },
+  },
 } as const;
 
 export type Catalog = typeof zh;

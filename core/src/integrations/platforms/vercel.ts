@@ -1,3 +1,4 @@
+import { DEPLOY_CANCELED, deployPlatformFailed, deployUpstream } from '../../copy.js';
 import type { DeployStatus, IntegrationType } from '../types.js';
 import { PlatformClient } from './http.js';
 
@@ -19,12 +20,14 @@ function mapState(state: string | undefined): DeployStatus['state'] {
 
 function toStatus(d: any): DeployStatus {
   const state = mapState(d.readyState ?? d.state);
-  return {
-    state,
-    id: d.uid ?? d.id,
-    url: d.url ? `https://${d.url}` : undefined,
-    error: state === 'error' ? d.errorMessage ?? ((d.readyState ?? d.state) === 'CANCELED' ? '部署被取消了' : '部署失败，请到 Vercel 查看日志') : undefined,
-  };
+  const base = { state, id: d.uid ?? d.id, url: d.url ? `https://${d.url}` : undefined };
+  if (state !== 'error') return base;
+  if (d.errorMessage) {
+    const upstream = deployUpstream('Vercel', d.errorMessage);
+    return { ...base, error: upstream.error, errorNotice: upstream.errorNotice };
+  }
+  const failure = (d.readyState ?? d.state) === 'CANCELED' ? DEPLOY_CANCELED : deployPlatformFailed('Vercel');
+  return { ...base, error: failure.content, errorNotice: failure.notice };
 }
 
 export function createVercelIntegration(fetchImpl: typeof fetch = fetch): IntegrationType {

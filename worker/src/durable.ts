@@ -1,4 +1,4 @@
-import { AUTH_TIMEOUT_MS, HELLO, isValidAuth, readClientFrame, UNAUTHORIZED_CODE, type ClientFrameExtra, type SqlDriver, type SqlValue } from '@agenthub/core';
+import { agreedLanguage, AUTH_TIMEOUT_MS, HELLO, isValidAuth, languageFromExtra, readClientFrame, UNAUTHORIZED_CODE, type AppLanguage, type ClientFrameExtra, type SqlDriver, type SqlValue } from '@agenthub/core';
 
 /** The core's SQL interface on top of a Durable Object's SQLite storage. */
 export function durableSql(ctx: DurableObjectState): SqlDriver {
@@ -15,7 +15,7 @@ export function durableSql(ctx: DurableObjectState): SqlDriver {
 interface Attachment {
   authed: boolean;
   openedAt: number;
-  /** Extra keys from auth and subscribe. Not interpreted (a later `lang` lands here). */
+  /** Extra keys from auth and subscribe. `lang` is the client's language. */
   client?: ClientFrameExtra;
 }
 
@@ -54,6 +54,18 @@ export function closeSocket(ws: WebSocket, code = 1000, reason = '') {
   } catch {
     // Already closed.
   }
+}
+
+/** The one language every authenticated socket agreed on, if they sent `lang`. */
+export function agreedSocketLanguage(ctx: DurableObjectState, tag?: string): AppLanguage | undefined {
+  const langs: AppLanguage[] = [];
+  for (const ws of ctx.getWebSockets(tag)) {
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (!att?.authed) continue;
+    const lang = languageFromExtra(att.client);
+    if (lang) langs.push(lang);
+  }
+  return agreedLanguage(langs);
 }
 
 /** Sends to every authenticated socket; drops sockets that never authenticated. */

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import i18n from 'i18next';
 import { Platform } from 'react-native';
 import type { Avatar } from './theme';
 
@@ -45,7 +46,17 @@ export interface Profile {
   photo: string | null;
 }
 
-export const DEFAULT_PROFILE: Profile = { nickname: '我', avatar: null, photo: null };
+/** Stored sentinel for "the user never picked a name". Screens show `settings.me`. */
+const DEFAULT_NICKNAME = '我';
+
+export const DEFAULT_PROFILE: Profile = { nickname: DEFAULT_NICKNAME, avatar: null, photo: null };
+
+/** The untouched default follows the active language. A name the user typed stays as typed. */
+export function displayNickname(nickname: string | null | undefined): string {
+  const localized = i18n.isInitialized ? String(i18n.t('settings.me')) : DEFAULT_NICKNAME;
+  if (!nickname || nickname === DEFAULT_NICKNAME || nickname === 'Me') return localized;
+  return nickname;
+}
 
 export async function loadProfile(): Promise<Profile> {
   try {

@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { separatorTime } from '../format';
+import { useAppTranslation } from '../i18n';
+import { renderNotice } from '../i18n/notice';
 import type { ChatRow } from '../outgoing';
 import { colors, shadows, type Avatar } from '../theme';
 import { Attachments } from './Attachments';
@@ -16,8 +18,10 @@ function sameRow(prev: { row: ChatRow; onRetry?: (clientKey: string) => void }, 
 }
 
 export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: ChatRow; onRetry?: (clientKey: string) => void }) {
+  const { t, i18n } = useAppTranslation();
   if (row.kind === 'time') return <Text style={styles.time}>{separatorTime(row.at)}</Text>;
   const { message: m, avatar } = row;
+  const body = renderNotice(m.notice, m.content, t, (key) => i18n.exists(key));
 
   if (m.card?.type === 'deployment') {
     return (
@@ -26,7 +30,7 @@ export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: Ch
       </View>
     );
   }
-  if (m.senderKind === 'system') return <Text style={styles.system}>{m.content}</Text>;
+  if (m.senderKind === 'system') return <Text style={styles.system}>{body}</Text>;
 
   if (m.senderKind === 'user') {
     const files = m.attachments ?? [];
@@ -39,15 +43,17 @@ export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: Ch
           {m.content ? (
             <View style={styles.mine}>
               <Text style={styles.mineText} selectable>
-                {m.content}
+                {body}
               </Text>
             </View>
           ) : null}
         </View>
-        {sending ? <Text style={styles.delivery}>发送中</Text> : null}
+        {sending ? <Text style={styles.delivery}>{t('chat.sending')}</Text> : null}
         {failed ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="发送失败，点击重试" hitSlop={8} onPress={() => onRetry?.(m.clientKey)}>
-            <Text style={styles.failed}>发送失败，点击重试</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('chat.sendFailedRetry')} hitSlop={8} onPress={() => onRetry?.(m.clientKey)}>
+            <Text style={styles.failed} numberOfLines={2}>
+              {t('chat.sendFailedRetry')}
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -64,7 +70,7 @@ export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: Ch
       {m.content ? (
         <View style={styles.bubble}>
           <Text style={styles.bubbleText} selectable>
-            {m.content}
+            {body}
           </Text>
         </View>
       ) : null}
@@ -74,10 +80,13 @@ export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: Ch
 }, sameRow);
 
 export function TypingRow({ name, avatar }: { name: string; avatar: Avatar }) {
+  const { t } = useAppTranslation();
   return (
     <View style={styles.typing}>
       <Blob avatar={avatar} size={28} />
-      <Text style={styles.typingText}>{name} 正在思考</Text>
+      <Text style={styles.typingText} numberOfLines={1}>
+        {t('chat.typing', { name })}
+      </Text>
     </View>
   );
 }

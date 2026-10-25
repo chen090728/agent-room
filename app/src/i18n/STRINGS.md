@@ -1,8 +1,8 @@
 # App strings
 
-Step 2 replaces the Chinese literals in the source files below with `t('key')` from `app/src/i18n`. Do not change copy while doing that. This file is the mechanical map.
+Step 2 replaces the Chinese literals in the source files below with `t('key')` from `app/src/i18n`. This file is the mechanical map.
 
-Call `initI18n()` once at startup before any screen reads `useLanguage()` / `useAppTranslation()`. Nothing in this step is wired into a screen.
+`initI18n()` runs once in `app/src/app/_layout.tsx` before any screen reads `useLanguage()` / `useAppTranslation()`.
 
 ## How to call a key
 
@@ -14,14 +14,15 @@ Call `initI18n()` once at startup before any screen reads `useLanguage()` / `use
 ## Not in this map
 
 - Field labels and placeholders that the server sends (接口地址, API Key, 模型名, 支持看图, 细粒度访问令牌, and the other integration fields). The app prints `f.label` / `f.placeholder` as returned. See `SERVER_COPY.md`. The vision switch’s subtitle is `member.visionHint`; its title is the server label.
-- System notices, the demo welcome, and mock replies. Those are server text. See `SERVER_COPY.md`.
+- Field labels the server still sends in Chinese (接口地址, API Key, and the other integration fields). See `SERVER_COPY.md` section 5. Those are not notice codes.
+- System notices are `notice.*`. The server still stores Chinese `content`. The app calls `renderNotice` and falls back to `content` when the code is unknown. Demo welcome is `notice.demo.welcome`. Mock replies are chosen on the server and are not catalog keys.
 - The command placeholder `…` in `BridgePairing.tsx` before a pairing code exists. It is the same glyph in both languages.
 
 ## Appearance and language rows
 
-`settings.appearance.*` matches `THEME_PREFERENCE_LABELS` on branch `dark/theme-foundation` (`app/src/theme/preference.ts`: 跟随系统 / 浅色 / 深色). That branch is not on main. Do not edit it or its files. When the settings screen gains an appearance control, use these keys instead of those hardcoded labels. `settings.appearance.title` (外观 / Appearance) is the section title; the branch itself only has the three choice labels.
+`settings.appearance.*` matches `THEME_PREFERENCE_LABELS` on branch `dark/theme-foundation` (`app/src/theme/preference.ts`: 跟随系统 / 浅色 / 深色). That branch is not on main. Do not edit it or its files. `settings.appearance.title` (外观 / Appearance) is the section title; the branch itself only has the three choice labels. Whichever of the language PR and the appearance PR merges second should replace `THEME_PREFERENCE_LABELS` with these keys. The appearance block stays its own section.
 
-`settings.language.*` is the new language row for this feature (语言 / Language, 跟随系统 / System, 中文, English). No screen shows it yet. The choice labels 中文 and English stay in their own language in both catalogs. Wire it with `useLanguage()`: `preference` is `system` | `zh` | `en`, `setPreference` persists it, `language` is the resolved `zh` | `en`.
+`settings.language.*` is the language section on the settings sheet (语言 / Language, 跟随系统 / System, 中文, English). It is its own block between “我” and “服务器”, immediately after where appearance will sit, never inside it. The choice labels 中文 and English stay in their own language in both catalogs. `useLanguage()`: `preference` is `system` | `zh` | `en`, `setPreference` persists it, `language` is the resolved `zh` | `en`.
 
 ## Translation notes
 
@@ -38,7 +39,7 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - Example name 小青 → Quinn.
 - Plugin help keeps the third-party product’s own English menu labels.
 
-322 keys in 21 groups: common, home, chat, composer, attachments, avatar, sheets, bridge, deployment, pr, error, time, photo, permissions, api, plugins, pluginDetail, settings, member, group, chatSettings.
+342 keys in 22 groups: common, home, chat, composer, attachments, avatar, sheets, bridge, deployment, pr, error, time, photo, permissions, api, plugins, pluginDetail, settings, member, group, chatSettings, notice.
 
 
 ### common.cancel
@@ -2379,3 +2380,163 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - en: Chat not found
 - sources:
   - app/src/sheet-content/ChatSettingsSheet.tsx
+
+### notice.relay.interrupted
+
+- zh: {{name}} 的回复被中断，已跳过。
+- en: {{name}}'s reply was interrupted and skipped.
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.relay.failed
+
+- zh: {{name}} 回复失败：{{detail}}
+- en: {{name}} couldn't reply: {{detail}}
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.relay.hopLimit
+
+- zh: 已达到 {{maxHops}} 轮传递上限，自动停止。
+- en: Stopped. This message reached the {{maxHops}}-round relay limit.
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.relay.replyLimit
+
+- zh: 已达到每条消息最多 {{maxReplies}} 次回复的上限，自动停止。
+- en: Stopped. This message reached the limit of {{maxReplies}} replies.
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.relay.timeout
+
+- zh: 请求超时
+- en: The request timed out
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.started
+
+- zh: 已合并「{{title}}」，正在部署到 {{platform}}
+- en: Merged “{{title}}”. Deploying to {{platform}}
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.connectionDeleted
+
+- zh: 这个部署平台的连接已经被删除了
+- en: This hosting connection was deleted.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.notStarted
+
+- zh: 一直没有等到平台开始部署
+- en: The platform never started deploying.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.notStartedNoTrigger
+
+- zh: 一直没有等到平台开始部署，请确认这个项目在平台上连接了该仓库并开启了自动部署
+- en: The platform never started deploying. Make sure the project is connected to this repo and auto-deploy is on.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.timedOut
+
+- zh: 部署时间太长，已停止跟踪，请到平台查看
+- en: Deployment took too long, so tracking stopped. Check the platform.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.failed
+
+- zh: 部署失败
+- en: Deployment failed
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.canceled
+
+- zh: 部署被取消了
+- en: The deployment was canceled.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.stageFailed
+
+- zh: 部署在「{{stage}}」这一步失败了，请到 {{platform}} 查看日志
+- en: The deployment failed at the “{{stage}}” step. Check the logs on {{platform}}.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.platformFailed
+
+- zh: 部署失败，请到 {{platform}} 查看日志
+- en: Deployment failed. Check the logs on {{platform}}.
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.deploy.platformDetail
+
+- zh: 部署失败（{{platform}}）：{{detail}}
+- en: Deployment failed ({{platform}}): {{detail}}
+- sources:
+  - app/src/components/DeploymentCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.demo.welcome
+
+- zh: 欢迎来到演示群！这里的三位都是模拟成员，不需要任何 Key。试试发送「@小橙 你好」，或者同时 @ 好几位，看看成员之间怎么接力。
+- en: Welcome to the demo group. These three members are simulated and don't need a key. Try “@小橙 hello”, or @ several of them and watch them hand off.
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.github.connectionDeleted
+
+- zh: 这个仓库的连接已经被删除了，请在 GitHub 上直接处理这个 PR
+- en: This repository's connection was deleted. Handle the pull request on GitHub.
+- sources:
+  - app/src/components/PullRequestCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.card.missing
+
+- zh: 找不到这张卡片
+- en: Can't find this card.
+- sources:
+  - app/src/components/PullRequestCard.tsx
+  - app/src/i18n/notice.ts
+
+### notice.member.submitted
+
+- zh: 我提交了修改，请在下面的卡片里确认。
+- en: I submitted changes. Please confirm them on the card below.
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts
+
+### notice.member.prLine
+
+- zh: PR #{{number}}：{{title}}
+- en: PR #{{number}}: {{title}}
+- sources:
+  - app/src/components/MessageItem.tsx
+  - app/src/i18n/notice.ts

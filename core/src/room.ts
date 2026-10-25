@@ -1,5 +1,6 @@
 import { first, runSchema, type SqlDriver } from './sql.js';
-import { UserError, type Attachment, type Card, type Message, type RelayState, type SenderKind } from './types.js';
+import type { AppLanguage } from './locale.js';
+import { UserError, type Attachment, type Card, type Message, type Notice, type RelayState, type SenderKind } from './types.js';
 
 export interface NewMessage {
   groupId: string;
@@ -7,6 +8,7 @@ export interface NewMessage {
   senderId: string | null;
   senderName: string;
   content: string;
+  notice?: Notice | null;
   attachments?: Attachment[];
   card?: Card | null;
   /** Defaults to the new message's own id (an original message). */
@@ -18,6 +20,8 @@ export interface NewMessage {
 export interface ChainState {
   relay: RelayState;
   depthNoticeSent: boolean;
+  /** Language of the request that started this chain. Missing on older chains → Chinese. */
+  lang?: AppLanguage;
 }
 
 /** A deployment card whose progress is being followed. */
@@ -96,6 +100,7 @@ interface MessageRow {
   sender_id: string | null;
   sender_name: string;
   content: string;
+  notice_json: string | null;
   card_json: string | null;
   attachments_json: string | null;
   root_id: string;
@@ -104,7 +109,7 @@ interface MessageRow {
 }
 
 function toMessage(row: MessageRow): Message {
-  return {
+  const message: Message = {
     id: row.id,
     groupId: row.group_id,
     senderKind: row.sender_kind as SenderKind,
@@ -117,6 +122,8 @@ function toMessage(row: MessageRow): Message {
     hop: row.hop,
     createdAt: row.created_at,
   };
+  if (row.notice_json) message.notice = JSON.parse(row.notice_json);
+  return message;
 }
 
 /**
@@ -128,7 +135,7 @@ export class SqlRoom {
   constructor(private db: SqlDriver) {
     runSchema(db, SCHEMA);
     // Databases from before cards existed.
-    for (const column of ['card_json', 'attachments_json']) {
+    for (const column of ['card_json', 'attachments_json', 'notice_json']) {
       try {
         db.all(`SELECT ${column} FROM messages LIMIT 0`);
       } catch {
@@ -149,6 +156,7 @@ export class SqlRoom {
       senderId: input.senderId,
       senderName: input.senderName,
       content: input.content,
+      ...(input.notice ? { notice: input.notice } : {}),
       attachments: input.attachments ?? [],
       card: input.card ?? null,
       rootId: input.rootId ?? id,
@@ -156,8 +164,8 @@ export class SqlRoom {
       createdAt: Date.now(),
     };
     this.db.run(
-      `INSERT INTO messages (id, group_id, seq, sender_kind, sender_id, sender_name, content, card_json, attachments_json, root_id, hop, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messages (id, group_id, seq, sender_kind, sender_id, sender_name, content, notice_json, card_json, attachments_json, root_id, hop, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       message.groupId,
       seq,
@@ -165,6 +173,7 @@ export class SqlRoom {
       message.senderId,
       message.senderName,
       message.content,
+      message.notice ? JSON.stringify(message.notice) : null,
       message.card ? JSON.stringify(message.card) : null,
       message.attachments?.length ? JSON.stringify(message.attachments) : null,
       message.rootId,

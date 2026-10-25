@@ -107,6 +107,54 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
       const { body: messages } = await api(`/api/groups/${demo.id}/messages`);
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toContain('@小橙 你好');
+      expect(messages[0].notice).toEqual({ code: 'demo.welcome' });
+    });
+
+    it('localizes demo roles and mock replies from Accept-Language, and keeps names', async () => {
+      const zh = await api('/api/members');
+      expect(zh.body.find((m: any) => m.name === '小橙').role).toBe('产品经理');
+      const en = await api('/api/members', { headers: { 'Accept-Language': 'en' } });
+      const orange = en.body.find((m: any) => m.name === '小橙');
+      expect(orange.name).toBe('小橙');
+      expect(orange.role).toBe('Product manager');
+      expect(orange.persona).toContain('enthusiastic');
+      const groups = await api('/api/groups', { headers: { 'Accept-Language': 'en-US' } });
+      const demo = groups.body.find((g: any) => g.name === '演示群');
+      expect(demo.name).toBe('演示群');
+      expect(demo.members.find((m: any) => m.name === '小橙').role).toBe('Product manager');
+
+      const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '小绿');
+      const chat = await openSocket(`/ws/groups/${direct.id}`);
+      try {
+        const sent = await api(`/api/groups/${direct.id}/messages`, {
+          method: 'POST',
+          headers: { 'Accept-Language': 'en' },
+          body: JSON.stringify({ content: 'hello' }),
+        });
+        expect(sent.status).toBe(201);
+        await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent.body.id && !e.relay.active);
+        const reply = chat.events.find((e) => e.type === 'message' && e.message.senderKind === 'member')!.message;
+        expect(reply.senderName).toBe('小绿');
+        expect(reply.content).toMatch(/^Hi, I'm 小绿/);
+      } finally {
+        chat.close();
+      }
+    });
+
+    it('uses lang on the app socket when the request has no Accept-Language', async () => {
+      const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '阿蓝');
+      const list = await openSocket('/ws', target().token, { lang: 'en' });
+      const chat = await openSocket(`/ws/groups/${direct.id}`);
+      try {
+        const sent = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: 'hello' }) });
+        expect(sent.status).toBe(201);
+        await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent.body.id && !e.relay.active);
+        const reply = chat.events.find((e) => e.type === 'message' && e.message.senderKind === 'member')!.message;
+        expect(reply.content).toMatch(/^Hi, I'm 阿蓝/);
+      } finally {
+        list.close();
+        chat.close();
+      }
     });
 
     it('direct chats answer without an @', async () => {

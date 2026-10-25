@@ -5,6 +5,7 @@ import Animated, { interpolate, useAnimatedReaction, useAnimatedScrollHandler, u
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { BackIcon, CloseIcon } from './components/Icons';
+import { useAppTranslation } from './i18n';
 import { colors } from './theme';
 
 /*
@@ -161,6 +162,7 @@ interface BottomSheetProps {
 }
 
 function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop, registerClose, onClosed }: BottomSheetProps) {
+  const { t } = useAppTranslation();
   const { height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const sheetH = Math.round((screenH - insets.top - 10) * heightFraction);
@@ -267,7 +269,7 @@ function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop,
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} pointerEvents="none" />
-      <Pressable accessibilityLabel="点空白处关闭" style={StyleSheet.absoluteFill} onPress={() => close()} />
+      <Pressable accessibilityLabel={t('sheets.dismissA11y')} style={StyleSheet.absoluteFill} onPress={() => close()} />
       <Animated.View style={[styles.sheet, { height: sheetH + OVERSHOOT, bottom: -OVERSHOOT }, sheetStyle]}>
         <SheetCloseContext.Provider value={close}>
           <PanContext.Provider value={pan}>
@@ -286,13 +288,14 @@ const PanContext = createContext<ReturnType<typeof Gesture.Pan> | null>(null);
 /** The drag handle, title and × of a sheet. Pull it down to dismiss. */
 /** With `onBack` the left button goes back (a step inside the sheet) instead of closing it. */
 export function SheetHeader({ title, right, onBack }: { title: string; right?: ReactNode; onBack?: () => void }) {
+  const { t } = useAppTranslation();
   const close = useSheetClose();
   const pan = useContext(PanContext);
   const header = (
     <View style={styles.header}>
       <View style={styles.handle} />
       <View style={styles.headerRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={onBack ? '返回' : '关闭'} onPress={() => (onBack ? onBack() : close())} style={styles.closeButton} hitSlop={6}>
+        <Pressable accessibilityRole="button" accessibilityLabel={onBack ? t('common.back') : t('common.close')} onPress={() => (onBack ? onBack() : close())} style={styles.closeButton} hitSlop={6}>
           {onBack ? <BackIcon size={16} /> : <CloseIcon size={16} />}
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
@@ -324,6 +327,6 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: '#D8D7D3', marginBottom: 6 },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 48 },
   closeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
-  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: colors.text, marginHorizontal: 8 },
+  title: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 16, fontWeight: '600', color: colors.text, marginHorizontal: 8 },
   headerSide: { width: 36, alignItems: 'flex-end' },
 });

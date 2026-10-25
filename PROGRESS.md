@@ -211,3 +211,11 @@
 ## 以后再改（合并时发现的小问题，不拦合并）
 
 - PR #12 把"最近一次运行总结"整段换掉了，任务 1–7 的总结只剩在 git 历史和各 PR 说明里；以后可以把它们压成几行放回来。
+
+## 中英双语（i18n/foundation）
+
+- 把 App 里用户看得到的中文换成 `t(key)`。启动时在 `app/src/app/_layout.tsx` 先 `await initI18n()`。设置页在「我」和「服务器」之间加了单独的「语言」一块（跟随系统 / 中文 / English），不放进外观。PR #14 的「外观」会插在同一位置的前面；后合并的一边把 `THEME_PREFERENCE_LABELS` 接到已有的 `settings.appearance.*`。颜色仍用 main 上的 `colors` / `shadows`。
+- 系统通知仍写中文 `content`，并带 `notice: { code, params }`。HTTP 看 `Accept-Language`（没有、或 Node 默认的 `*`，仍是中文）；WebSocket 的 `auth` / `subscribe` 可以带 `lang`。演示群欢迎语、模拟回复、种子成员的角色和人设有中英两套，名字和「演示群」不变。旧的数组格式 `config.replies` 继续可用。App 按 code 显示当前语言，不认识的 code 用 `content`。
+- 英文较长的地方只加了换行和收缩（`numberOfLines`、`flexShrink`、按钮允许两行），没有改颜色。
+- 和 main 合并时 `app/package.json` 的测试脚本和 `check:animations` 粘在一起少了逗号，已补上。
+- 测试：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）通过；`cd app && npm test` 35 通过；`cd app && npx tsc --noEmit` 通过；`app/scripts/check-animations.mjs` 通过。没有在 Expo Go 里看过。

@@ -16,6 +16,7 @@ import { useSheets } from '../../../sheets';
 import { MessageItem, TypingRow } from '../../../components/MessageItem';
 import { RelayDots } from '../../../components/RelayDots';
 import { RoundButton } from '../../../components/ui';
+import { useAppTranslation } from '../../../i18n';
 import { displayRows, rowKey, type ChatMessage, type ChatRow } from '../../../outgoing';
 import type { GroupMemberRef, RelayState } from '../../../protocol';
 import { useGroupChannel, useStore } from '../../../store';
@@ -117,6 +118,7 @@ export default function ChatScreen() {
 }
 
 const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string; topInset: number }) {
+  const { t } = useAppTranslation();
   const id = groupId;
   const store = useStore();
   const { send, retry } = store;
@@ -173,10 +175,10 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
   const onRetry = useCallback((clientKey: string) => retry(id, clientKey), [retry, id]);
   const onUpload = useCallback(
     (file: PickedFile) => {
-      if (!store.api) throw new Error('还没有连接服务器');
+      if (!store.api) throw new Error(t('chat.notConnected'));
       return store.api.upload(id, file);
     },
-    [store.api, id],
+    [store.api, id, t],
   );
   const onPlugins = useCallback(() => sheets.open('plugins', { groupId: id }), [sheets, id]);
   const openSettings = useCallback(() => sheets.open('chat-settings', { groupId: id }), [sheets, id]);
@@ -184,27 +186,27 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
   if (!group || !members) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyText}>{store.groupsLoaded ? '群聊不存在' : '加载中…'}</Text>
+        <Text style={styles.emptyText}>{store.groupsLoaded ? t('chat.notFound') : t('common.loading')}</Text>
         <Pressable accessibilityRole="button" onPress={goHome}>
-          <Text style={styles.link}>回到列表</Text>
+          <Text style={styles.link}>{t('chat.backToList')}</Text>
         </Pressable>
       </View>
     );
   }
 
   const direct = group.kind === 'direct';
-  const empty = error ?? (messages ? (direct ? '发一句话，开始聊天吧' : '还没有消息，@ 一位成员开始聊天吧') : '');
+  const empty = error ?? (messages ? (direct ? t('chat.emptyDirect') : t('chat.emptyGroup')) : '');
 
   return (
     <View ref={rootRef} style={styles.root} collapsable={false} onLayout={onLayout}>
       <View style={styles.header}>
         <View style={styles.left}>
-          <RoundButton label="回到助手和群聊" onPress={goHome}>
+          <RoundButton label={t('chat.backHomeA11y')} onPress={goHome}>
             <MenuIcon />
           </RoundButton>
           <MacDots />
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${group.name}，对话设置`} onPress={openSettings} style={styles.center}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('chat.settingsA11y', { name: group.name })} onPress={openSettings} style={styles.center}>
           {direct && members[0] ? <Blob avatar={members[0].avatar} size={34} /> : <GroupAvatar avatars={members.map((item) => item.avatar)} size={36} />}
           <Text style={styles.titleText} numberOfLines={1}>
             {group.name}
@@ -212,7 +214,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
         </Pressable>
         <View style={styles.right}>
           <View ref={plusRef} collapsable={false} pointerEvents={menu || menuShown ? 'none' : 'auto'} style={{ opacity: menu || menuShown ? 0 : 1 }}>
-            <RoundButton label="更多" onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
+            <RoundButton label={t('chat.moreA11y')} onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
               <ThinPlusIcon />
             </RoundButton>
           </View>
@@ -232,7 +234,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
           members={members}
           onSend={onSend}
           onUpload={onUpload}
-          placeholder={direct ? `给${group.name}发消息` : '给群里发消息，@ 点名'}
+          placeholder={direct ? t('chat.placeholderDirect', { name: group.name }) : t('chat.placeholderGroup')}
           showMention={!direct}
           onPlugins={onPlugins}
         />
@@ -244,8 +246,8 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
         onVisibility={setMenuShown}
         onClose={() => setMenu(false)}
         items={[
-          { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => sheets.open('member-new', direct ? {} : { groupId: id }) },
-          { label: '新建群聊', icon: <NewChatIcon size={20} />, onPress: () => sheets.open('group-new') },
+          { label: t('common.newAssistant'), icon: <AddPersonIcon size={20} />, onPress: () => sheets.open('member-new', direct ? {} : { groupId: id }) },
+          { label: t('common.newGroup'), icon: <NewChatIcon size={20} />, onPress: () => sheets.open('group-new') },
         ]}
       />
     </View>
@@ -253,11 +255,12 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
 });
 
 function RelayBar({ relay }: { relay: RelayState }) {
+  const { t } = useAppTranslation();
   return (
     <View style={styles.relay}>
       <RelayDots relay={relay} r={3.5} gap={2.5} />
-      <Text style={styles.relayText}>
-        接力 {relay.hop} / {relay.maxHops}
+      <Text style={styles.relayText} numberOfLines={1}>
+        {t('chat.relay', { hop: relay.hop, max: relay.maxHops })}
       </Text>
     </View>
   );
@@ -273,9 +276,9 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 15 },
   relay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 12 },
-  relayText: { fontSize: 12, color: colors.textSecondary },
+  relayText: { flexShrink: 1, fontSize: 12, color: colors.textSecondary },
   composer: { paddingBottom: 10 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg, gap: 8 },
-  emptyText: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, paddingVertical: 24 },
+  emptyText: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, paddingVertical: 24, paddingHorizontal: 28 },
   link: { fontSize: 14, color: colors.text, textDecorationLine: 'underline' },
 });

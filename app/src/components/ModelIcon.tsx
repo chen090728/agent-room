@@ -2,14 +2,16 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { detectModelBrand } from '../modelBrand';
 import { MODEL_ICON_PATHS } from '../modelIcons';
+import { useAppTranslation } from '../i18n';
 import { colors } from '../theme';
 
 /** Small badge showing which provider an assistant's model comes from. */
 export function ModelIcon({ model, baseUrl }: { model?: string; baseUrl?: string }) {
+  const { t } = useAppTranslation();
   const brand = detectModelBrand(model, baseUrl);
   const paths = brand === 'generic' ? undefined : MODEL_ICON_PATHS[brand];
   return (
-    <View style={styles.badge} accessibilityRole="image" accessibilityLabel="所用模型">
+    <View style={styles.badge} accessibilityRole="image" accessibilityLabel={t('avatar.modelA11y')}>
       <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
         {paths ? (
           paths.map((d, i) => <Path key={i} d={d} fill={colors.textSecondary} fillRule="evenodd" />)

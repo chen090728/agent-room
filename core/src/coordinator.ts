@@ -8,9 +8,26 @@ import type { Directory } from './directory.js';
 import { parseMentions } from './mentions.js';
 import type { IntegrationRegistry } from './integrations/registry.js';
 import type { ToolRuntime } from './integrations/types.js';
+import {
+  CARD_MISSING,
+  deployConnectionDeleted,
+  deployNotStarted,
+  deployStarted,
+  deployTimedOut,
+  DEPLOY_FAILED,
+  describeFailure,
+  GITHUB_CONNECTION_DELETED,
+  MEMBER_SUBMITTED,
+  memberPrLine,
+  relayFailed,
+  relayHopLimit,
+  relayInterrupted,
+  relayReplyLimit,
+} from './copy.js';
+import type { AppLanguage } from './locale.js';
 import type { ChainState, SqlRoom, Watch } from './room.js';
 import type { DeployStatus } from './integrations/types.js';
-import { UserError, type Card, type ChatEvent, type DeploymentCard, type Member, type Message } from './types.js';
+import { UserError, type Card, type ChatEvent, type DeploymentCard, type Member, type Message, type Notice } from './types.js';
 
 export interface CoordinatorOptions {
   maxHops: number;
@@ -49,7 +66,7 @@ export class Coordinator {
   ) {}
 
   /** Saves a message from the human; returns whether replies are now queued. */
-  async postUserMessage(groupId: string, content: string, attachmentIds: string[] = []): Promise<{ message: Message; pending: boolean }> {
+  async postUserMessage(groupId: string, content: string, attachmentIds: string[] = [], lang: AppLanguage = 'zh'): Promise<{ message: Message; pending: boolean }> {
     const attachments = this.room.checkUploads(groupId, attachmentIds);
     const message = this.room.atomically(() => {
       const m = this.room.addMessage({
@@ -74,6 +91,7 @@ export class Coordinator {
       const state: ChainState = {
         relay: { groupId, rootId: message.id, active: true, hop: 0, maxHops, replies: 0, maxReplies, trail: [], thinking: null },
         depthNoticeSent: false,
+        lang,
       };
       this.room.createChain(
         groupId,
@@ -86,8 +104,8 @@ export class Coordinator {
     return { message, pending: mentioned.length > 0 };
   }
 
-  async addSystemMessage(groupId: string, content: string, rootId?: string): Promise<Message> {
-    const message = this.room.addMessage({ groupId, senderKind: 'system', senderId: null, senderName: '系统', content, rootId });
+  async addSystemMessage(groupId: string, content: string, rootId?: string, notice?: Notice): Promise<Message> {
+    const message = this.room.addMessage({ groupId, senderKind: 'system', senderId: null, senderName: '系统', content, rootId, notice });
     this.emit({ type: 'message', message });
     await this.directory.recordActivity(groupId, { lastMessage: message });
     return message;
@@ -111,7 +129,8 @@ export class Coordinator {
     } else if (task.attempts >= 2) {
       // Work on this reply was interrupted twice (e.g. the host restarted); give up on it.
       this.room.removeTask(task.seq);
-      await this.addSystemMessage(groupId, `${member.name} 的回复被中断，已跳过。`, task.rootId);
+      const skipped = relayInterrupted(member.name);
+      await this.addSystemMessage(groupId, skipped.content, task.rootId, skipped.notice);
     } else {
       // Counted before the work starts, so an interrupted reply is retried once.
       this.room.markAttempt(task.seq);
@@ -126,16 +145,22 @@ export class Coordinator {
 
       let text = '';
       let cards: Card[] = [];
+      let submittedNotice: Notice | undefined;
       try {
-        const answer = await this.ask(member, members, trigger);
+        const answer = await this.ask(member, members, trigger, state.lang ?? 'zh');
         cards = answer.cards;
         text = stripSelfPrefix(answer.text, member.name);
-        if (!text && cards.length) text = '我提交了修改，请在下面的卡片里确认。';
+        if (!text && cards.length) {
+          text = MEMBER_SUBMITTED.content;
+          submittedNotice = MEMBER_SUBMITTED.notice;
+        }
       } catch (err) {
         this.room.removeTask(task.seq);
         relay.thinking = null;
         this.room.saveChain(task.rootId, state);
-        await this.addSystemMessage(groupId, `${member.name} 回复失败：${describeError(err)}`, task.rootId);
+        const failure = describeFailure(err);
+        const failed = relayFailed(member.name, failure.text, failure.reasonCode);
+        await this.addSystemMessage(groupId, failed.content, task.rootId, failed.notice);
       } finally {
         this.emit({ type: 'typing', groupId, memberId: member.id, active: false });
       }
@@ -157,23 +182,26 @@ export class Coordinator {
             senderId: member.id,
             senderName: member.name,
             content: text,
+            notice: submittedNotice,
             card: cards[0] ?? null,
             rootId: task.rootId,
             hop,
           });
           // More than one card in a reply: the others get a message each.
-          const extra = cards.slice(1).map((card) =>
-            this.room.addMessage({
+          const extra = cards.slice(1).map((card) => {
+            const line = card.type === 'pull_request' ? memberPrLine(card.number, card.title) : undefined;
+            return this.room.addMessage({
               groupId,
               senderKind: 'member',
               senderId: member.id,
               senderName: member.name,
-              content: card.type === 'pull_request' ? `PR #${card.number}：${card.title}` : '',
+              content: line?.content ?? '',
+              notice: line?.notice,
               card,
               rootId: task.rootId,
               hop,
-            }),
-          );
+            });
+          });
           this.room.removeTask(task.seq);
           relay.replies++;
           relay.thinking = null;
@@ -190,10 +218,12 @@ export class Coordinator {
         this.emit({ type: 'relay', relay: { ...relay } });
         await this.directory.recordActivity(groupId, { lastMessage: extra.at(-1) ?? reply, relay: { ...relay } });
         if (depthNotice) {
-          await this.addSystemMessage(groupId, `已达到 ${this.opts.maxHops} 轮传递上限，自动停止。`, task.rootId);
+          const limit = relayHopLimit(this.opts.maxHops);
+          await this.addSystemMessage(groupId, limit.content, task.rootId, limit.notice);
         }
         if (capped) {
-          await this.addSystemMessage(groupId, `已达到每条消息最多 ${this.opts.maxReplies} 次回复的上限，自动停止。`, task.rootId);
+          const limit = relayReplyLimit(this.opts.maxReplies);
+          await this.addSystemMessage(groupId, limit.content, task.rootId, limit.notice);
         }
       }
     }
@@ -211,7 +241,7 @@ export class Coordinator {
     await this.directory.recordActivity(relay.groupId, { relay: null });
   }
 
-  private async ask(member: Member, members: Member[], trigger: Message): Promise<{ text: string; cards: Card[] }> {
+  private async ask(member: Member, members: Member[], trigger: Message, lang: AppLanguage): Promise<{ text: string; cards: Card[] }> {
     const adapter = this.registry.get(member.type);
     if (!adapter) throw new Error(`未知的成员类型 ${member.type}`);
     const [group, secrets] = await Promise.all([
@@ -257,6 +287,7 @@ export class Coordinator {
         tools,
         bridge: this.bridge ?? undefined,
         signal: AbortSignal.timeout(this.opts.llmTimeoutMs),
+        language: lang,
       },
       { ...member.config, ...secrets },
     );
@@ -269,10 +300,10 @@ export class Coordinator {
    */
   async cardAction(groupId: string, messageId: string, action: 'merge' | 'reject'): Promise<Message> {
     const message = this.room.getMessage(messageId);
-    if (!message || message.groupId !== groupId || message.card?.type !== 'pull_request') throw new UserError('找不到这张卡片', 404);
+    if (!message || message.groupId !== groupId || message.card?.type !== 'pull_request') throw new UserError(CARD_MISSING.content, 404, CARD_MISSING.notice);
     const integration = await this.directory.getIntegration(message.card.integrationId);
     const type = integration && this.integrations.get(integration.type);
-    if (!integration || !type?.cardAction) throw new UserError('这个仓库的连接已经被删除了，请在 GitHub 上直接处理这个 PR');
+    if (!integration || !type?.cardAction) throw new UserError(GITHUB_CONNECTION_DELETED.content, 400, GITHUB_CONNECTION_DELETED.notice);
 
     let updated: Card;
     try {
@@ -324,7 +355,8 @@ export class Coordinator {
       senderKind: 'system',
       senderId: null,
       senderName: '系统',
-      content: `已合并「${pr.title}」，正在部署到 ${type.label}`,
+      content: deployStarted(pr.title, type.label).content,
+      notice: deployStarted(pr.title, type.label).notice,
       card,
     });
     this.room.addWatch(message.id, groupId, now + this.pollMs());
@@ -360,7 +392,10 @@ export class Coordinator {
 
     const integration = await this.directory.getIntegration(card.integrationId);
     const deploy = integration && this.integrations.get(integration.type)?.deploy;
-    if (!integration || !deploy) return this.finishWatch(watch, message.id, card, { state: 'error', error: '这个部署平台的连接已经被删除了' }, now);
+    if (!integration || !deploy) {
+      const deleted = deployConnectionDeleted();
+      return this.finishWatch(watch, message.id, card, { state: 'error', error: deleted.content, errorNotice: deleted.notice }, now);
+    }
 
     const config = { ...integration.config, ...integration.secrets };
     const ctx = { repo: card.repo, sha: card.commit, branch: card.branch, title: card.title };
@@ -381,21 +416,26 @@ export class Coordinator {
     } catch (err) {
       watch.errors += 1;
       if (watch.errors >= MAX_POLL_ERRORS) {
-        return this.finishWatch(watch, message.id, card, { state: 'error', error: describeError(err) }, now);
+        const failure = describeFailure(err);
+        const errorNotice: Notice = failure.reasonCode
+          ? { code: failure.reasonCode }
+          : { code: 'deploy.platformDetail', params: { platform: card.platformLabel, detail: failure.text } };
+        return this.finishWatch(watch, message.id, card, { state: 'error', error: failure.text, errorNotice }, now);
       }
     }
 
     if (!status) {
       if (!card.deployId && watch.polls >= FIND_GIVE_UP_POLLS) {
-        const hint = deploy.trigger ? '' : '，请确认这个项目在平台上连接了该仓库并开启了自动部署';
-        return this.finishWatch(watch, message.id, card, { state: 'error', error: `一直没有等到平台开始部署${hint}` }, now);
+        const waiting = deployNotStarted(!!deploy.trigger);
+        return this.finishWatch(watch, message.id, card, { state: 'error', error: waiting.content, errorNotice: waiting.notice }, now);
       }
       return this.reschedule(watch, now);
     }
 
     if (status.state === 'ready' || status.state === 'error') return this.finishWatch(watch, message.id, card, status, now);
     if (watch.polls >= BUILD_GIVE_UP_POLLS) {
-      return this.finishWatch(watch, message.id, card, { ...status, state: 'error', error: '部署时间太长，已停止跟踪，请到平台查看' }, now);
+      const timedOut = deployTimedOut();
+      return this.finishWatch(watch, message.id, card, { ...status, state: 'error', error: timedOut.content, errorNotice: timedOut.notice }, now);
     }
     await this.updateDeployCard(message.id, card, status, now);
     this.reschedule(watch, now);
@@ -417,7 +457,8 @@ export class Coordinator {
       state: status.state,
       deployId: status.id ?? card.deployId,
       url: status.url ?? card.url,
-      error: status.state === 'error' ? status.error ?? '部署失败' : undefined,
+      error: status.state === 'error' ? status.error ?? DEPLOY_FAILED.content : undefined,
+      errorNotice: status.state === 'error' ? status.errorNotice ?? DEPLOY_FAILED.notice : undefined,
       updatedAt: now,
     };
     if (next.state === card.state && next.deployId === card.deployId && next.url === card.url && next.error === card.error) return;
@@ -439,12 +480,4 @@ function resolveMentions(text: string, members: Member[]): Member[] {
     text,
     members.map((m) => m.name),
   ).map((name) => members.find((m) => m.name.toLowerCase() === name.toLowerCase())!);
-}
-
-function describeError(err: unknown): string {
-  if (err instanceof Error) {
-    if (err.name === 'TimeoutError') return '请求超时';
-    return err.message;
-  }
-  return String(err);
 }

@@ -8,14 +8,16 @@ import {
   registerUpload,
   SqlRoom,
   UserError,
+  type AppLanguage,
   type Attachment,
+  type Notice,
   type CoordinatorDirectory,
   type FileStore,
   type Message,
   type SqlDriver,
 } from '@agenthub/core';
 import { DurableObject } from 'cloudflare:workers';
-import { acceptSocket, broadcast, closeSocket, durableSql, onSocketMessage } from './durable.js';
+import { acceptSocket, agreedSocketLanguage, broadcast, closeSocket, durableSql, onSocketMessage } from './durable.js';
 import { directoryStub, settings, type Env } from './env.js';
 import { R2FileStore } from './files.js';
 
@@ -85,10 +87,12 @@ export class GroupDO extends DurableObject<Env> {
     groupId: string,
     content: string,
     attachments: string[],
+    lang?: AppLanguage | null,
   ): Promise<{ ok: true; message: Message } | { ok: false; status: number; error: string }> {
     this.remember(groupId);
     try {
-      const { message, pending } = await this.coordinator.postUserMessage(groupId, content, attachments);
+      const language = lang ?? agreedSocketLanguage(this.ctx) ?? 'zh';
+      const { message, pending } = await this.coordinator.postUserMessage(groupId, content, attachments, language);
       if (pending) await this.schedule();
       return { ok: true, message };
     } catch (err) {
@@ -116,7 +120,7 @@ export class GroupDO extends DurableObject<Env> {
     groupId: string,
     messageId: string,
     action: 'merge' | 'reject',
-  ): Promise<{ ok: true; message: Message } | { ok: false; status: number; error: string }> {
+  ): Promise<{ ok: true; message: Message } | { ok: false; status: number; error: string; errorNotice?: Notice }> {
     this.remember(groupId);
     try {
       const message = await this.coordinator.cardAction(groupId, messageId, action);
@@ -125,14 +129,14 @@ export class GroupDO extends DurableObject<Env> {
       if (due !== undefined) await this.schedule(due);
       return { ok: true, message };
     } catch (err) {
-      if (err instanceof UserError) return { ok: false, status: err.status, error: err.message };
+      if (err instanceof UserError) return { ok: false, status: err.status, error: err.message, errorNotice: err.notice };
       throw err;
     }
   }
 
-  async addSystemMessage(groupId: string, content: string): Promise<Message> {
+  async addSystemMessage(groupId: string, content: string, notice?: Notice): Promise<Message> {
     this.remember(groupId);
-    return this.coordinator.addSystemMessage(groupId, content);
+    return this.coordinator.addSystemMessage(groupId, content, undefined, notice);
   }
 
   async alarm() {

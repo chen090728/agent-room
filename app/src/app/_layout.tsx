@@ -1,7 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initI18n } from '../i18n';
 import { ChatSettingsSheet } from '../sheet-content/ChatSettingsSheet';
 import { NewGroupSheet } from '../sheet-content/NewGroupSheet';
 import { NewMemberSheet } from '../sheet-content/NewMemberSheet';
@@ -26,6 +29,14 @@ const SHEETS = {
 };
 
 export default function RootLayout() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    void initI18n().then(
+      () => setReady(true),
+      () => setReady(true),
+    );
+  }, []);
+  if (!ready) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>

@@ -21,6 +21,7 @@ import { openSocket, type SocketStatus } from './socket';
 import {
   clearSettings,
   DEFAULT_PROFILE,
+  displayNickname,
   loadProfile,
   loadSettings,
   saveProfile,
@@ -273,7 +274,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       content,
       attachmentIds,
       attachments,
-      senderName: profileRef.current.nickname || '我',
+      senderName: displayNickname(profileRef.current.nickname),
       now: Date.now(),
       clientKey,
     });
@@ -372,6 +373,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       token: state.settings.token,
       onStatus: (status) => dispatch({ type: 'status', status }),
       onReconnect: () => refreshGroups().catch(() => {}),
+      onLanguage: () => {
+        refreshGroups().catch(() => {});
+        refreshMembers().catch(() => {});
+      },
       onEvent: (event: ListEvent) => {
         const chat = chatEventFromList(event);
         if (chat) {
