@@ -1,0 +1,34 @@
+{
+  "name": "agenthub-server",
+  "version": "0.2.0",
+  "private": true,
+  "description": "AgentHub self-hosted Node server",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --external:better-sqlite3 --external:ws --external:dotenv",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "init-env": "node scripts/init-env.mjs"
+  },
+  "dependencies": {
+    "@agenthub/core": "^0.2.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.9",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  // The same Worker as worker/wrangler.jsonc, with its entry point addressed from the
+  // repository root. It exists for the "Deploy to Cloudflare" button, which builds from
+  // the root; worker/test/root-config.test.ts keeps the two in sync.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agenthub",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+
+  // AGENTHUB_TOKEN and AGENTHUB_SECRET are secrets (see .dev.vars.example), never put them here.
+  "vars": {
+    "MAX_HOPS": "5",
+    "MAX_REPLIES": "10",
+    "CONTEXT_SIZE": "30",
+    "LLM_TIMEOUT_MS": "60000",
+    "USER_DISPLAY_NAME": "用户",
+    "MOCK_DELAY_MS": "400-1400"
+  },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "DIRECTORY", "class_name": "DirectoryDO" },
+      { "name": "GROUPS", "class_name": "GroupDO" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DirectoryDO", "GroupDO"] }]
+}

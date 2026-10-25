@@ -1,0 +1,4 @@
+# Secrets of the Worker. The "Deploy to Cloudflare" button asks for these two values.
+# Both must be at least 16 characters; generate them with a password generator.
+AGENTHUB_TOKEN=
+AGENTHUB_SECRET=

@@ -1,0 +1,174 @@
+# PROGRESS
+
+## 最近一次运行总结
+
+> 每次运行结束时更新本节：本次完成了什么、PR 链接、用户醒来要做什么。
+
+- 状态：**任务 1–7 全部完成，各开了 PR（#1–#7）**。
+- 任务 7（公开前打磨）：PR #7。README 加了截图、"Deploy to Cloudflare"按钮（实验性）和路线图；新增 SECURITY.md；扫描过仓库，没有密钥和数据库文件被提交。
+- 任务 6（bridge 工作助手）：PR #6。bridge 在本机调用已登录的 Claude Code / Codex，配对码配对，默认只读；用假脚本和真实服务器测过，没有用真实的 Claude Code / Codex 跑过（见“任务 6 的决定”）。
+- 任务 5（托管平台 + 部署卡片）：PR #5。合并 PR 后，群里出现部署卡片并自动更新到“已上线 / 失败”；四个平台只用假服务器测过，没有真实验证（见“任务 5 的决定”）。
+- 任务 1（Cloudflare 部署 + 《手机部署指南》）：PR #1。任务 2（界面改版）：PR #2。任务 3（连接 + GitHub）：PR #3。
+- 任务 4（上传文件）——本次完成：
+  - 服务器：附件模型（消息带 `attachments`）；文件存储接口（Node 存本地目录，Cloudflare 存 R2）；上传 / 下载 / 签名链接接口；图片发给支持看图的模型（多模态格式，模型拒绝时自动去掉图片重试，成员有"支持看图"开关）；文本和代码文件作为内容发送；PDF 上传时提取文字（`unpdf`，在 Node 和 Workers 里都验证过）；各种大小和数量上限；类型白名单（不含 SVG）。模拟助手会回"收到你发的文件"。
+  - Cloudflare：R2 是**可选**的。部署流程会自动尝试创建存储桶，成功就带绑定部署，失败就普通部署并在摘要里说明；没开通时上传返回清楚的 503，其余功能不受影响（有单独的测试）。《手机部署指南》加了"可选：开通文件上传"。
+  - App：输入栏的"+"菜单（图片 / 文件 / @ 成员，单聊里没有 @）、选好立即上传、待发送文件的小标签（可移除）；聊天里图片显示缩略图、其他文件显示可点开的标签；新建助手页的"支持看图"开关；首页对只有文件的消息显示"[图片]/[文件]"。
+  - 验证：core 63 + Node 13 + Worker 14 个测试通过（Worker 版的端到端是带 R2 跑的，另有一个不带 R2 的）；App `tsc` 通过、iOS/Android 包能打出来；浏览器里连本地 Worker（带 R2）用 Playwright 真的选了图片和 PDF，模型收到了图片和 PDF 文字，截图核对过。
+- PR 链接：
+  - 任务 1 → https://github.com/chen090728/agent-room/pull/1
+  - 任务 2 → https://github.com/chen090728/agent-room/pull/2
+  - 任务 3 → https://github.com/chen090728/agent-room/pull/3
+  - 任务 4 → https://github.com/chen090728/agent-room/pull/4
+  - 任务 5 → https://github.com/chen090728/agent-room/pull/5
+  - 任务 6 → https://github.com/chen090728/agent-room/pull/6
+  - 任务 7 → https://github.com/chen090728/agent-room/pull/7
+- 你醒来要做什么：
+  1. 按《手机部署指南》填 5 个 GitHub Secrets（只能你自己做）。
+  2. 按顺序合并 PR：#1 → #2 → #3 → #4 → #5 → #6 → #7（后面的分支包含前面的全部提交，所以也可以只合并最后的 #7，其余 PR 会自动变成已合并）。
+  3. 想用文件上传：按指南"可选：开通文件上传"开通 R2（可能要绑定付款方式）。
+  4. 看"待我确认"里的决定。这些都**没在真实环境验证过**：GitHub 部分（任务 3）、真机上选图片 / 文件（任务 4）、四个托管平台的接口字段（任务 5）、真实的 Claude Code / Codex 和 Codex 命令行参数（任务 6）、Deploy to Cloudflare 按钮（任务 7）。第一次真实使用出问题时，把报错或平台返回的内容发给我。
+  5. 想用工作助手：在自己电脑上 `git clone`、`npm install`、`npm run build -w bridge`，按 App 里"连接电脑"页的步骤配对（见 bridge/README.md）。
+
+## 工作规则（来自用户）
+
+- 仓库：chen090728/agent-room。先读本文件，从第一项未完成的任务接着做。
+- 用户无法回答问题，连续工作；需要决定时选最合理的方案，把决定和理由记进下面的"待我确认"。
+- 每项任务在上一项的基础上新建分支，完成后开 PR 到 `main`。
+- 每完成一小步就提交、推送并更新本文件；额度用完前确保进度已保存。
+- 所有测试必须通过；做不到的写清原因。
+- 每次运行结束时更新上面的"最近一次运行总结"。
+
+## 任务清单
+
+- [x] **任务 1：完成 Cloudflare 部署**（计划已确认），附《手机部署指南》
+  - [x] 共用核心 `core/`，Node 版去掉 Fastify，npm workspaces
+  - [x] `worker/`：Workers + Durable Objects（SQLite，每群一个 DO），WebSocket 用 Hibernation API
+  - [x] Web Crypto AES-GCM 加密，令牌和密钥用 Wrangler secrets
+  - [x] GitHub Actions：推送 `main` 自动部署 Worker、自动 `eas update`
+  - [x] App：列表连接 `/ws` + 聊天连接 `/ws/groups/:id`；`expo-updates` + `runtimeVersion`
+  - [x] `docs/手机部署指南.md`（从生成令牌开始，不写注册；醒目提醒 AGENTHUB_SECRET 要备份）
+  - [x] 更新 README（workspaces 结构、Cloudflare 主推、两条 WebSocket、新增适配器位置、加密格式 v2）
+  - [x] 跑测试、提交推送、开 PR 到 `main`
+
+- [x] **任务 2：界面改版**（设计稿 https://claude.ai/artifact/1fdJBVcxUNVTKDhcqCZZiu ）
+  - 去掉侧边抽屉，打开应用直接进入"助手和群聊"页：
+    - 左上角"我"的头像（进入设置：昵称、头像、服务器地址、访问令牌），头像右边三个 Mac 配色圆点 #FF5F57、#FEBC2E、#28C840（带稍深细描边）
+    - 右上角加号新对话
+    - 列表混合单聊和群聊，按最近消息排序
+    - 底部方块加号弹出"新建助手 / 新建群聊"，右边搜索栏
+  - 聊天页左上角菜单回到列表页；群名胶囊里也用 Mac 配色三个点
+  - 单聊 = 只有我和一个助手的群；新建助手后自动出现在列表
+  - 助手行：头像、名字、角色标签、最后一条消息、右侧模型小图标（LobeHub Icons，先核对许可证；认不出用通用图标，模拟助手不显示）
+  - 头像改为"形状 + 颜色"：12 种带白色眼睛的纯色团子、11 种颜色，服务器头像字段改为 `{ shape, color }`；新建助手页加"角色标签"
+
+- [x] **任务 3：统一的"连接（integrations）"系统 + 连接 GitHub**
+  - 写法和成员适配器一致：类型注册、配置表单描述、敏感字段加密、向助手暴露工具
+  - 设置里新增"连接"页；GitHub 用细粒度令牌，只显示打码
+  - 群聊和单聊可绑定一个仓库；助手通过工具调用读取文件和目录
+  - 助手改代码时在新分支提交并开 PR，群里显示确认卡片（文件、增删行数、"同意合并 / 拒绝"），用户点同意才合并
+
+- [x] **任务 4：上传文件**
+  - 聊天里可发图片、PDF、代码文件，存到 Cloudflare R2（Node 版存本地目录）
+  - 图片发给支持看图的模型，文本类文件作为内容发送，PDF 先提取文字
+
+- [x] **任务 5：连接托管平台**
+  - 支持 Cloudflare Pages、Vercel、Netlify、Render，PR 合并后跟踪部署（平台没自动部署时能触发的会触发）
+  - 群里显示部署卡片：状态、预览链接
+
+- [x] **任务 6：bridge 接入工作助手**
+  - 写 bridge 程序：运行在用户自己的电脑或服务器上，主动连接 AgentHub，调用本机已登录的 Claude Code（`claude -p`）和 Codex，结果回传群里
+  - 项目不接触任何 Claude.ai 账号凭证；README 说明使用条款需用户自行确认
+  - 新建助手页的"工作助手"选项启用，用配对码绑定 bridge
+
+- [x] **任务 7：公开前打磨**
+  - README 加"一键部署到 Cloudflare"按钮、截图、路线图更新
+
+## 待我确认
+
+> 运行中做出的决定和理由记在这里，用户醒来后统一确认。
+
+- **未能用真实账号验证的部分（任务 1）**：这个环境连不上 Cloudflare、Expo、GitHub Actions 的真实服务，也打不开 Expo 文档网站。已验证的是：本地 `wrangler dev`（真实 workerd + Durable Objects）跑通全部端到端测试、`wrangler deploy --dry-run` 打包成功、两个 workflow 里的 shell 步骤用假数据演练过。没验证的是：真实的 `wrangler deploy` / `wrangler secret bulk`、`eas init --non-interactive --force` 与 `eas update --auto --branch main` 在 CI 里的表现、`exp://u.expo.dev/<项目ID>/group/<更新组ID>` 链接能否在手机上直接跳转 Expo Go（eas-cli 源码里只能确认更新页面网址格式）。指南里已对跳转链接标注"未在真机验证"。第一次真实部署失败时，先看 Actions 日志。
+- **GitHub Secrets 是 5 个**：除了你说的两个令牌，还需要 `CLOUDFLARE_ACCOUNT_ID`、`AGENTHUB_TOKEN`、`AGENTHUB_SECRET`。理由：部署需要账户 ID；你没有电脑，没法运行 `wrangler secret put`，所以由 Actions 每次部署时把后两个写进 Wrangler secrets。
+- **不提供旧数据迁移**：加密格式换成 `v2`（HKDF + AES-GCM），数据库表结构也变了。项目还没真正部署过，所以没写迁移代码，README 里写了"删 data/ 重来"。
+- **App 里还没有"删除助手"**：服务器有 `DELETE /api/members/:id`，但 App 没入口。指南里让用户换名字重新创建。任务 2 改版时顺手补一个入口。
+- **自动部署只在 `main` 上运行**：`workflow_dispatch` 的"Run workflow"按钮也要等 workflow 文件合并到默认分支才出现，所以必须先合并任务 1 的 PR。
+- **工作流用的 Node 22、`eas-version: latest`、`expo-github-action@v8`**：没法在这里确认这些版本号的最新情况，如果 Actions 报版本不存在，改成当时可用的版本。
+- **任务分支做法**：任务 1 在 `claude/agenthub-phase1` 上；任务 2 起每项从上一项的分支切新分支（`claude/task-2-...` 等），PR 的 base 先指向 `main`（用户要求）。因此后面的 PR 会包含前面任务的提交，直到前面的 PR 合并。
+
+### 任务 2 的决定
+
+- **右上角加号"新对话" = 新建群聊。** 设计稿里这个按钮只有"新对话"的名字，没说明去哪。单聊在助手创建时已经自动出现，所以"新对话"只剩新建群聊有意义。底部左下角的菜单仍然提供"新建助手 / 新建群聊"。
+- **单聊是 `kind: 'direct'` 的群。** 这样单聊复用群的全部机制（消息、接力、WebSocket）。单聊里没有 @ 也会回复给唯一的助手；单聊的成员不能改；删除助手会连它的单聊一起删（消息数据留在 Durable Object / 本地库里不清理）。
+- **数据库迁移是真写了的。** 你可能先部署任务 1 再合并任务 2，所以旧库（成员只有 color、群没有 kind）会在启动时自动升级，并给已有助手补单聊（`core/test/coordinator.test.ts` 里有迁移测试）。旧颜色保留为新调色板里的同名颜色，`graphite` 变成 `gray`，并按旧颜色分配一个形状。
+- **我的昵称和头像只存在手机本地**，没有传给服务器。模型看到的"用户名"还是服务器的 `USER_DISPLAY_NAME`。如果你想让模型看到自己设的昵称，需要加一个 `PUT /api/profile`（放到后面）。
+- **打开应用不再自动进入上次的群聊**，按你的要求直接进列表。
+- **单聊的输入栏暂时没有"+"按钮**（设计稿里有"添加附件或点名"）。单聊没人可 @，附件上传是任务 4，到时再放回来；群聊里的"+"仍然是 @ 选择器。
+- **"工作助手"选项仍然灰显**，任务 6 才启用。
+- **模型小图标**：用 `@lobehub/icons-static-svg`（MIT）里的 17 个品牌图标，把 SVG 路径内嵌进 `app/src/modelIcons.ts`；按模型名（如 `claude-…`、`gpt-…`）再按接口地址判断提供方，认不出用通用图标，模拟助手不显示。许可证全文和商标说明在 `THIRD_PARTY_NOTICES.md`。
+- **头像的歪眼睛旋转直接算进路径里**，没有用 react-native-svg 的 `rotation`/`origin` 属性（网页预览里这两个属性会报 DOM 警告）。
+- **没能在真机上验证的**：所有界面只在浏览器（react-native-web）里渲染核对过，没在 Expo Go 真机上看。键盘弹起时底部搜索栏和输入栏的位置、手势返回、`boxShadow` 在 Android 上的效果需要你在手机上看一眼。
+- **设置页的默认头像**：没选过头像时显示灰色人形；一旦在选择器里点了形状或颜色就变成团子，点"使用默认头像"可以还原。选择器在"未选择"状态下仍会高亮默认的云朵和青色，这是个小瑕疵，没处理。
+
+### 任务 3 的决定
+
+- **只用假 GitHub 验证过，没连过真实 GitHub。** 这个环境连不上 github.com 的 REST API，所以用 `core/test/fake-github.ts`（内存里模拟 `/user`、`/user/repos`、contents、Git Data、pulls、merge 等接口）做端到端测试。风险点是真实 GitHub 的细节可能和我模拟的不同：例如细粒度令牌对 `/user` 的访问权限（代码里 `/user` 返回 403/404 时会退回用 `/user/repos` 验证）、`/git/trees` 的 `base_tree` 用提交的树 SHA、`/pulls/:n/files` 的字段。第一次用真令牌失败时，先看错误提示，里面带有 GitHub 返回的信息。
+- **App 里"创建细粒度令牌"的步骤说明**是按我印象里的 GitHub 网页写的（Settings → Developer settings → Personal access tokens → Fine-grained tokens；权限 Contents 和 Pull requests 读写），没法在这里核对，GitHub 改版后可能对不上。
+- **一个对话绑定一个仓库**，绑定保存在群的 `binding` 字段里（单聊和群聊一样）。群里所有"OpenAI 兼容"助手都能用这些工具；模拟助手没有工具。
+- **助手只有三个工具：读目录、读文件、开 PR。没有合并工具**，合并只能由用户点卡片按钮触发（接口 `POST /api/groups/:id/messages/:mid/card`，助手无法调用）。App 里点"同意合并"前还会再弹一次确认。
+- **助手不能改 `.github/workflows/`**：CI 工作流带着仓库密钥运行，让模型改它风险太大，工具里直接拒绝并报错。
+- **合并方式是 squash，合并或拒绝后会删除临时分支**（尽力而为，删不掉不影响结果）。分支名形如 `agenthub/<标题的英文缩写>-<6位随机>`。
+- **模型不支持函数调用时自动降级**：第一次请求带 `tools` 被服务返回 400/422 时，去掉 `tools` 重试，当普通回复处理。工具调用最多 6 轮，最后一轮强制用文字回答。
+- **Cloudflare 免费档每次调用最多 50 个外部请求（subrequest）**，我没有做硬性限制：一次开 PR 大约 8 个 GitHub 请求，加上读文件和模型请求，正常用不会碰到，连续读很多文件可能超。碰到时助手会在群里报错，不会崩。
+- **卡片状态只在你点按钮时和 GitHub 同步**：如果你直接在 GitHub 上合并或关闭了 PR，卡片要等你点一下按钮才会更新（点的时候会先查 GitHub 的真实状态再决定）。
+- **查到并修了一个只在 Cloudflare 上出现的问题**：把 `fetch` 存成对象属性再用 `this.fetchImpl(...)` 调用，Workers 会报 "Illegal invocation"（Node 不会），Worker 版端到端测试发现了它，已改成不带 `this` 调用。
+- **"群成员"页改成了"对话设置"页**（路由 `/chat/[id]/settings`）：同时放群成员（仅群聊）和仓库绑定。单聊点顶部胶囊现在也能进（以前不能）。
+- **跨平台的确认 / 提示小工具 `app/src/dialogs.ts`**：原生用 `Alert`，网页用 `confirm/alert`。原因是 react-native-web 里 `Alert.alert` 是空实现，网页预览没法测确认流程。
+- **接口地址字段（可选）**：GitHub 连接多一个可选的"接口地址"，默认 `https://api.github.com`，可以填 GitHub Enterprise 的地址；测试里也靠它指向假服务器。
+
+### 任务 4 的决定
+
+- **R2 做成可选，部署流程自动探测。** 理由：R2 在 Cloudflare 上要单独开通，我印象里开通时可能要求绑定付款方式；如果把它写死进 `wrangler.jsonc`，没开通 R2 的用户第一次部署就会失败。做法是 `worker/scripts/make-config.mjs` 生成带 R2 绑定的临时配置，部署流程先 `wrangler r2 bucket create agenthub-files`，成功（或已存在）才用它部署。**这些我没法在真实账号上验证**：`wrangler r2 bucket create` 的失败提示、"Edit Cloudflare Workers"令牌模板是否自带 R2 权限（我假设没有，所以指南要求加一条 R2 编辑权限）、开通 R2 是否要付款方式，都需要你实测。
+- **文件通过"原始请求体"上传**（头里放类型和 URL 编码的文件名），没用 multipart，省掉解析；App 端用 `fetch(uri).blob()` 再 POST，不依赖 `expo-file-system`。
+- **PDF 提取在 Durable Object 里做，不在前端 Worker 里**：免费档前端 Worker 每次请求只有约 10ms CPU，解析 PDF 会超；文件字节由前端直接写进 R2，再通知 GroupDO 去读取并提取。`unpdf` 打进 Worker 后压缩约 0.5 MB，远低于免费档 3 MB 上限。
+- **图片缩略图用签名链接显示，不用请求头认证**：react-native-web 的 `<img>` 带不了请求头，原生 `Image` 虽然支持 `headers`，但行为不一致；签名链接 10 分钟有效，各平台一致。
+- **不接受 SVG**（可以带脚本），文件类型和 `Content-Type` 由服务器决定并带 `nosniff` 和严格的 CSP；文件名会清理路径和控制字符。
+- **上限**：单文件 10 MB，每条消息 6 个；发给模型的最多最近 4 张图片（每张 ≤ 5 MB），文本文件单个 3 万字符、合计 10 万字符。App 选图时用 `quality: 0.7` 压缩。这些数字是我定的，没有依据某个模型的具体限制。
+- **"支持看图"开关默认开，模型拒绝图片（400/422）时自动去掉图片重试一次**，所以对不支持看图的模型也不会直接报错。
+- **没有清理孤儿文件**：上传了但没发送的文件（比如发送前移除、或上传后关了 App）会留在存储里。第一阶段用量很小，没做清理任务，后面可以按"超过 N 天没被消息引用"清理。
+- **文件按群聊分开存放**（键是 `群id/文件id`），文件 id 是随机 UUID；删除助手时不删除它单聊里的文件。
+- **只在浏览器里验证了选文件**：用 Playwright 在 react-native-web 上真的选了图片、Markdown 和 PDF。手机上的相册选择器（`expo-image-picker`）和文件选择器（`expo-document-picker`）没在 Expo Go 真机上试过。另外，这个沙箱里的 Chromium 选中文文件名的文件时只选中了一部分（换成英文文件名就正常），我判断是沙箱问题；中文文件名在服务器的端到端测试里是覆盖了的。
+
+### 任务 5 的决定
+
+- **"自动部署"= 跟踪平台自己的自动部署，必要时触发。** 项目在平台上连着 GitHub 仓库，合并到默认分支后平台本来就会自动部署，所以 AgentHub 不重复触发，只按提交号找到那次部署并跟踪。理由：重复触发会产生两次部署。Netlify、Render、Cloudflare Pages 在约 90 秒（9 次查询）还没出现对应部署时，会主动触发一次；Vercel 没有这样的简单接口，所以只能依赖它自己的自动部署，约 5 分钟找不到就在卡片上提示"请确认项目连接了仓库并开启自动部署"。
+- **只跟踪通过 AgentHub 卡片合并的 PR。** 在 GitHub 网页上直接合并不会有部署卡片。理由：不想为此去订阅 GitHub webhook（那需要你在 GitHub 里配置，而且手机上很麻烦）。
+- **用轮询，不用 webhook。** 每个平台都能按提交号查到部署；轮询在 Node 版（定时器）和 Cloudflare 版（Durable Object alarm）都能工作、不需要你配置任何东西。默认 10 秒一次，最长跟踪约 20 分钟（120 次），连续 5 次请求出错就停止并写明原因。进度存在数据库里，服务器重启后会接着查。
+- **部署项目绑定在对话上**（和代码仓库并列），一个对话一个仓库 + 一个部署项目。设置页的"部署平台"只在已绑定仓库后出现。
+- **绑定接口改成"部分更新"**：`repo`、`deploy` 两个键都可省略（保持不变），`null` 清除。旧的只传 `repo` 的 App 仍然能用。删除某个连接会清掉用到它的仓库或部署绑定，另一个保留。
+- **每个平台多一个可选的"接口地址"字段**（同 GitHub），测试里靠它指向假服务器，一般不用填。
+- **没有用真实平台验证。** 四个平台的接口路径和字段是我按它们的公开文档和记忆写的，测试用的是我自己写的假服务器（`core/test/fake-platforms.ts`）：如果真实返回的字段名和我假设的不一样（比如 Vercel 的 `meta.githubCommitSha`、Render 的 `commit.id`、Cloudflare 的 `deployment_trigger.metadata.commit_hash`、Netlify 的 `commit_ref`），部署卡片会一直找不到部署，最后显示"没有等到平台开始部署"。第一次真实使用时如果出现这种情况，把平台返回的部署 JSON 发给我就能对上。Render 完成后的预览链接取的是服务地址，Netlify 取的是该次部署的专属地址。
+- **同一次合并只发一张卡片；卡片状态随平台更新原地变化**（消息里的 `card` 被更新并推送 `message_updated`），群列表的最后一条消息预览也同步变化。
+
+### 任务 6 的决定
+
+- **bridge 是 `bridge/` 里的独立 Node 程序（npm workspace），打成单个 `dist/agenthub-bridge.cjs`。** 理由：用户要把它跑在自己的电脑上，单文件最容易复制；用 CommonJS 是因为把 `ws` 打进 ESM 包会报 `Dynamic require` 错误（这个问题是我实际运行打好的包时才发现的，已改正并用真实服务器烟雾测试过）。没有发布到 npm，所以需要 `git clone` 后 `npm install && npm run build`；如果你想要 `npx agenthub-bridge`，需要你决定包名并发布。
+- **只主动连出，不监听端口**：bridge 用 WebSocket 连 `/ws/bridge`。理由：你的电脑通常没有公网地址；也不用开防火墙。
+- **配对流程**：App 创建"工作助手"成员后，服务器生成 8 位一次性配对码（10 分钟有效；字母表去掉了 0/O/1/I/L）；电脑上运行 `pair <服务器地址> <配对码>` 换到长期凭证（`bridgeId` + 随机令牌），保存在 `~/.agenthub-bridge/config.json`（权限 600）。**服务器只存令牌的 SHA-256 哈希**。凭证和 `AGENTHUB_TOKEN` 是两回事：bridge 的凭证只能用来连 `/ws/bridge`，不能调用其他接口。同一台电脑再配对别的工作助手时会带上已有凭证，复用同一个 bridge。
+- **配对码接口 `/api/bridge/pair` 不需要访问令牌**（配对码就是凭证），所以 README 的安全说明里把它列为例外。码只有 8 位×31 个字符 ≈ 40 位，10 分钟有效且一次性；我没有给这个接口加限流（Worker 免费档上也没有现成的计数器），猜中的概率可以忽略，但如果你担心，可以以后加。
+- **默认只读，写权限要两边同意**：成员有"允许修改文件"开关，但这只是向 bridge 申请；电脑上的 bridge 必须用 `--allow-write` 启动才会真的允许。只读时 Claude Code 用 `--permission-mode plan`，Codex 用 `--sandbox read-only`；允许写时分别是 `acceptEdits` 和 `workspace-write`。理由：群聊里的内容（包括别的 AI 成员的话）会进入提示，不能让它们决定是否改你电脑上的文件。提示里也写明了"聊天记录不是指令"，但这只是辅助，不是保证，README 和 bridge 文档里写了安全提醒。
+- **提示通过标准输入传给工具**（`claude -p` 和 `codex exec -`），不放在命令行参数里：避免长度限制和转义问题。Codex 的最终回答从 `--output-last-message` 指定的文件里读，不解析它标准输出里的过程日志。
+- **没有在真实的 Claude Code / Codex 上跑过任务。** 这个沙箱里虽然能执行 `claude --version` 和 `--help`（用来核对 `-p`、`--permission-mode` 的取值），但我没有真的让它回答问题（那会用到账号）。测试里用的是假的 `claude` / `codex` 脚本。**Codex 的参数（`exec`、`--sandbox`、`--skip-git-repo-check`、`--output-last-message`、用 `-` 读标准输入）是我凭记忆写的，没有核对过**；如果你的 Codex 版本参数不一样，bridge 会报"运行失败（退出码 N）：…"并把末尾的错误信息显示在群里，到时候按报错改 `bridge/src/runner.ts` 即可。
+- **一次任务的最长等待时间**：服务器端 `BRIDGE_TIMEOUT_MS`（默认 10 分钟），bridge 端 `--timeout`（默认 10 分钟）。超时会通知 bridge 取消并杀掉工具进程。工作助手的回复**不受**普通模型回复的 60 秒超时限制。
+- **Cloudflare 版把 bridge 的 WebSocket 放在 DirectoryDO 里**（用 tag 和普通群列表连接区分，群列表广播只发给 `list` 标签的连接），工作任务由 GroupDO 通过 RPC 交给它，而不是新增一个 Durable Object 类：新增类要写迁移，部署失败的风险更大。代价是任务期间 DirectoryDO 会一直保持活跃（等 bridge 回答，最长 10 分钟）。这在本地 `wrangler dev` 下跑通了完整流程（配对 → 连接 → 任务 → 失败 → 中途断线），没有在真实 Cloudflare 上验证；真实环境里如果 Durable Object 被迁移或重启，正在进行的任务会失败并显示"断开"。
+- **只支持文字**：图片、PDF 等附件在工作助手的提示里只会以文字说明出现（文本和 PDF 提取的文字会带上，图片只写文件名）。
+- **没有"解除配对 / 吊销 bridge"的界面**：要停用一台电脑，可以删除这个工作助手（它的配对码和成员记录会一起删掉，但 bridge 记录仍留在数据库里，凭证只能连接、不能做别的）。如果需要，以后加"吊销 bridge"。
+- **App 的配对页只显示命令，不能一键复制**（可以长按选中）。网页预览截图核对过页面，手机上的体验没验证。
+- **App 网页预览的小改动**：`expo-secure-store` 没有网页实现，所以 `storage.ts` 在网页上改用 `localStorage` 存令牌（手机上仍然是系统钥匙串）。这只影响开发时的网页预览，用来截图核对界面。
+
+### 任务 7 的决定
+
+- **"Deploy to Cloudflare"按钮指向仓库根目录，而不是 `worker/`。** 我查了 Cloudflare 文档：按钮带子目录时，应用必须在这个子目录里完全独立（包括依赖），否则构建失败；我们的 Worker 依赖仓库里的 `core/`，所以不能指向 `worker/`。做法：在根目录加了一份 `wrangler.jsonc`（和 `worker/wrangler.jsonc` 内容一致，只有入口路径不同，有测试保证两份同步）、`.dev.vars.example`（让按钮提示填 `AGENTHUB_TOKEN`、`AGENTHUB_SECRET`），以及根 `package.json` 里的 `deploy` 脚本和 `cloudflare.bindings` 说明。根目录 `wrangler deploy --dry-run` 打包成功。**但按钮本身没法在这里点，所以真实效果没验证**，README 里标成"实验"并写明限制：没有 R2、不发布 App、更新靠 Cloudflare 自己的 Git 构建。推荐的方式仍是 GitHub Actions。
+- **截图是用假数据生成的**（模拟的 GitHub / Vercel、脚本化的"模型"、模拟成员），在浏览器里用 react-native-web 渲染，不是手机真机截图；README 里注明了。截图里部署卡片的提交号显示成 `commit-`，是因为假 GitHub 的提交号形如 `commit-3`，真实的 40 位提交号会显示前 7 位。
+- **路线图只写了"想做"，没有时间承诺**。"流式回复"和"语音输入"是你在第一阶段明确去掉的，放在了路线图里。
+- **加了 `SECURITY.md`**（私下报告漏洞的方式），没有加 CONTRIBUTING、issue 模板或徽章：许可证是 Elastic License 2.0，不是 OSI 意义上的开源，我不想在你没决定前写太多"欢迎贡献"的话。
+- **仓库扫描**：查了常见密钥格式（`sk-`、`ghp_`、`github_pat_`、AWS Key），没有命中；`.env`、数据库文件没有被 git 跟踪。

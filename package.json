@@ -1,0 +1,32 @@
+{
+  "name": "agenthub",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Self-hosted mobile group chat where multiple AI members collaborate",
+  "license": "Elastic-2.0",
+  "workspaces": [
+    "core",
+    "server",
+    "worker",
+    "bridge"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "server": "npm run dev -w server",
+    "worker": "npm run dev -w worker",
+    "bridge": "npm run dev -w bridge --",
+    "deploy": "wrangler deploy"
+  },
+  "cloudflare": {
+    "label": "AgentHub",
+    "bindings": {
+      "AGENTHUB_TOKEN": {
+        "description": "The access token the App uses to connect (at least 16 characters). Make one with a password generator and paste the same value into the App."
+      },
+      "AGENTHUB_SECRET": {
+        "description": "Encrypts the API keys stored on the server (at least 16 characters). **Back it up: if it is lost or changed, saved keys cannot be decrypted.**"
+      }
+    }
+  }
+}
