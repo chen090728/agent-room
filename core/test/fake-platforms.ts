@@ -154,3 +154,35 @@ export function fakePlatforms(): FakePlatforms {
 
   return { fetch: handler as typeof fetch, deploys, requests, failNext: (n) => (failing = n) };
 }
+
+/**
+ * Exposes the fakes over HTTP for the end-to-end suite: the first path segment
+ * picks the platform (`/vercel/v9/projects`), the rest is the platform's own path.
+ */
+export async function serveFakePlatforms(fake: FakePlatforms): Promise<{ url: string; close(): Promise<void> }> {
+  const { createServer } = await import('node:http');
+  const hostOf = Object.fromEntries(Object.entries(HOSTS).map(([host, name]) => [name, host]));
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', async () => {
+      const [, name, ...rest] = (req.url ?? '').split('?')[0]!.split('/');
+      const host = hostOf[name ?? ''];
+      const query = req.url!.includes('?') ? `?${req.url!.split('?')[1]}` : '';
+      const response = host
+        ? await fake.fetch(`https://${host}/${rest.join('/')}${query}`, {
+            method: req.method,
+            headers: { authorization: req.headers.authorization ?? '' },
+            body: chunks.length ? Buffer.concat(chunks) : undefined,
+          })
+        : Response.json({ message: 'unknown platform' }, { status: 404 });
+      res.writeHead(response.status, { 'Content-Type': 'application/json' }).end(await response.text());
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () => new Promise<void>((r) => (server.closeAllConnections(), server.close(() => r()))),
+  };
+}

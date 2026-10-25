@@ -28,7 +28,7 @@ export function createCloudflarePagesIntegration(fetchImpl: typeof fetch = fetch
   const client = (config: Record<string, string>) =>
     new PlatformClient({
       label: 'Cloudflare',
-      base: API,
+      base: config.apiBaseUrl || API,
       headers: { Authorization: `Bearer ${config.apiToken ?? ''}` },
       secrets: [config.apiToken],
       fetchImpl,
@@ -42,6 +42,7 @@ export function createCloudflarePagesIntegration(fetchImpl: typeof fetch = fetch
     fields: [
       { key: 'apiToken', label: 'API 令牌', kind: 'password', required: true, placeholder: '需要"Cloudflare Pages：编辑"权限', secret: true },
       { key: 'accountId', label: '账户 ID', kind: 'text', required: true, placeholder: '32 位字母数字，在 Cloudflare 后台的网址里' },
+      { key: 'apiBaseUrl', label: '接口地址（可选）', kind: 'url', required: false, placeholder: '一般不用填' },
     ],
 
     async verify(config) {

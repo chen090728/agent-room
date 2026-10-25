@@ -21,7 +21,7 @@ export function createRenderIntegration(fetchImpl: typeof fetch = fetch): Integr
   const client = (config: Record<string, string>) =>
     new PlatformClient({
       label: 'Render',
-      base: API,
+      base: config.apiBaseUrl || API,
       headers: { Authorization: `Bearer ${config.apiKey ?? ''}` },
       secrets: [config.apiKey],
       fetchImpl,
@@ -44,7 +44,10 @@ export function createRenderIntegration(fetchImpl: typeof fetch = fetch): Integr
     type: 'render',
     label: 'Render',
     description: '合并后跟踪 Render 的部署进度，完成后在群里给出链接。服务需要已经连接了这个 GitHub 仓库；没有自动部署时会主动触发一次。',
-    fields: [{ key: 'apiKey', label: 'API Key', kind: 'password', required: true, placeholder: '在 Render 的 Account Settings → API Keys 创建', secret: true }],
+    fields: [
+      { key: 'apiKey', label: 'API Key', kind: 'password', required: true, placeholder: '在 Render 的 Account Settings → API Keys 创建', secret: true },
+      { key: 'apiBaseUrl', label: '接口地址（可选）', kind: 'url', required: false, placeholder: '一般不用填' },
+    ],
 
     async verify(config) {
       const owners = await client(config).request<any[]>('GET', '/owners?limit=1');

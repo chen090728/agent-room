@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { FAKE_REPO, FAKE_TOKEN, startFakeGitHub } from './fake-github.js';
+import { fakePlatforms, serveFakePlatforms, TOKENS } from './fake-platforms.js';
 import { makePdf, TINY_PNG } from './pdf.js';
 
 export interface E2ETarget {
@@ -303,7 +304,7 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           expect(created.body.secrets.token).toMatch(/^git….{4}$/);
           expect(JSON.stringify((await api('/api/integrations')).body)).not.toContain(FAKE_TOKEN);
           const types = (await api('/api/integrations/types')).body;
-          expect(types.map((t: any) => t.type)).toEqual(['github']);
+          expect(types.map((t: any) => t.type)).toEqual(['github', 'cloudflare-pages', 'vercel', 'netlify', 'render']);
           expect(types[0].fields.find((f: any) => f.key === 'token')).toMatchObject({ secret: true, required: true });
           const resources = await api(`/api/integrations/${created.body.id}/resources`);
           expect(resources.body.map((r: any) => r.id)).toEqual([FAKE_REPO]);
@@ -386,6 +387,74 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           expect(afterUnbind.events.find((e) => e.type === 'message' && e.message.senderKind === 'member')!.message.content).toBe('这个对话没有绑定仓库。');
         } finally {
           await gh.close();
+          llmServers.forEach((srv) => srv.close());
+        }
+      });
+
+      it('follows the deployment of a merged change on the hosting platform', async () => {
+        const gh = await startFakeGitHub();
+        const fake = fakePlatforms();
+        const platforms = await serveFakePlatforms(fake);
+        try {
+          const github = (await api('/api/integrations', { method: 'POST', body: JSON.stringify({ type: 'github', config: { token: FAKE_TOKEN, apiBaseUrl: gh.url } }) })).body;
+          const vercelConfig = (token: string) => ({ token, apiBaseUrl: `${platforms.url}/vercel` });
+
+          // A wrong token is refused; the right one is stored masked and lists the projects.
+          const wrong = await api('/api/integrations', { method: 'POST', body: JSON.stringify({ type: 'vercel', config: vercelConfig('vercel_wrong_token_000000') }) });
+          expect(wrong).toEqual({ status: 400, body: { error: 'Vercel 的令牌无效或已过期' } });
+          const vercel = await api('/api/integrations', { method: 'POST', body: JSON.stringify({ type: 'vercel', config: vercelConfig(TOKENS.vercel) }) });
+          expect(vercel.status).toBe(201);
+          expect(vercel.body).toMatchObject({ type: 'vercel', typeLabel: 'Vercel', name: 'Vercel · vera' });
+          expect(JSON.stringify((await api('/api/integrations')).body)).not.toContain(TOKENS.vercel);
+          const projects = await api(`/api/integrations/${vercel.body.id}/resources`);
+          expect(projects.body).toEqual([{ id: 'site', name: 'site', description: 'octo/hello' }]);
+
+          // An assistant whose direct chat is bound to the repository and the deploy target.
+          const baseUrl = await startRepoLlm();
+          await api('/api/members', {
+            method: 'POST',
+            body: JSON.stringify({ name: '部署员', type: 'openai-compatible', avatar: { shape: 'hexagon', color: 'black' }, role: '', config: { baseUrl, apiKey: 'sk-test-deploy-1234', model: 'coder' } }),
+          });
+          const direct = (await api('/api/groups')).body.find((g: any) => g.kind === 'direct' && g.name === '部署员');
+          const put = (body: unknown) => api(`/api/groups/${direct.id}/binding`, { method: 'PUT', body: JSON.stringify(body) });
+          const repo = { integrationId: github.id, repo: FAKE_REPO };
+          expect((await put({ deploy: { integrationId: 'nope', project: 'site', name: '官网' } })).status).toBe(400);
+          expect((await put({ repo })).body.binding).toEqual({ repo });
+          // Setting the deploy target leaves the repository alone, and the reverse.
+          const both = await put({ deploy: { integrationId: vercel.body.id, project: 'site', name: '官网' } });
+          expect(both.body.binding).toEqual({ repo, deploy: { integrationId: vercel.body.id, project: 'site', name: '官网' } });
+
+          const chat = await openSocket(`/ws/groups/${direct.id}`);
+          const sent = await api(`/api/groups/${direct.id}/messages`, { method: 'POST', body: JSON.stringify({ content: '给 README 加一行问候' }) });
+          await chat.waitFor((e) => e.type === 'relay' && e.relay.rootId === sent.body.id && !e.relay.active);
+          const prMessage = chat.events.find((e) => e.type === 'message' && e.message.card?.type === 'pull_request')!.message;
+
+          // Merging announces the deployment in the chat.
+          const merged = await api(`/api/groups/${direct.id}/messages/${prMessage.id}/card`, { method: 'POST', body: JSON.stringify({ action: 'merge' }) });
+          expect(merged.body.card).toMatchObject({ state: 'merged' });
+          const sha = merged.body.card.mergeSha;
+          expect(sha).toBeTruthy();
+          const announced = await chat.waitFor((e) => e.type === 'message' && e.message.card?.type === 'deployment');
+          expect(announced.message).toMatchObject({ senderKind: 'system' });
+          expect(announced.message.card).toMatchObject({ platform: 'vercel', platformLabel: 'Vercel', projectName: '官网', title: 'Add greeting', state: 'queued', commit: sha });
+          expect((await api('/api/groups')).body.find((g: any) => g.id === direct.id).lastMessage.card.type).toBe('deployment');
+
+          // The platform starts building, then finishes: the card follows without any request from the App.
+          const isDeployUpdate = (state: string) => (e: any) => e.type === 'message_updated' && e.message.id === announced.message.id && e.message.card.state === state;
+          fake.deploys.vercel.push({ id: 'dpl_1', sha, phase: 'building' });
+          await chat.waitFor(isDeployUpdate('building'));
+          fake.deploys.vercel[0]!.phase = 'ready';
+          const ready = await chat.waitFor(isDeployUpdate('ready'));
+          expect(ready.message.card).toMatchObject({ deployId: 'dpl_1', url: 'https://dpl_1.vercel.app' });
+          const stored = (await api(`/api/groups/${direct.id}/messages`)).body.find((m: any) => m.id === announced.message.id);
+          expect(stored.card).toMatchObject({ state: 'ready', url: 'https://dpl_1.vercel.app' });
+
+          // Clearing the target keeps the repository.
+          expect((await put({ deploy: null })).body.binding).toEqual({ repo });
+          chat.close();
+        } finally {
+          await gh.close();
+          await platforms.close();
           llmServers.forEach((srv) => srv.close());
         }
       });

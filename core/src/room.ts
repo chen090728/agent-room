@@ -234,6 +234,10 @@ export class SqlRoom {
     this.db.run('DELETE FROM watches WHERE message_id = ?', messageId);
   }
 
+  watchGroups(): string[] {
+    return this.db.all<{ group_id: string }>('SELECT DISTINCT group_id FROM watches').map((r) => r.group_id);
+  }
+
   /** When the next watch of this group is due, if any. */
   nextWatchDue(groupId: string): number | undefined {
     return first<{ d: number | null }>(this.db, 'SELECT MIN(due_at) AS d FROM watches WHERE group_id = ?', groupId)?.d ?? undefined;

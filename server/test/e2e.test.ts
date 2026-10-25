@@ -20,6 +20,7 @@ const config: Config = {
   llmTimeoutMs: 5000,
   userDisplayName: '用户',
   mockDelayMs: [0, 0],
+  deployPollMs: 300,
 };
 
 let hub: Hub;

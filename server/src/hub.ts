@@ -69,6 +69,25 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
       .catch((err) => console.error('[coordinator]', err));
     loops.set(groupId, next);
   };
+
+  // Follows deployments: one timer per group, set for the earliest check that is due.
+  const watchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const scheduleWatch = (groupId: string) => {
+    const due = room.nextWatchDue(groupId);
+    clearTimeout(watchTimers.get(groupId));
+    watchTimers.delete(groupId);
+    if (due === undefined) return;
+    const timer = setTimeout(() => {
+      watchTimers.delete(groupId);
+      const next = (loops.get(groupId) ?? Promise.resolve())
+        .then(() => coordinator.pollWatches(groupId))
+        .catch((err) => console.error('[deploy]', err))
+        .then(() => scheduleWatch(groupId));
+      loops.set(groupId, next);
+    }, Math.max(0, due - Date.now()));
+    timer.unref();
+    watchTimers.set(groupId, timer);
+  };
   const idle = async (groupId: string) => {
     let current: Promise<void> | undefined;
     while ((current = loops.get(groupId))) {
@@ -82,6 +101,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
   }
   // Pick up relays interrupted by a restart.
   room.pendingGroups().forEach(drive);
+  room.watchGroups().forEach(scheduleWatch);
 
   const rooms = {
     async post(groupId: string, content: string, attachments: string[]) {
@@ -93,7 +113,11 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
       return room.recentMessages(groupId, limit, before);
     },
     registerUpload: (groupId: string, attachment: Attachment) => registerUpload(room, files, groupId, attachment),
-    cardAction: (groupId: string, messageId: string, action: 'merge' | 'reject') => coordinator.cardAction(groupId, messageId, action),
+    cardAction: async (groupId: string, messageId: string, action: 'merge' | 'reject') => {
+      const message = await coordinator.cardAction(groupId, messageId, action);
+      scheduleWatch(groupId); // a merge may have started following a deployment
+      return message;
+    },
   };
 
   const server = createServer(async (req, res) => {

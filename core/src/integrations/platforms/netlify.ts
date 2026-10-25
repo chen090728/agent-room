@@ -18,7 +18,7 @@ export function createNetlifyIntegration(fetchImpl: typeof fetch = fetch): Integ
   const client = (config: Record<string, string>) =>
     new PlatformClient({
       label: 'Netlify',
-      base: API,
+      base: config.apiBaseUrl || API,
       headers: { Authorization: `Bearer ${config.token ?? ''}` },
       secrets: [config.token],
       fetchImpl,
@@ -28,7 +28,10 @@ export function createNetlifyIntegration(fetchImpl: typeof fetch = fetch): Integ
     type: 'netlify',
     label: 'Netlify',
     description: '合并后跟踪 Netlify 的部署进度，完成后在群里给出预览链接。站点需要已经连接了这个 GitHub 仓库。',
-    fields: [{ key: 'token', label: '访问令牌', kind: 'password', required: true, placeholder: '在 Netlify 的 User settings → Applications 创建', secret: true }],
+    fields: [
+      { key: 'token', label: '访问令牌', kind: 'password', required: true, placeholder: '在 Netlify 的 User settings → Applications 创建', secret: true },
+      { key: 'apiBaseUrl', label: '接口地址（可选）', kind: 'url', required: false, placeholder: '一般不用填' },
+    ],
 
     async verify(config) {
       const user = await client(config).request('GET', '/user');

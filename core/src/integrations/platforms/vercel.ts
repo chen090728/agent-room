@@ -31,7 +31,7 @@ export function createVercelIntegration(fetchImpl: typeof fetch = fetch): Integr
   const client = (config: Record<string, string>) =>
     new PlatformClient({
       label: 'Vercel',
-      base: API,
+      base: config.apiBaseUrl || API,
       headers: { Authorization: `Bearer ${config.token ?? ''}` },
       query: config.teamId ? { teamId: config.teamId } : undefined,
       secrets: [config.token],
@@ -45,6 +45,7 @@ export function createVercelIntegration(fetchImpl: typeof fetch = fetch): Integr
     fields: [
       { key: 'token', label: '访问令牌', kind: 'password', required: true, placeholder: '在 Vercel 的 Account Settings → Tokens 创建', secret: true },
       { key: 'teamId', label: '团队 ID（可选）', kind: 'text', required: false, placeholder: '项目属于团队时填写，形如 team_…' },
+      { key: 'apiBaseUrl', label: '接口地址（可选）', kind: 'url', required: false, placeholder: '一般不用填' },
     ],
 
     async verify(config) {

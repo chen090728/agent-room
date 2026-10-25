@@ -16,6 +16,7 @@ export interface Env {
   LLM_TIMEOUT_MS?: string;
   USER_DISPLAY_NAME?: string;
   MOCK_DELAY_MS?: string;
+  DEPLOY_POLL_MS?: string;
 }
 
 /** String settings only, in the shape the core config parsers expect. */

@@ -44,6 +44,7 @@ export async function startWrangler({ r2 }: { r2: boolean }): Promise<Wrangler> 
       '--var', `AGENTHUB_TOKEN:${TOKEN}`,
       '--var', 'AGENTHUB_SECRET:test-secret-0123456789',
       '--var', 'MOCK_DELAY_MS:0',
+      '--var', 'DEPLOY_POLL_MS:300',
     ],
     { cwd: root, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] },
   );

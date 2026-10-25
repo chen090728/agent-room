@@ -57,8 +57,10 @@ export class GroupDO extends DurableObject<Env> {
     return first<{ value: string }>(this.db, 'SELECT value FROM meta WHERE key = ?', 'groupId')?.value;
   }
 
-  private async schedule() {
-    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now());
+  /** Makes sure an alarm fires no later than `at`; an earlier one already set is kept. */
+  private async schedule(at = Date.now()) {
+    const current = await this.ctx.storage.getAlarm();
+    if (current === null || current > at) await this.ctx.storage.setAlarm(at);
   }
 
   // ---- RPC ----
@@ -102,7 +104,11 @@ export class GroupDO extends DurableObject<Env> {
   ): Promise<{ ok: true; message: Message } | { ok: false; status: number; error: string }> {
     this.remember(groupId);
     try {
-      return { ok: true, message: await this.coordinator.cardAction(groupId, messageId, action) };
+      const message = await this.coordinator.cardAction(groupId, messageId, action);
+      // A merge may have started following a deployment.
+      const due = this.room.nextWatchDue(groupId);
+      if (due !== undefined) await this.schedule(due);
+      return { ok: true, message };
     } catch (err) {
       if (err instanceof UserError) return { ok: false, status: err.status, error: err.message };
       throw err;
@@ -124,7 +130,11 @@ export class GroupDO extends DurableObject<Env> {
     }
     this.stepping = true;
     try {
-      if (await this.coordinator.step(groupId)) await this.ctx.storage.setAlarm(Date.now());
+      const more = await this.coordinator.step(groupId);
+      // The same alarm also checks on deployments that are due.
+      const due = await this.coordinator.pollWatches(groupId);
+      const next = more ? Date.now() : due;
+      if (next !== undefined) await this.ctx.storage.setAlarm(next);
     } finally {
       this.stepping = false;
     }
