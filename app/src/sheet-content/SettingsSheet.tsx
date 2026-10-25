@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { normalizeServerUrl } from '../api';
 import { MacDots, MeAvatar } from '../components/Avatar';
 import { LockIcon } from '../components/Icons';
@@ -11,7 +11,7 @@ import { clearLastError, loadLastError } from '../errorLog';
 import { fullTime } from '../format';
 import { pickPhoto, type PhotoSource } from '../photo';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
-import { SheetHeader, useSheetClose } from '../sheets';
+import { SheetHeader, SheetScrollView, useSheetClose } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
 
@@ -81,7 +81,7 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
       ) : (
         <SheetHeader title="设置" />
       )}
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {firstRun && (
           <View style={styles.intro}>
             <MacDots />
@@ -194,7 +194,7 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
             <Text style={styles.signOutText}>断开服务器</Text>
           </Pressable>
         )}
-      </ScrollView>
+      </SheetScrollView>
       <View style={styles.footer}>
         <ErrorText>{error}</ErrorText>
         <PrimaryButton title={firstRun ? '连接并保存' : '保存'} onPress={save} disabled={connectionChanged && (!validUrl || !effectiveToken)} busy={busy} />

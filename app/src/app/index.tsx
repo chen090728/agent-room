@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GroupAvatar, MacDots, MeAvatar } from '../components/Avatar';
 import { BubbleMenu, useBubbleAnchor } from '../components/BubbleMenu';
+import { ConnectionBanner } from '../components/ConnectionBanner';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { AddPersonIcon, NewChatIcon, SearchIcon, ThinPlusIcon } from '../components/Icons';
 import { ModelIcon } from '../components/ModelIcon';
@@ -48,6 +49,7 @@ export default function HomeScreen() {
   const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(false);
+  const [menuShown, setMenuShown] = useState(false);
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const q = query.trim().toLowerCase();
@@ -143,9 +145,8 @@ export default function HomeScreen() {
               <MeAvatar avatar={profile.avatar} />
             </Pressable>
             <MacDots />
-            {status !== 'online' && <Text style={styles.status}>{status === 'connecting' ? '连接中…' : '离线'}</Text>}
           </View>
-          <View ref={plusRef} collapsable={false}>
+          <View ref={plusRef} collapsable={false} pointerEvents={menu || menuShown ? 'none' : 'auto'} style={{ opacity: menu || menuShown ? 0 : 1 }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="新建"
@@ -157,6 +158,8 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View>
+
+        <ConnectionBanner status={status} />
 
         <FlatList
           style={styles.list}
@@ -186,6 +189,7 @@ export default function HomeScreen() {
         <BubbleMenu
           open={menu}
           anchor={anchor}
+          onVisibility={setMenuShown}
           onClose={() => setMenu(false)}
           items={[
             { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => go('/member/new') },
@@ -202,7 +206,6 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  status: { fontSize: 12, color: colors.textSecondary },
   round: {
     width: 48,
     height: 48,

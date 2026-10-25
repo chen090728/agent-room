@@ -5,7 +5,9 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { KeyboardAvoider } from '../../../components/KeyboardAvoider';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Blob, GroupAvatar, MacDots } from '../../../components/Avatar';
+import { useAfterTransition } from '../../../afterTransition';
 import { BubbleMenu, useBubbleAnchor } from '../../../components/BubbleMenu';
+import { ConnectionBanner } from '../../../components/ConnectionBanner';
 import { PluginChips } from '../../../components/PluginChips';
 import { ThinPlusIcon } from '../../../components/Icons';
 import { Composer } from '../../../components/Composer';
@@ -47,6 +49,7 @@ export default function ChatScreen() {
   const { send, refreshIntegrations } = store;
   const sheets = useSheets();
   const [menu, setMenu] = useState(false);
+  const [menuShown, setMenuShown] = useState(false);
   const insets = useSafeAreaInsets();
   const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
   const group = store.groups.find((g) => g.id === id);
@@ -56,9 +59,10 @@ export default function ChatScreen() {
   const channel = useGroupChannel(group ? id : undefined);
   const error = channel.error;
 
-  useEffect(() => {
+  const refreshPlugins = useCallback(() => {
     refreshIntegrations().catch(() => {});
   }, [refreshIntegrations]);
+  useAfterTransition(refreshPlugins);
 
   // Remember which messages were there when the chat opened, so only later ones animate.
   const opened = useRef<{ groupId: string; ids: Set<string> } | null>(null);
@@ -123,7 +127,7 @@ export default function ChatScreen() {
             </Text>
           </Pressable>
           <View style={styles.right}>
-            <View ref={plusRef} collapsable={false}>
+            <View ref={plusRef} collapsable={false} pointerEvents={menu || menuShown ? 'none' : 'auto'} style={{ opacity: menu || menuShown ? 0 : 1 }}>
               <RoundButton label="更多" onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
                 <ThinPlusIcon />
               </RoundButton>
@@ -131,9 +135,7 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        {channel.status !== 'online' && (
-          <Text style={styles.banner}>{channel.status === 'connecting' ? '正在连接服务器…' : '与服务器断开，正在重连…'}</Text>
-        )}
+        <ConnectionBanner status={channel.status} />
 
         <FlatList
           style={styles.list}
@@ -161,7 +163,7 @@ export default function ChatScreen() {
           }
           ListEmptyComponent={
             <Text style={styles.emptyText}>
-              {error ?? (messages ? (direct ? '发一句话，开始聊天吧' : '还没有消息，@ 一位成员开始聊天吧') : '加载中…')}
+              {error ?? (messages ? (direct ? '发一句话，开始聊天吧' : '还没有消息，@ 一位成员开始聊天吧') : '')}
             </Text>
           }
         />
@@ -188,6 +190,7 @@ export default function ChatScreen() {
       <BubbleMenu
         open={menu}
         anchor={anchor}
+        onVisibility={setMenuShown}
         onClose={() => setMenu(false)}
         items={[
           { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => sheets.open('member-new', direct ? {} : { groupId: id }) },
@@ -217,7 +220,6 @@ const styles = StyleSheet.create({
   right: { width: 110, alignItems: 'flex-end' },
   center: { flex: 1, alignItems: 'center', gap: 3, paddingTop: 4 },
   titleText: { fontSize: 12.5, fontWeight: '500', color: colors.text, maxWidth: '100%' },
-  banner: { textAlign: 'center', fontSize: 12, color: colors.warning, paddingTop: 10 },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 15 },
   relay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 12 },
