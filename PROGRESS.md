@@ -5,6 +5,7 @@
 > 每次运行结束时更新本节：本次完成了什么、PR 链接、用户醒来要做什么。
 
 - 状态：**任务 1–6 已完成并各开了 PR**。任务 7 进行中。
+- 任务 6（bridge 工作助手）：PR #6。bridge 在本机调用已登录的 Claude Code / Codex，配对码配对，默认只读；用假脚本和真实服务器测过，没有用真实的 Claude Code / Codex 跑过（见“任务 6 的决定”）。
 - 任务 5（托管平台 + 部署卡片）：PR #5。合并 PR 后，群里出现部署卡片并自动更新到“已上线 / 失败”；四个平台只用假服务器测过，没有真实验证（见“任务 5 的决定”）。
 - 任务 1（Cloudflare 部署 + 《手机部署指南》）：PR #1。任务 2（界面改版）：PR #2。任务 3（连接 + GitHub）：PR #3。
 - 任务 4（上传文件）——本次完成：
@@ -18,6 +19,7 @@
   - 任务 3 → https://github.com/chen090728/agent-room/pull/3
   - 任务 4 → https://github.com/chen090728/agent-room/pull/4
   - 任务 5 → https://github.com/chen090728/agent-room/pull/5
+  - 任务 6 → https://github.com/chen090728/agent-room/pull/6
 - 你醒来要做什么：
   1. 按《手机部署指南》填 5 个 GitHub Secrets（只能你自己做）。
   2. 按顺序合并 PR：#1 → #2 → #3 → 任务 4（后面的分支包含前面的全部提交）。
