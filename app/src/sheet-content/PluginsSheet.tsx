@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronRightIcon, LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
 import { confirmAction, showMessage } from '../dialogs';
 import { PLUGIN_HELP, PLUGINS, type PluginInfo } from '../plugins';
 import type { IntegrationView, ResourceInfo } from '../protocol';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
-import { SheetHeader } from '../sheets';
+import { SheetHeader, SheetScrollView } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
 
@@ -46,7 +46,7 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
   return (
     <View style={styles.root}>
       <SheetHeader title="插件" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <SheetScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>给「{group.name}」添加插件。令牌加密保存在你的服务器上。</Text>
         <Card>
           {PLUGINS.map((plugin, i) => {
@@ -98,7 +98,7 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
           <LockIcon />
           <Text style={styles.lockText}>令牌只保存在你的服务器上，这里只显示打码后的样子</Text>
         </View>
-      </ScrollView>
+      </SheetScrollView>
     </View>
   );
 }
@@ -129,7 +129,7 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
   return (
     <KeyboardAvoider style={styles.root}>
       <SheetHeader title={`连接 ${plugin.label}`} onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>{info?.description ?? plugin.description}</Text>
         {PLUGIN_HELP[plugin.type] && (
           <View style={styles.help}>
@@ -165,7 +165,7 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
           </View>
         )}
         {!info && (integrationTypes.length ? <Text style={styles.intro}>这个服务器还不支持 {plugin.label}。请先更新服务器（重新部署最新版本）。</Text> : <ActivityIndicator color={colors.textSecondary} />)}
-      </ScrollView>
+      </SheetScrollView>
       <View style={styles.footer}>
         <ErrorText>{error}</ErrorText>
         <PrimaryButton title="验证并保存" onPress={save} disabled={missing} busy={busy} />
@@ -246,7 +246,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
   return (
     <KeyboardAvoider style={styles.root}>
       <SheetHeader title={plugin.binds === 'repo' ? '选择仓库' : '选择部署项目'} onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {connections.length > 1 && (
           <View style={styles.chips}>
             {connections.map((c) => (
@@ -310,7 +310,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
         <Pressable accessibilityRole="button" onPress={disconnect} style={styles.disconnect}>
           <Text style={styles.disconnectText}>断开「{current.name}」</Text>
         </Pressable>
-      </ScrollView>
+      </SheetScrollView>
     </KeyboardAvoider>
   );
 }

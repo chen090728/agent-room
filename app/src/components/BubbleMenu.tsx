@@ -1,21 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, type ViewInstance } from 'react-native';
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Extrapolation, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { colors, shadows } from '../theme';
+import { ThinPlusIcon } from './Icons';
 
 const MENU_WIDTH = 220;
 const GAP = 8;
-/** Fast at the start, then eases into place — reads as scaling out of the button. */
-const OPEN_TIMING = { duration: 260, easing: Easing.bezier(0.16, 1, 0.3, 1) };
-const CLOSE_TIMING = { duration: 170, easing: Easing.in(Easing.cubic) };
+const ITEM_HEIGHT = 48;
+const MENU_PAD = 6;
+const CARD_RADIUS = 20;
+/** The circle grows into the card, then settles. */
+const MENU_SPRING = { damping: 18, stiffness: 200, mass: 0.72 };
 
 export interface BubbleAnchor {
   x: number;
@@ -25,7 +21,7 @@ export interface BubbleAnchor {
 }
 
 /**
- * Finds where a "+" button is, so a BubbleMenu can scale out of it. Put
+ * Finds where a "+" button is, so a BubbleMenu can grow out of it. Put
  * `rootRef` / `onLayout` on the screen's full-size container and `plusRef` on
  * a wrapper around the button (with `collapsable={false}`), then call
  * `measure(() => setOpen(true))` when the button is pressed.
@@ -65,41 +61,48 @@ export interface BubbleMenuItem {
   onPress: () => void;
 }
 
-function menuPosition(anchor: BubbleAnchor): { left: number; top: number } {
+function menuFrame(anchor: BubbleAnchor, itemCount: number) {
+  const height = MENU_PAD * 2 + ITEM_HEIGHT * itemCount;
   return {
     left: Math.max(8, anchor.x + anchor.width - MENU_WIDTH),
     top: anchor.y + anchor.height + GAP,
+    width: MENU_WIDTH,
+    height,
   };
 }
 
 /**
- * White rounded card that scales out from `anchor` (the header plus button).
- * A full-screen press target behind it closes the menu.
+ * The "+" button itself grows into a rounded card, then shrinks back into the
+ * button. `onVisibility` stays true until the close spring has finished, so
+ * the real button can hide for the whole morph.
  */
 export function BubbleMenu({
   open,
   anchor,
   items,
   onClose,
+  onVisibility,
 }: {
   open: boolean;
   anchor: BubbleAnchor | null;
   items: BubbleMenuItem[];
   onClose: () => void;
+  onVisibility?: (visible: boolean) => void;
 }) {
   const [present, setPresent] = useState(false);
+  const [interactive, setInteractive] = useState(false);
   const shown = useRef(false);
-  const attached = useRef(false);
   const alive = useRef(true);
   const openRef = useRef(open);
   openRef.current = open;
   const progress = useSharedValue(0);
-  const menuLeft = useSharedValue(0);
-  const menuTop = useSharedValue(0);
-  const anchorX = useSharedValue(0);
-  const anchorY = useSharedValue(0);
-  const anchorW = useSharedValue(0);
-  const anchorH = useSharedValue(0);
+  const fromLeft = useSharedValue(0);
+  const fromTop = useSharedValue(0);
+  const fromW = useSharedValue(48);
+  const fromH = useSharedValue(48);
+  const toLeft = useSharedValue(0);
+  const toTop = useSharedValue(0);
+  const toH = useSharedValue(108);
 
   useEffect(() => {
     alive.current = true;
@@ -111,19 +114,31 @@ export function BubbleMenu({
   const hide = () => {
     if (!alive.current || openRef.current) return;
     shown.current = false;
-    attached.current = false;
+    setInteractive(false);
     setPresent(false);
   };
 
+  useEffect(() => {
+    onVisibility?.(present);
+  }, [onVisibility, present]);
+
+  useAnimatedReaction(
+    () => progress.value > 0.72,
+    (ready, previous) => {
+      if (ready !== previous) scheduleOnRN(setInteractive, ready);
+    },
+  );
+
   useLayoutEffect(() => {
     if (anchor) {
-      const pos = menuPosition(anchor);
-      menuLeft.value = pos.left;
-      menuTop.value = pos.top;
-      anchorX.value = anchor.x;
-      anchorY.value = anchor.y;
-      anchorW.value = anchor.width;
-      anchorH.value = anchor.height;
+      const frame = menuFrame(anchor, Math.max(items.length, 1));
+      fromLeft.value = anchor.x;
+      fromTop.value = anchor.y;
+      fromW.value = anchor.width;
+      fromH.value = anchor.height;
+      toLeft.value = frame.left;
+      toTop.value = frame.top;
+      toH.value = frame.height;
     }
 
     if (open) {
@@ -133,96 +148,80 @@ export function BubbleMenu({
         setPresent(true);
         return;
       }
-      // Still mounted from a close that was interrupted: grow back out.
-      if (attached.current) progress.value = withTiming(1, OPEN_TIMING);
+      progress.value = withSpring(1, MENU_SPRING);
       return;
     }
 
     if (!shown.current) return;
-    progress.value = withTiming(0, CLOSE_TIMING, (finished) => {
+    progress.value = withSpring(0, MENU_SPRING, (finished) => {
       if (finished) scheduleOnRN(hide);
     });
-  }, [anchor, anchorH, anchorW, anchorX, anchorY, menuLeft, menuTop, open, present, progress]);
+  }, [anchor, fromH, fromLeft, fromTop, fromW, items.length, open, present, progress, toH, toLeft, toTop]);
 
-  const onMenuLayout = () => {
-    const firstLayout = !attached.current;
-    attached.current = true;
-    if (firstLayout && openRef.current) {
-      progress.value = 0;
-      progress.value = withTiming(1, OPEN_TIMING);
-    }
-  };
-
-  const animatedStyle = useAnimatedStyle(() => {
-    const scale = 0.12 + 0.88 * progress.value;
-    const opacity = interpolate(progress.value, [0, 0.4, 1], [0, 1, 1], Extrapolation.CLAMP);
-    // Origin is the plus button's center, in the menu's own coordinates.
-    // It sits above the card, so the card scales out from the button.
-    const originX = anchorX.value + anchorW.value / 2 - menuLeft.value;
-    const originY = anchorY.value + anchorH.value / 2 - menuTop.value;
+  const cardStyle = useAnimatedStyle(() => {
+    const p = progress.value;
+    const height = interpolate(p, [0, 1], [fromH.value, toH.value], Extrapolation.CLAMP);
     return {
-      opacity,
-      transformOrigin: [originX, originY, 0],
-      transform: [{ scale }],
+      left: interpolate(p, [0, 1], [fromLeft.value, toLeft.value], Extrapolation.CLAMP),
+      top: interpolate(p, [0, 1], [fromTop.value, toTop.value], Extrapolation.CLAMP),
+      width: interpolate(p, [0, 1], [fromW.value, MENU_WIDTH], Extrapolation.CLAMP),
+      height,
+      borderRadius: interpolate(p, [0, 1], [fromH.value / 2, CARD_RADIUS], Extrapolation.CLAMP),
     };
   });
+  const plusStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.35], [1, 0], Extrapolation.CLAMP),
+  }));
+  const itemsStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0.28, 0.7], [0, 1], Extrapolation.CLAMP),
+  }));
 
   if (!present || !anchor) return null;
-  const pos = menuPosition(anchor);
 
   return (
     <>
       <Pressable accessibilityLabel="关闭菜单" collapsable={false} onPress={onClose} style={styles.backdrop} />
-      <Animated.View collapsable={false} onLayout={onMenuLayout} style={[styles.menu, pos, animatedStyle]}>
-        {items.map((item) => (
-          <Pressable
-            key={item.label}
-            accessibilityRole="button"
-            accessibilityLabel={item.label}
-            onPress={() => {
-              onClose();
-              item.onPress();
-            }}
-            style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
-          >
-            {item.icon}
-            <Text style={styles.itemText}>{item.label}</Text>
-          </Pressable>
-        ))}
+      <Animated.View collapsable={false} style={[styles.card, cardStyle]}>
+        <Animated.View pointerEvents="none" style={[styles.plus, plusStyle]}>
+          <ThinPlusIcon />
+        </Animated.View>
+        <Animated.View style={[styles.items, itemsStyle]} pointerEvents={interactive ? 'auto' : 'none'}>
+          {items.map((item) => (
+            <Pressable
+              key={item.label}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              disabled={!interactive}
+              onPress={() => {
+                onClose();
+                item.onPress();
+              }}
+              style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+            >
+              {item.icon}
+              <Text style={styles.itemText}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </Animated.View>
       </Animated.View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 30,
-    backgroundColor: 'transparent',
-  },
-  menu: {
+  backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, backgroundColor: 'transparent' },
+  card: {
     position: 'absolute',
     zIndex: 31,
-    width: MENU_WIDTH,
-    padding: 6,
+    overflow: 'hidden',
     backgroundColor: colors.surface,
-    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.hairline,
     boxShadow: shadows.popover,
   },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    height: 48,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-  },
+  plus: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  items: { padding: MENU_PAD },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, height: ITEM_HEIGHT, paddingHorizontal: 12, borderRadius: 14 },
   itemPressed: { backgroundColor: colors.selected },
   itemText: { fontSize: 15, color: colors.text },
 });

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AnimatedBlob } from '../components/AnimatedBlob';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { LockIcon } from '../components/Icons';
@@ -8,7 +8,7 @@ import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel, Switch } from '
 import { showMessage } from '../dialogs';
 import { pickPicture } from '../photo';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
-import { SheetHeader, useSheetClose } from '../sheets';
+import { SheetHeader, SheetScrollView, useSheetClose } from '../sheets';
 import { useStore } from '../store';
 import { colors, shadows, type Avatar } from '../theme';
 
@@ -95,7 +95,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
   return (
     <KeyboardAvoider style={styles.root}>
       <SheetHeader title="新建助手" />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <AvatarPicker value={avatar} onChange={(a) => { setAvatar(a); }} preview={<AnimatedBlob avatar={avatar} size={104} picture={picture?.uri} />} />
 
         {filesEnabled && (
@@ -222,7 +222,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
             </View>
           </Card>
         )}
-      </ScrollView>
+      </SheetScrollView>
 
       <View style={styles.footer}>
         <ErrorText>{error}</ErrorText>

@@ -1,4 +1,4 @@
-import { AUTH_TIMEOUT_MS, HELLO, isValidAuth, UNAUTHORIZED_CODE, type SqlDriver, type SqlValue } from '@agenthub/core';
+import { AUTH_TIMEOUT_MS, HELLO, isValidAuth, readClientFrame, UNAUTHORIZED_CODE, type ClientFrameExtra, type SqlDriver, type SqlValue } from '@agenthub/core';
 
 /** The core's SQL interface on top of a Durable Object's SQLite storage. */
 export function durableSql(ctx: DurableObjectState): SqlDriver {
@@ -15,6 +15,8 @@ export function durableSql(ctx: DurableObjectState): SqlDriver {
 interface Attachment {
   authed: boolean;
   openedAt: number;
+  /** Extra keys from auth and subscribe. Not interpreted (a later `lang` lands here). */
+  client?: ClientFrameExtra;
 }
 
 export function acceptSocket(ctx: DurableObjectState, request: Request, tag?: string): Response {
@@ -27,12 +29,19 @@ export function acceptSocket(ctx: DurableObjectState, request: Request, tag?: st
   return new Response(null, { status: 101, webSocket: client });
 }
 
-/** The first frame must authenticate; anything else closes the socket. */
+/** The first frame must authenticate. Later subscribe frames are kept and not rejected. */
 export function onSocketMessage(ws: WebSocket, message: string | ArrayBuffer, token: string | undefined) {
-  const att = ws.deserializeAttachment() as Attachment | null;
-  if (att?.authed) return;
-  if (typeof message === 'string' && token && isValidAuth(message, token)) {
-    ws.serializeAttachment({ authed: true, openedAt: att?.openedAt ?? Date.now() } satisfies Attachment);
+  const att = (ws.deserializeAttachment() as Attachment | null) ?? { authed: false, openedAt: Date.now() };
+  const text = typeof message === 'string' ? message : '';
+  const frame = readClientFrame(text);
+  if (att.authed) {
+    if (frame?.kind === 'subscribe') {
+      ws.serializeAttachment({ ...att, client: { ...att.client, ...frame.extra } } satisfies Attachment);
+    }
+    return;
+  }
+  if (frame?.kind === 'auth' && token && isValidAuth(text, token)) {
+    ws.serializeAttachment({ authed: true, openedAt: att.openedAt, client: frame.extra } satisfies Attachment);
     ws.send(HELLO);
   } else {
     closeSocket(ws, UNAUTHORIZED_CODE, 'unauthorized');

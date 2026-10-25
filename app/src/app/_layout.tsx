@@ -33,7 +33,16 @@ export default function RootLayout() {
         <StoreProvider>
           <StatusBar style="dark" />
           <SheetProvider registry={SHEETS}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              // Native iOS push. On Android this is the iOS-style slide; on iOS it is the system push.
+              animation: 'ios_from_right',
+              gestureEnabled: true,
+              freezeOnBlur: true,
+              contentStyle: { backgroundColor: colors.bg },
+            }}
+          >
             <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colors.homeBg } }} />
             <Stack.Screen name="chat/[id]/index" />
             <Stack.Screen name="member/pair" />
