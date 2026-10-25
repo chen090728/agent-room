@@ -1,4 +1,11 @@
 import {
+  AUTH_TIMEOUT_MS,
+  BridgeDispatcher,
+  type BridgeJob,
+  HELLO,
+  parseBridgeAuth,
+  parseLimits,
+  UNAUTHORIZED_CODE,
   type GroupBinding,
   type NewIntegration,
   SecretBox,
@@ -13,6 +20,14 @@ import { DurableObject } from 'cloudflare:workers';
 import { acceptSocket, broadcast, closeSocket, durableSql, onSocketMessage } from './durable.js';
 import { groupStub, settings, type Env } from './env.js';
 
+interface BridgeAttachment {
+  bridgeId?: string;
+  openedAt: number;
+}
+
+const LIST_TAG = 'list';
+const BRIDGE_TAG = 'bridge';
+
 /**
  * The single directory of members and groups, plus the group-list WebSocket
  * (/ws). Group Durable Objects report activity here over RPC, and every change
@@ -21,13 +36,38 @@ import { groupStub, settings, type Env } from './env.js';
 export class DirectoryDO extends DurableObject<Env> implements Directory {
   private dir: SqlDirectory;
   private seeded?: Promise<void>;
+  private bridges: BridgeDispatcher;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     const hasSecret = !secretProblems(settings(env)).some((p) => p.startsWith('AGENTHUB_SECRET'));
     this.dir = new SqlDirectory(durableSql(ctx), hasSecret ? new SecretBox(env.AGENTHUB_SECRET!) : null, (event) =>
-      broadcast(ctx, JSON.stringify(event)),
+      broadcast(ctx, JSON.stringify(event), LIST_TAG),
     );
+    this.bridges = new BridgeDispatcher(
+      {
+        send: (bridgeId, data) => {
+          const sockets = this.bridgeSockets(bridgeId);
+          sockets.forEach((ws) => ws.send(data));
+          return sockets.length > 0;
+        },
+        isOnline: (bridgeId) => this.bridgeSockets(bridgeId).length > 0,
+        onTools: (bridgeId, tools) => void this.dir.setBridgeTools(bridgeId, tools),
+      },
+      parseLimits(settings(env)).bridgeTimeoutMs,
+    );
+  }
+
+  /** Authenticated sockets of one bridge. Sockets that never authenticated are closed. */
+  private bridgeSockets(bridgeId?: string, except?: WebSocket): WebSocket[] {
+    const found: WebSocket[] = [];
+    for (const ws of this.ctx.getWebSockets(BRIDGE_TAG)) {
+      const att = ws.deserializeAttachment() as BridgeAttachment | null;
+      if (!att?.bridgeId) {
+        if (Date.now() - (att?.openedAt ?? 0) > AUTH_TIMEOUT_MS) closeSocket(ws, UNAUTHORIZED_CODE, 'auth timeout');
+      } else if (ws !== except && (bridgeId === undefined || att.bridgeId === bridgeId)) found.push(ws);
+    }
+    return found;
   }
 
   /** Creates the demo group on first use. */
@@ -97,15 +137,58 @@ export class DirectoryDO extends DurableObject<Env> implements Directory {
     return this.dir.recordActivity(groupId, patch);
   }
 
-  // ---- group-list WebSocket ----
+  async createPairing(memberId: string) {
+    return this.dir.createPairing(memberId);
+  }
+  async completePairing(input: Parameters<Directory['completePairing']>[0]) {
+    return this.dir.completePairing(input);
+  }
+  async authenticateBridge(bridgeId: string, token: string, tools?: string[]) {
+    return this.dir.authenticateBridge(bridgeId, token, tools);
+  }
+  async getBridge(bridgeId: string) {
+    return this.dir.getBridge(bridgeId);
+  }
+  async setBridgeTools(bridgeId: string, tools: string[]) {
+    return this.dir.setBridgeTools(bridgeId, tools);
+  }
+
+  // ---- bridges ----
+
+  async bridgeOnline(bridgeId: string): Promise<boolean> {
+    return this.bridges.isOnline(bridgeId);
+  }
+
+  /** Runs a job on a bridge. Failures come back as data: RPC drops custom error types. */
+  async runBridgeJob(bridgeId: string, job: BridgeJob): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+    try {
+      return { ok: true, text: await this.bridges.run(bridgeId, job) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // ---- WebSockets: the group list (/ws) and bridges (/ws/bridge) ----
 
   async fetch(request: Request) {
-    return acceptSocket(this.ctx, request);
+    const bridge = new URL(request.url).pathname === '/ws/bridge';
+    return acceptSocket(this.ctx, request, bridge ? BRIDGE_TAG : LIST_TAG);
   }
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
-    onSocketMessage(ws, message, this.env.AGENTHUB_TOKEN);
+    if (!this.ctx.getTags(ws).includes(BRIDGE_TAG)) return onSocketMessage(ws, message, this.env.AGENTHUB_TOKEN);
+
+    const att = ws.deserializeAttachment() as BridgeAttachment | null;
+    if (att?.bridgeId) return this.bridges.handleFrame(att.bridgeId, typeof message === 'string' ? message : '');
+    // The first frame carries the credentials the bridge got when pairing.
+    const auth = typeof message === 'string' ? parseBridgeAuth(message) : null;
+    if (!auth || !(await this.dir.authenticateBridge(auth.bridgeId, auth.token))) return closeSocket(ws, UNAUTHORIZED_CODE, 'unauthorized');
+    ws.serializeAttachment({ bridgeId: auth.bridgeId, openedAt: att?.openedAt ?? Date.now() } satisfies BridgeAttachment);
+    ws.send(HELLO);
   }
   async webSocketClose(ws: WebSocket, code: number) {
+    const att = ws.deserializeAttachment() as BridgeAttachment | null;
     closeSocket(ws, code);
+    // Jobs on a bridge that has no other connection left cannot finish.
+    if (att?.bridgeId && !this.bridgeSockets(att.bridgeId, ws).length) this.bridges.dropBridge(att.bridgeId);
   }
 }

@@ -1,3 +1,4 @@
+import type { BridgeGateway } from '../bridge.js';
 import type { ToolRuntime } from '../integrations/types.js';
 import type { AttachmentKind, SenderKind } from '../types.js';
 
@@ -49,6 +50,8 @@ export interface ReplyContext {
   supportsImages: boolean;
   /** Tools from the connections bound to this conversation (e.g. GitHub); undefined when none. */
   tools?: ToolRuntime;
+  /** Reaches the bridges on users' computers; undefined when this deployment has none. */
+  bridge?: BridgeGateway;
   signal: AbortSignal;
 }
 
@@ -57,6 +60,8 @@ export interface MemberAdapter {
   label: string;
   description: string;
   fields: FieldSpec[];
+  /** Checks a new member's config beyond the required fields; returns a problem to show, or null. */
+  validate?(config: Record<string, string>): string | null;
   /** Returns the reply text. Throw to report an error in the chat. */
   reply(ctx: ReplyContext, config: Record<string, string>): Promise<string>;
 }

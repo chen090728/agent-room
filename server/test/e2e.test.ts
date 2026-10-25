@@ -21,6 +21,7 @@ const config: Config = {
   userDisplayName: '用户',
   mockDelayMs: [0, 0],
   deployPollMs: 300,
+  bridgeTimeoutMs: 20_000,
 };
 
 let hub: Hub;

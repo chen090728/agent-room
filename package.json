@@ -7,12 +7,14 @@
   "workspaces": [
     "core",
     "server",
-    "worker"
+    "worker",
+    "bridge"
   ],
   "scripts": {
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "server": "npm run dev -w server",
-    "worker": "npm run dev -w worker"
+    "worker": "npm run dev -w worker",
+    "bridge": "npm run dev -w bridge --"
   }
 }

@@ -1,3 +1,4 @@
+import type { BridgeGateway } from './bridge.js';
 import type { AdapterRegistry } from './adapters/registry.js';
 import type { ContextMessage } from './adapters/types.js';
 import { stripSelfPrefix } from './context.js';
@@ -43,6 +44,8 @@ export class Coordinator {
     private files: FileStore | null,
     private emit: (event: ChatEvent) => void,
     private opts: CoordinatorOptions,
+    /** Reaches work assistants on users' computers; null when this deployment has no bridges. */
+    private bridge: BridgeGateway | null = null,
   ) {}
 
   /** Saves a message from the human; returns whether replies are now queued. */
@@ -252,6 +255,7 @@ export class Coordinator {
         trigger: toCtx(trigger),
         supportsImages,
         tools,
+        bridge: this.bridge ?? undefined,
         signal: AbortSignal.timeout(this.opts.llmTimeoutMs),
       },
       { ...member.config, ...secrets },

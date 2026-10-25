@@ -45,6 +45,14 @@ export class GroupDO extends DurableObject<Env> {
       this.files,
       (event) => broadcast(ctx, JSON.stringify(event)),
       limits,
+      {
+        // Jobs run on the directory object, which holds the bridges' sockets.
+        run: async (bridgeId, job) => {
+          const result = await directoryStub(env).runBridgeJob(bridgeId, job);
+          if (!result.ok) throw new Error(result.error);
+          return result.text;
+        },
+      },
     );
   }
 

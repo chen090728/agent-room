@@ -17,12 +17,12 @@ interface Attachment {
   openedAt: number;
 }
 
-export function acceptSocket(ctx: DurableObjectState, request: Request): Response {
+export function acceptSocket(ctx: DurableObjectState, request: Request, tag?: string): Response {
   if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
     return new Response('Expected a WebSocket upgrade', { status: 426 });
   }
   const { 0: client, 1: server } = new WebSocketPair();
-  ctx.acceptWebSocket(server);
+  ctx.acceptWebSocket(server, tag ? [tag] : undefined);
   server.serializeAttachment({ authed: false, openedAt: Date.now() } satisfies Attachment);
   return new Response(null, { status: 101, webSocket: client });
 }
@@ -48,9 +48,9 @@ export function closeSocket(ws: WebSocket, code = 1000, reason = '') {
 }
 
 /** Sends to every authenticated socket; drops sockets that never authenticated. */
-export function broadcast(ctx: DurableObjectState, data: string) {
+export function broadcast(ctx: DurableObjectState, data: string, tag?: string) {
   const now = Date.now();
-  for (const ws of ctx.getWebSockets()) {
+  for (const ws of ctx.getWebSockets(tag)) {
     const att = ws.deserializeAttachment() as Attachment | null;
     if (att?.authed) {
       try {

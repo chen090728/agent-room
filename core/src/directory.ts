@@ -1,4 +1,4 @@
-import { maskSecret, type SecretBox } from './crypto.js';
+import { maskSecret, safeEqual, type SecretBox } from './crypto.js';
 import { first, runSchema, type SqlDriver } from './sql.js';
 import type {
   Avatar,
@@ -41,6 +41,24 @@ export interface IntegrationWithSecrets {
   secrets: Record<string, string>;
 }
 
+/** A bridge program paired with this server (running on one of the user's computers). */
+export interface BridgeInfo {
+  id: string;
+  /** Usually the computer's name. */
+  name: string;
+  /** Tools it reported (see BRIDGE_TOOLS). */
+  tools: string[];
+  lastSeen: number | null;
+}
+
+export interface PairingResult {
+  bridgeId: string;
+  /** Shown to the bridge once; only a hash is stored. */
+  token: string;
+  memberName: string;
+  tool: string;
+}
+
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export interface ActivityPatch {
@@ -73,6 +91,39 @@ export interface Directory {
   /** Decrypted; never expose this over the HTTP API. */
   getIntegration(id: string): Promise<IntegrationWithSecrets | null>;
   setBinding(groupId: string, binding: GroupBinding | null): Promise<Result<GroupSummary>>;
+  /** A short-lived code that pairs a bridge with a work assistant. */
+  createPairing(memberId: string): Promise<Result<{ code: string; expiresAt: number }>>;
+  /** Exchanges a pairing code for bridge credentials, or reuses the bridge when its own are given. */
+  completePairing(input: { code: string; name: string; tools: string[]; bridgeId?: string; token?: string }): Promise<Result<PairingResult>>;
+  /** Checks a bridge's credentials and records what it can run. */
+  authenticateBridge(bridgeId: string, token: string, tools?: string[]): Promise<boolean>;
+  getBridge(bridgeId: string): Promise<BridgeInfo | null>;
+  /** Records the tools a connected bridge reports. */
+  setBridgeTools(bridgeId: string, tools: string[]): Promise<void>;
+}
+
+const PAIRING_TTL_MS = 10 * 60 * 1000;
+// No 0/O/1/I/L, which are easy to confuse when typing a code from a phone screen.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function randomCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+}
+
+/** Codes are shown as ABCD-EFGH; people may type them with spaces or in lower case. */
+export function normalizeCode(code: string): string {
+  return code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function randomToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return `ahb_${btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, (c) => ({ '+': '-', '/': '_', '=': '' })[c]!)}`;
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 const SCHEMA = `
@@ -109,6 +160,19 @@ CREATE TABLE IF NOT EXISTS integrations (
   secrets_enc TEXT,
   secret_preview_json TEXT NOT NULL DEFAULT '{}',
   created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bridges (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  tools_json TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  last_seen INTEGER
+);
+CREATE TABLE IF NOT EXISTS pairings (
+  code TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS group_members (
   group_id TEXT NOT NULL,
@@ -279,6 +343,7 @@ export class SqlDirectory implements Directory {
   async deleteMember(id: string) {
     const removed = this.db.transaction(() => {
       if (!first(this.db, 'SELECT 1 FROM members WHERE id = ?', id)) return false;
+      this.db.run('DELETE FROM pairings WHERE member_id = ?', id);
       const direct = first<{ id: string }>(this.db, 'SELECT id FROM groups WHERE direct_member_id = ?', id);
       if (direct) {
         this.db.run('DELETE FROM group_members WHERE group_id = ?', direct.id);
@@ -475,6 +540,66 @@ export class SqlDirectory implements Directory {
     this.db.run('UPDATE groups SET binding_json = ? WHERE id = ?', empty ? null : JSON.stringify(kept), groupId);
     this.emit({ type: 'group_updated', group: this.summary(this.groupRow(groupId)!) });
     return { ok: true, value: (await this.getGroup(groupId))! };
+  }
+
+  // ---- bridges ----
+
+  async createPairing(memberId: string): Promise<Result<{ code: string; expiresAt: number }>> {
+    const member = this.member(memberId);
+    if (!member) return { ok: false, error: '成员不存在' };
+    if (member.type !== 'bridge') return { ok: false, error: '只有工作助手需要配对' };
+    const now = Date.now();
+    const expiresAt = now + PAIRING_TTL_MS;
+    this.db.run('DELETE FROM pairings WHERE member_id = ? OR expires_at < ?', memberId, now);
+    const code = randomCode();
+    this.db.run('INSERT INTO pairings (code, member_id, expires_at) VALUES (?, ?, ?)', code, memberId, expiresAt);
+    return { ok: true, value: { code, expiresAt } };
+  }
+
+  async completePairing(input: { code: string; name: string; tools: string[]; bridgeId?: string; token?: string }): Promise<Result<PairingResult>> {
+    const code = normalizeCode(input.code);
+    const row = first<{ member_id: string; expires_at: number }>(this.db, 'SELECT member_id, expires_at FROM pairings WHERE code = ?', code);
+    // One answer for "wrong" and "expired", so guessing learns nothing.
+    if (!row || row.expires_at < Date.now()) return { ok: false, error: '配对码无效或已过期，请回到 App 重新获取' };
+    const member = this.member(row.member_id);
+    if (!member) return { ok: false, error: '配对码无效或已过期，请回到 App 重新获取' };
+
+    const reuse = input.bridgeId && input.token && (await this.authenticateBridge(input.bridgeId, input.token, input.tools));
+    const name = input.name.trim().slice(0, 40) || '我的电脑';
+    let bridgeId: string;
+    let token: string;
+    if (reuse) {
+      bridgeId = input.bridgeId!;
+      token = input.token!;
+    } else {
+      bridgeId = crypto.randomUUID();
+      token = randomToken();
+      const hash = await sha256Hex(token);
+      this.db.run('INSERT INTO bridges (id, name, token_hash, tools_json, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?)', bridgeId, name, hash, JSON.stringify(input.tools), Date.now(), Date.now());
+    }
+    this.db.transaction(() => {
+      this.db.run('UPDATE members SET config_json = ? WHERE id = ?', JSON.stringify({ ...member.config, bridgeId }), member.id);
+      this.db.run('DELETE FROM pairings WHERE code = ?', code);
+    });
+    this.emit({ type: 'members_changed' });
+    return { ok: true, value: { bridgeId, token, memberName: member.name, tool: member.config.tool ?? '' } };
+  }
+
+  async authenticateBridge(bridgeId: string, token: string, tools?: string[]): Promise<boolean> {
+    const row = first<{ token_hash: string }>(this.db, 'SELECT token_hash FROM bridges WHERE id = ?', bridgeId);
+    if (!row || !safeEqual(await sha256Hex(token), row.token_hash)) return false;
+    if (tools) this.db.run('UPDATE bridges SET tools_json = ?, last_seen = ? WHERE id = ?', JSON.stringify(tools), Date.now(), bridgeId);
+    else this.db.run('UPDATE bridges SET last_seen = ? WHERE id = ?', Date.now(), bridgeId);
+    return true;
+  }
+
+  async setBridgeTools(bridgeId: string, tools: string[]) {
+    this.db.run('UPDATE bridges SET tools_json = ?, last_seen = ? WHERE id = ?', JSON.stringify(tools), Date.now(), bridgeId);
+  }
+
+  async getBridge(bridgeId: string): Promise<BridgeInfo | null> {
+    const row = first<{ id: string; name: string; tools_json: string; last_seen: number | null }>(this.db, 'SELECT id, name, tools_json, last_seen FROM bridges WHERE id = ?', bridgeId);
+    return row ? { id: row.id, name: row.name, tools: JSON.parse(row.tools_json), lastSeen: row.last_seen } : null;
   }
 
   async recordActivity(groupId: string, patch: ActivityPatch) {

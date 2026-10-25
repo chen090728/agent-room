@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AdapterRegistry } from './adapters/registry.js';
+import { knownTools } from './bridge.js';
 import { safeEqual } from './crypto.js';
 import type { Directory } from './directory.js';
 import {
@@ -26,6 +27,8 @@ export interface ApiDeps {
   files: FileStore | null;
   /** Signs the short-lived download links (AGENTHUB_SECRET). */
   signingSecret: string;
+  /** Which bridges are connected right now; absent when the host has no bridge support. */
+  bridges?: { isOnline(bridgeId: string): Promise<boolean> };
   rooms: {
     post(groupId: string, content: string, attachments: string[]): Promise<Message>;
     registerUpload(groupId: string, attachment: Attachment): Promise<Attachment>;
@@ -50,6 +53,14 @@ const createMemberBody = z.object({
   role: z.string().trim().max(20, '角色标签最多 20 个字').default(''),
   persona: z.string().max(2000).default(''),
   config: z.record(z.string(), z.string()).default({}),
+});
+
+const pairBody = z.object({
+  code: z.string().min(1).max(40),
+  name: z.string().max(80).default(''),
+  tools: z.array(z.string()).max(10).default([]),
+  bridgeId: z.string().max(100).optional(),
+  token: z.string().max(200).optional(),
 });
 
 const createGroupBody = z.object({
@@ -108,6 +119,19 @@ export async function handleApi(request: Request, deps: ApiDeps): Promise<Respon
     return serveFile(deps.files, groupId, fileId);
   }
 
+  // A bridge has no access token yet: the one-time pairing code is its credential.
+  if (path === '/api/bridge/pair' && request.method === 'POST') {
+    try {
+      const input = pairBody.parse(await request.json());
+      const paired = await deps.directory.completePairing({ ...input, tools: knownTools(input.tools) });
+      return paired.ok ? json(200, paired.value) : fail(400, paired.error);
+    } catch (err) {
+      if (err instanceof z.ZodError || err instanceof SyntaxError) return fail(400, '请求内容不对');
+      console.error('[api]', err);
+      return fail(500, '服务器内部错误');
+    }
+  }
+
   const header = request.headers.get('authorization') ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!safeEqual(token, deps.token)) return fail(401, '访问令牌无效');
@@ -158,9 +182,28 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
         if (value) (field.secret ? secrets : config)[field.key] = value;
       }
 
+      const problem = adapter.validate?.(config);
+      if (problem) return fail(400, problem);
+
       const created = await directory.createMember({ ...input, config, secrets });
       if (!created.ok) return fail(409, created.error);
       return json(201, memberView(created.value));
+    }
+  }
+
+  const bridgeMatch = path.match(/^\/api\/members\/([\w-]+)\/(pairing|bridge)$/);
+  if (bridgeMatch) {
+    const [, memberId, sub] = bridgeMatch;
+    if (sub === 'pairing' && method === 'POST') {
+      const pairing = await directory.createPairing(memberId);
+      return pairing.ok ? json(200, pairing.value) : fail(400, pairing.error);
+    }
+    if (sub === 'bridge' && method === 'GET') {
+      const member = (await directory.listMembers()).find((m) => m.id === memberId);
+      if (!member) return fail(404, '成员不存在');
+      const info = member.config.bridgeId ? await directory.getBridge(member.config.bridgeId) : null;
+      const online = info ? (await deps.bridges?.isOnline(info.id)) ?? false : false;
+      return json(200, { paired: !!info, online, name: info?.name ?? null, tools: info?.tools ?? [], lastSeen: info?.lastSeen ?? null });
     }
   }
 

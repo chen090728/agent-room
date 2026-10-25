@@ -10,7 +10,7 @@ export default {
     const url = new URL(request.url);
 
     const target = socketTarget(url.pathname);
-    if (target === 'list') return directoryStub(env).fetch(request);
+    if (target === 'list' || target === 'bridge') return directoryStub(env).fetch(request);
     if (target) return groupStub(env, target.groupId).fetch(request);
 
     const problems = secretProblems(settings(env));
@@ -22,6 +22,7 @@ export default {
       integrations: defaultIntegrations(),
       files: env.FILES ? new R2FileStore(env.FILES) : null,
       signingSecret: env.AGENTHUB_SECRET ?? '',
+      bridges: { isOnline: (bridgeId) => directoryStub(env).bridgeOnline(bridgeId) },
       rooms: {
         post: async (groupId, content, attachments) => {
           const result = await groupStub(env, groupId).post(groupId, content, attachments);

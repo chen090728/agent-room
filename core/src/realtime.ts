@@ -13,9 +13,10 @@ export const UNAUTHORIZED_CODE = 4401;
 
 const GROUP_SOCKET = /^\/ws\/groups\/([\w-]+)$/;
 
-/** 'list' for /ws, the group id for /ws/groups/:id, or null. */
-export function socketTarget(pathname: string): 'list' | { groupId: string } | null {
+/** 'list' for /ws, 'bridge' for /ws/bridge (see bridge.ts), the group id for /ws/groups/:id, or null. */
+export function socketTarget(pathname: string): 'list' | 'bridge' | { groupId: string } | null {
   if (pathname === '/ws') return 'list';
+  if (pathname === '/ws/bridge') return 'bridge';
   const m = pathname.match(GROUP_SOCKET);
   return m ? { groupId: m[1] } : null;
 }

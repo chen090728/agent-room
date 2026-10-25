@@ -17,6 +17,7 @@ export interface Env {
   USER_DISPLAY_NAME?: string;
   MOCK_DELAY_MS?: string;
   DEPLOY_POLL_MS?: string;
+  BRIDGE_TIMEOUT_MS?: string;
 }
 
 /** String settings only, in the shape the core config parsers expect. */

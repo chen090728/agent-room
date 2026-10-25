@@ -3,6 +3,8 @@ import type { CoordinatorOptions } from './coordinator.js';
 export interface Limits extends CoordinatorOptions {
   /** Delay range before mock members answer, so the chat feels alive. */
   mockDelayMs: [number, number];
+  /** How long a job on a user's computer may take. */
+  bridgeTimeoutMs: number;
 }
 
 type Env = Record<string, string | undefined>;
@@ -25,6 +27,7 @@ export function parseLimits(env: Env): Limits {
     llmTimeoutMs: int(env, 'LLM_TIMEOUT_MS', 60000),
     userDisplayName: env.USER_DISPLAY_NAME || '用户',
     deployPollMs: int(env, 'DEPLOY_POLL_MS', 10000),
+    bridgeTimeoutMs: int(env, 'BRIDGE_TIMEOUT_MS', 600000),
     mockDelayMs: [delay[0] || 0, delay[1] ?? delay[0] ?? 0],
   };
 }

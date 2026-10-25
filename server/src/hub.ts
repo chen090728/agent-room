@@ -1,5 +1,6 @@
 import {
   AUTH_TIMEOUT_MS,
+  BridgeDispatcher,
   Coordinator,
   registerUpload,
   defaultIntegrations,
@@ -7,6 +8,7 @@ import {
   handleApi,
   HELLO,
   isValidAuth,
+  parseBridgeAuth,
   SecretBox,
   seedIfEmpty,
   socketTarget,
@@ -42,6 +44,21 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     for (const ws of sockets) if (ws.readyState === ws.OPEN) ws.send(data);
   };
 
+  // Bridges are programs on the user's own computers that connect out to /ws/bridge.
+  const bridgeSockets = new Map<string, Set<WebSocket>>();
+  const bridgeDispatcher = new BridgeDispatcher(
+    {
+      send: (bridgeId, data) => {
+        const sockets = [...(bridgeSockets.get(bridgeId) ?? [])].filter((ws) => ws.readyState === ws.OPEN);
+        sockets.forEach((ws) => ws.send(data));
+        return sockets.length > 0;
+      },
+      isOnline: (bridgeId) => (bridgeSockets.get(bridgeId)?.size ?? 0) > 0,
+      onTools: (bridgeId, tools) => void directory.setBridgeTools(bridgeId, tools),
+    },
+    config.bridgeTimeoutMs,
+  );
+
   const directory = new SqlDirectory(db, new SecretBox(config.secret), (e: ListEvent) =>
     send(listSockets, JSON.stringify(e)),
   );
@@ -57,6 +74,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
       send(groupSockets.get(groupId) ?? [], JSON.stringify(e));
     },
     config,
+    bridgeDispatcher,
   );
 
   // Runs queued replies one step at a time, one loop per group.
@@ -122,7 +140,16 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
 
   const server = createServer(async (req, res) => {
     try {
-      const response = await handleApi(await toRequest(req), { token: config.token, directory, registry, integrations, files, signingSecret: config.secret, rooms });
+      const response = await handleApi(await toRequest(req), {
+          token: config.token,
+          directory,
+          registry,
+          integrations,
+          files,
+          signingSecret: config.secret,
+          rooms,
+          bridges: { isOnline: async (bridgeId) => bridgeDispatcher.isOnline(bridgeId) },
+        });
       await writeResponse(res, response ?? Response.json({ error: '接口不存在' }, { status: 404 }));
     } catch (err) {
       console.error('[http]', err);
@@ -135,6 +162,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     const target = socketTarget(new URL(req.url ?? '/', 'http://localhost').pathname);
     if (!target) return socket.destroy();
     wss.handleUpgrade(req, socket, head, (ws) => {
+      if (target === 'bridge') return acceptBridge(ws);
       let authed = false;
       const timer = setTimeout(() => !authed && ws.close(UNAUTHORIZED_CODE, 'auth timeout'), AUTH_TIMEOUT_MS);
       ws.on('message', (raw) => {
@@ -158,6 +186,36 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
       });
     });
   });
+
+  /** A bridge authenticates with the credentials it got when pairing, not with the access token. */
+  function acceptBridge(ws: WebSocket) {
+    let bridgeId: string | null = null;
+    let authing = false;
+    const timer = setTimeout(() => !bridgeId && ws.close(UNAUTHORIZED_CODE, 'auth timeout'), AUTH_TIMEOUT_MS);
+    ws.on('message', async (raw) => {
+      if (bridgeId) return bridgeDispatcher.handleFrame(bridgeId, raw.toString());
+      if (authing) return;
+      authing = true;
+      const auth = parseBridgeAuth(raw.toString());
+      if (!auth || !(await directory.authenticateBridge(auth.bridgeId, auth.token))) return ws.close(UNAUTHORIZED_CODE, 'unauthorized');
+      clearTimeout(timer);
+      bridgeId = auth.bridgeId;
+      const set = bridgeSockets.get(bridgeId) ?? new Set();
+      set.add(ws);
+      bridgeSockets.set(bridgeId, set);
+      ws.send(HELLO);
+    });
+    ws.on('close', () => {
+      clearTimeout(timer);
+      if (!bridgeId) return;
+      const set = bridgeSockets.get(bridgeId);
+      set?.delete(ws);
+      if (!set?.size) {
+        bridgeSockets.delete(bridgeId);
+        bridgeDispatcher.dropBridge(bridgeId);
+      }
+    });
+  }
 
   return { server, idle };
 }
