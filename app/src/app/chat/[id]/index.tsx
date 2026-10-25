@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Keyframe } from 'react-native-reanimated';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { KeyboardAvoider } from '../../../components/KeyboardAvoider';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Blob, GroupAvatar, MacDots } from '../../../components/Avatar';
 import { BubbleMenu, useBubbleAnchor } from '../../../components/BubbleMenu';
@@ -22,13 +23,22 @@ const FALLBACK_AVATAR: Avatar = { shape: 'circle', color: 'gray' };
 
 // New messages (and "typing…") rise into place and fade in; the history that is
 // already there when the chat opens does not animate.
-const RISE_IN = new Keyframe({
-  0: { opacity: 0, transform: [{ translateY: 12 }] },
-  100: { opacity: 1, transform: [{ translateY: 0 }], easing: (t: number) => 1 - Math.pow(1 - t, 3) },
-}).duration(260);
-
+//
+// This is a plain animated style started on mount, not a Reanimated layout
+// animation (`entering`): the earlier keyframe animation used an ordinary JS
+// easing function, which must run on the UI thread, and that crashed the App
+// on iOS as soon as a message was sent.
 function Rise({ animate, children }: { animate: boolean; children: ReactNode }) {
-  return animate ? <Animated.View entering={RISE_IN}>{children}</Animated.View> : <>{children}</>;
+  return animate ? <RiseIn>{children}</RiseIn> : <>{children}</>;
+}
+
+function RiseIn({ children }: { children: ReactNode }) {
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) });
+  }, [progress]);
+  const style = useAnimatedStyle(() => ({ opacity: progress.value, transform: [{ translateY: (1 - progress.value) * 12 }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 export default function ChatScreen() {
@@ -93,7 +103,7 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View ref={rootRef} style={styles.root} collapsable={false} onLayout={onLayout}>
-      <KeyboardAvoidingView style={styles.root} behavior="padding">
+      <KeyboardAvoider style={styles.root} bottomInset={insets.bottom}>
         <View style={styles.header}>
           <View style={styles.left}>
             <RoundButton label="回到助手和群聊" onPress={goHome}>
@@ -173,7 +183,7 @@ export default function ChatScreen() {
             onPlugins={() => sheets.open('plugins', { groupId: id })}
           />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
 
       <BubbleMenu
         open={menu}

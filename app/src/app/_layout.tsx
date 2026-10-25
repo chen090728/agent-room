@@ -9,8 +9,12 @@ import { PluginDetailSheet } from '../sheet-content/PluginDetailSheet';
 import { PluginsSheet } from '../sheet-content/PluginsSheet';
 import { SettingsSheet } from '../sheet-content/SettingsSheet';
 import { SheetProvider } from '../sheets';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { installGlobalErrorHandler } from '../errorLog';
 import { StoreProvider } from '../store';
 import { colors } from '../theme';
+
+installGlobalErrorHandler();
 
 const SHEETS = {
   'member-new': { component: NewMemberSheet },
@@ -25,6 +29,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>
+        <ErrorBoundary>
         <StoreProvider>
           <StatusBar style="dark" />
           <SheetProvider registry={SHEETS}>
@@ -39,6 +44,7 @@ export default function RootLayout() {
           </Stack>
           </SheetProvider>
         </StoreProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

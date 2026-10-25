@@ -1,9 +1,10 @@
 import { Redirect, router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GroupAvatar, MacDots, MeAvatar } from '../components/Avatar';
 import { BubbleMenu, useBubbleAnchor } from '../components/BubbleMenu';
+import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { AddPersonIcon, NewChatIcon, SearchIcon, ThinPlusIcon } from '../components/Icons';
 import { ModelIcon } from '../components/ModelIcon';
 import { RelayDots } from '../components/RelayDots';
@@ -129,7 +130,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior="padding">
+    <KeyboardAvoider style={styles.root} bottomInset={insets.bottom}>
       <View
         ref={rootRef}
         style={styles.root}
@@ -192,7 +193,7 @@ export default function HomeScreen() {
           ]}
         />
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 

@@ -1,12 +1,16 @@
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { normalizeServerUrl } from '../api';
 import { MacDots, MeAvatar } from '../components/Avatar';
 import { LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
 import { confirmAction, showMessage } from '../dialogs';
+import { clearLastError, loadLastError } from '../errorLog';
+import { fullTime } from '../format';
 import { pickPhoto, type PhotoSource } from '../photo';
+import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, useSheetClose } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
@@ -22,10 +26,12 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
   const [serverUrl, setServerUrl] = useState(settings?.serverUrl ?? '');
   // The saved token is never shown again; leave empty to keep it.
   const [token, setToken] = useState('');
+  const [lastError, setLastError] = useState(loadLastError);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const firstRun = firstRunProp ?? !settings;
+  const insets = useSafeAreaInsets();
   const url = normalizeServerUrl(serverUrl);
   const validUrl = /^https?:\/\/\S+$/i.test(url);
   const effectiveToken = token.trim() || settings?.token || '';
@@ -67,7 +73,7 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior="padding">
+    <KeyboardAvoider style={styles.root} bottomInset={firstRun ? insets.bottom : 0}>
       {firstRun ? (
         <View style={styles.firstRunHeader}>
           <Text style={styles.firstRunTitle}>连接服务器</Text>
@@ -145,6 +151,44 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
           </View>
         </View>
 
+        {lastError && (
+          <View style={styles.section}>
+            <SectionLabel
+              right={
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="清除上次错误"
+                  onPress={() => {
+                    clearLastError();
+                    setLastError(null);
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.clear}>清除</Text>
+                </Pressable>
+              }
+            >
+              上次错误
+            </SectionLabel>
+            <Card>
+              <View style={styles.errorBox}>
+                <Text style={styles.errorMeta}>
+                  {fullTime(lastError.at)} · {lastError.source === 'render' ? '界面出错' : lastError.fatal ? '导致退出' : '未处理的错误'}
+                </Text>
+                <Text style={styles.errorMessage} selectable>
+                  {lastError.message}
+                </Text>
+                {lastError.stack ? (
+                  <Text style={styles.errorStack} selectable>
+                    {lastError.stack}
+                  </Text>
+                ) : null}
+              </View>
+            </Card>
+            <Text style={styles.noteText}>出问题时截图这里发给开发者。只保存在这台手机上。</Text>
+          </View>
+        )}
+
         {settings && (
           <Pressable accessibilityRole="button" onPress={signOut} style={styles.signOut}>
             <Text style={styles.signOutText}>断开服务器</Text>
@@ -155,7 +199,7 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
         <ErrorText>{error}</ErrorText>
         <PrimaryButton title={firstRun ? '连接并保存' : '保存'} onPress={save} disabled={connectionChanged && (!validUrl || !effectiveToken)} busy={busy} />
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 
@@ -183,6 +227,11 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 12, color: colors.textSecondary },
   resetAvatar: { alignSelf: 'center', paddingVertical: 2 },
   resetText: { fontSize: 13, color: colors.textSecondary, textDecorationLine: 'underline' },
+  clear: { fontSize: 12, color: colors.textSecondary, textDecorationLine: 'underline' },
+  errorBox: { padding: 14, gap: 6 },
+  errorMeta: { fontSize: 12, color: colors.textSecondary },
+  errorMessage: { fontSize: 13, lineHeight: 19, color: colors.danger },
+  errorStack: { fontSize: 10.5, lineHeight: 15, color: colors.textSecondary, fontFamily: 'monospace' },
   signOut: { alignItems: 'center', justifyContent: 'center', height: 48 },
   signOutText: { fontSize: 14, color: colors.danger },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },

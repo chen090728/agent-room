@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import Animated, { FadeOut, Keyframe, ZoomIn } from 'react-native-reanimated';
+import Animated, { Easing, FadeOut, Keyframe, ZoomIn } from 'react-native-reanimated';
 import { COLOR_HEX, type Avatar } from '../theme';
 import { BlobShape } from './Avatar';
 
+// Keyframe easings run on the UI thread, so they must be Reanimated's own
+// (worklet) easings; an ordinary JS function crashes release builds.
 const SWAP_IN = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.72 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }], easing: (t: number) => 1 - Math.pow(1 - t, 3) },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.cubic) },
 }).duration(260);
 
 /**

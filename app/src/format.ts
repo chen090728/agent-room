@@ -33,3 +33,10 @@ export function shortTime(ts: number): string {
   if (diff < 7) return WEEKDAYS[d.getDay()];
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
+
+/** "10月25日 14:03", for logs the user may screenshot. */
+export function fullTime(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

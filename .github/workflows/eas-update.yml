@@ -48,6 +48,10 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # Ordinary JS easing functions in Reanimated animations crash release builds.
+      - name: Check animations
+        run: npm run check:animations
+
       # Creates the EAS project on the first run, links it afterwards. The
       # project id is written into app.json inside this CI checkout only.
       - name: Link EAS project
