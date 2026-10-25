@@ -226,3 +226,4 @@
 - 英文较长的地方只加了换行和收缩（`numberOfLines`、`flexShrink`），没有改颜色。颜色和样式用 #14 的 `useTheme()` / `useThemedStyles()`。
 - 合并了已进入 main 的 #14。冲突里留住深色模式的配色和主题逻辑，界面文字改走翻译。设置页顺序是「我」→「外观」→「语言」→「服务器」。外观标题和跟随系统 / 浅色 / 深色用已有的 `settings.appearance.*`；`THEME_PREFERENCE_LABELS` 仍留在 `app/src/theme/preference.ts`，设置页不再读它。语言仍是紧挨在外观后面的单独一块。
 - `app/package.json` 的测试脚本同时包含 `src/i18n/*.test.ts` 和 `src/theme/*.test.ts`。
+- 合并 #14 之后的测试：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）通过；`cd app && npm test` 46 通过；`cd app && npx tsc --noEmit` 通过；`app/scripts/check-animations.mjs` 72 个文件通过。没有在 Expo Go 里看过。
