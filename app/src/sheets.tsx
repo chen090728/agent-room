@@ -4,7 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { CloseIcon } from './components/Icons';
+import { BackIcon, CloseIcon } from './components/Icons';
 import { colors } from './theme';
 
 /*
@@ -180,7 +180,7 @@ function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop,
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} pointerEvents="none" />
-      <Pressable accessibilityLabel="关闭" style={StyleSheet.absoluteFill} onPress={() => close()} />
+      <Pressable accessibilityLabel="点空白处关闭" style={StyleSheet.absoluteFill} onPress={() => close()} />
       <Animated.View style={[styles.sheet, { height: sheetH + OVERSHOOT, bottom: -OVERSHOOT }, sheetStyle]}>
         <SheetCloseContext.Provider value={close}>
           <PanContext.Provider value={pan}>
@@ -195,15 +195,16 @@ function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop,
 const PanContext = createContext<ReturnType<typeof Gesture.Pan> | null>(null);
 
 /** The drag handle, title and × of a sheet. Pull it down to dismiss. */
-export function SheetHeader({ title, right }: { title: string; right?: ReactNode }) {
+/** With `onBack` the left button goes back (a step inside the sheet) instead of closing it. */
+export function SheetHeader({ title, right, onBack }: { title: string; right?: ReactNode; onBack?: () => void }) {
   const close = useSheetClose();
   const pan = useContext(PanContext);
   const header = (
     <View style={styles.header}>
       <View style={styles.handle} />
       <View style={styles.headerRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={() => close()} style={styles.closeButton} hitSlop={6}>
-          <CloseIcon size={16} />
+        <Pressable accessibilityRole="button" accessibilityLabel={onBack ? '返回' : '关闭'} onPress={() => (onBack ? onBack() : close())} style={styles.closeButton} hitSlop={6}>
+          {onBack ? <BackIcon size={16} /> : <CloseIcon size={16} />}
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
           {title}

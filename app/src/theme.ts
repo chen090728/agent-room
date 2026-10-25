@@ -79,6 +79,8 @@ export const COLOR_LABELS: Record<AvatarColor, string> = {
 export interface Avatar {
   shape: AvatarShape;
   color: AvatarColor;
+  /** An uploaded picture (a file in a group's storage) shown instead of the blob. */
+  image?: { groupId: string; fileId: string };
 }
 
 /** The three window-control colours used as the AgentHub mark. */

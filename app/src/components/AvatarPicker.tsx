@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AVATAR_COLORS, AVATAR_SHAPES, COLOR_HEX, COLOR_LABELS, colors, SHAPE_LABELS, type Avatar } from '../theme';
 import { Blob } from './Avatar';
+import { AnimatedBlob } from './AnimatedBlob';
 import { Card } from './ui';
 
 /** Large preview plus the 12 shapes and 11 colours to choose from. */
@@ -9,7 +10,7 @@ export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onCh
   return (
     <View style={styles.root}>
       <View style={styles.preview} accessibilityLabel="头像预览">
-        {preview ?? <Blob avatar={value} size={104} />}
+        {preview ?? <AnimatedBlob avatar={value} size={104} />}
       </View>
 
       <View style={styles.section}>

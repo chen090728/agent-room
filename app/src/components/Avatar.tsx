@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Polygon, RadialGradient, Stop } from 'react-native-svg';
+import { useAvatarImage } from '../avatarImages';
 import { useStore } from '../store';
 import { COLOR_HEX, MAC_DOTS, type Avatar } from '../theme';
 
@@ -145,6 +146,21 @@ function Body({ shape, fill }: { shape: Avatar['shape']; fill: string }) {
 
 /** A member's avatar: a plain-coloured blob with white eyes. */
 export function Blob({ avatar, size }: { avatar: Avatar; size: number }) {
+  return avatar.image ? <PictureAvatar avatar={avatar} size={size} /> : <BlobShape avatar={avatar} size={size} />;
+}
+
+/** The uploaded picture in a circle; the blob shows until it has loaded. */
+function PictureAvatar({ avatar, size }: { avatar: Avatar; size: number }) {
+  const uri = useAvatarImage(avatar.image);
+  return (
+    <View style={{ width: size, height: size }}>
+      <BlobShape avatar={avatar} size={size} />
+      {uri ? <Image source={{ uri }} style={[styles.abs, { width: size, height: size, borderRadius: size / 2, backgroundColor: '#E7E6E2' }]} /> : null}
+    </View>
+  );
+}
+
+export function BlobShape({ avatar, size }: { avatar: Avatar; size: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 40 40">
       <Body shape={avatar.shape} fill={COLOR_HEX[avatar.color]} />

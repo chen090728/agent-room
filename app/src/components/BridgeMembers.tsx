@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BridgeStatus, GroupSummary } from '../protocol';
+import { useSheetClose } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
 import { Blob } from './Avatar';
@@ -11,6 +12,7 @@ import { Card, SectionLabel } from './ui';
 /** The work assistants of a conversation, with whether their computer is connected. */
 export function BridgeMembers({ group }: { group: GroupSummary }) {
   const { api, members } = useStore();
+  const close = useSheetClose();
   const workers = group.members.map((m) => members.find((x) => x.id === m.id)).filter((m) => m?.type === 'bridge');
   const [statuses, setStatuses] = useState<Record<string, BridgeStatus>>({});
   const key = workers.map((m) => m!.id).join(',');
@@ -42,7 +44,7 @@ export function BridgeMembers({ group }: { group: GroupSummary }) {
               key={m!.id}
               accessibilityRole="button"
               accessibilityLabel={`${m!.name}，连接电脑`}
-              onPress={() => router.push({ pathname: '/member/pair', params: { memberId: m!.id } })}
+              onPress={() => close(() => router.push({ pathname: '/member/pair', params: { memberId: m!.id } }))}
               style={[styles.row, i > 0 && styles.divider]}
             >
               <Blob avatar={m!.avatar} size={32} />

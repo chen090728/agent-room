@@ -11,6 +11,11 @@ const PHOTO_SIZE = 256;
  * cancelled; throws a readable error when permission is refused.
  */
 export async function pickPhoto(source: PhotoSource): Promise<string | null> {
+  return (await pickPicture(source))?.dataUri ?? null;
+}
+
+/** Like pickPhoto, but also returns the file address of the shrunken picture (for uploading). */
+export async function pickPicture(source: PhotoSource): Promise<{ uri: string; dataUri: string } | null> {
   const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 };
   let result: ImagePicker.ImagePickerResult;
   if (source === 'camera') {
@@ -32,5 +37,5 @@ export async function pickPhoto(source: PhotoSource): Promise<string | null> {
   actions.push({ resize: { width: PHOTO_SIZE, height: PHOTO_SIZE } });
   const out = await ImageManipulator.manipulateAsync(asset.uri, actions, { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true });
   if (!out.base64) throw new Error('处理图片失败');
-  return `data:image/jpeg;base64,${out.base64}`;
+  return { uri: out.uri, dataUri: `data:image/jpeg;base64,${out.base64}` };
 }
