@@ -1,6 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { useRef, useState, type ReactNode } from 'react';
+import * as Haptics from 'expo-haptics';
+import { memo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { showMessage } from '../dialogs';
 import type { Attachment, GroupMemberRef } from '../protocol';
@@ -29,7 +30,7 @@ const MAX_FILES = 6;
  * typing "@" at the end opens the same member picker. Files upload as soon as
  * they are picked and are sent with the next message.
  */
-export function Composer({
+export const Composer = memo(function Composer({
   members,
   onSend,
   onUpload,
@@ -38,7 +39,7 @@ export function Composer({
   onPlugins,
 }: {
   members: GroupMemberRef[];
-  onSend: (text: string, attachmentIds: string[]) => Promise<void>;
+  onSend: (text: string, attachmentIds: string[], attachments: Attachment[]) => void;
   onUpload: (file: PickedFile) => Promise<Attachment>;
   placeholder?: string;
   /** Hide the @ picker, e.g. in a one-to-one chat where nobody else can be addressed. */
@@ -49,7 +50,6 @@ export function Composer({
   const [text, setText] = useState('');
   const [picker, setPicker] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [sending, setSending] = useState(false);
   const [files, setFiles] = useState<Pending[]>([]);
   const input = useRef<TextInputInstance>(null);
 
@@ -111,19 +111,20 @@ export function Composer({
 
   const uploading = files.some((f) => f.status === 'uploading');
   const ready = files.filter((f) => f.attachment);
-  const canSend = (!!text.trim() || ready.length > 0) && !uploading && !sending;
+  const canSend = (!!text.trim() || ready.length > 0) && !uploading;
 
-  const send = async () => {
+  const send = () => {
     if (!canSend) return;
-    setSending(true);
-    try {
-      await onSend(text.trim(), ready.map((f) => f.attachment!.id));
-      setText('');
-      setFiles([]);
-      setPicker(false);
-    } finally {
-      setSending(false);
-    }
+    const content = text.trim();
+    const picked = files.filter((f) => f.attachment);
+    const attachmentIds = picked.map((f) => f.attachment!.id);
+    const attachments = picked.map((f) => f.attachment!);
+    // Clear before the network so the tap paints immediately. The list shows the pending row.
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setText('');
+    setFiles([]);
+    setPicker(false);
+    onSend(content, attachmentIds, attachments);
   };
 
   return (
@@ -239,7 +240,7 @@ export function Composer({
       </View>
     </View>
   );
-}
+});
 
 function MenuItem({ label, onPress, children }: { label: string; onPress: () => void; children: ReactNode }) {
   return (
