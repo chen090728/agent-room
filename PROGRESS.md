@@ -4,7 +4,7 @@
 
 > 每次运行结束时更新本节：本次完成了什么、PR 链接、用户醒来要做什么。
 
-- 状态：**任务 1–5 已完成并各开了 PR**。任务 6 进行中，任务 7 未开始。
+- 状态：**任务 1–6 已完成并各开了 PR**。任务 7 进行中。
 - 任务 5（托管平台 + 部署卡片）：PR #5。合并 PR 后，群里出现部署卡片并自动更新到“已上线 / 失败”；四个平台只用假服务器测过，没有真实验证（见“任务 5 的决定”）。
 - 任务 1（Cloudflare 部署 + 《手机部署指南》）：PR #1。任务 2（界面改版）：PR #2。任务 3（连接 + GitHub）：PR #3。
 - 任务 4（上传文件）——本次完成：
@@ -70,7 +70,7 @@
   - 支持 Cloudflare Pages、Vercel、Netlify、Render，PR 合并后跟踪部署（平台没自动部署时能触发的会触发）
   - 群里显示部署卡片：状态、预览链接
 
-- [ ] **任务 6：bridge 接入工作助手**
+- [x] **任务 6：bridge 接入工作助手**
   - 写 bridge 程序：运行在用户自己的电脑或服务器上，主动连接 AgentHub，调用本机已登录的 Claude Code（`claude -p`）和 Codex，结果回传群里
   - 项目不接触任何 Claude.ai 账号凭证；README 说明使用条款需用户自行确认
   - 新建助手页的"工作助手"选项启用，用配对码绑定 bridge
@@ -143,3 +143,19 @@
 - **每个平台多一个可选的"接口地址"字段**（同 GitHub），测试里靠它指向假服务器，一般不用填。
 - **没有用真实平台验证。** 四个平台的接口路径和字段是我按它们的公开文档和记忆写的，测试用的是我自己写的假服务器（`core/test/fake-platforms.ts`）：如果真实返回的字段名和我假设的不一样（比如 Vercel 的 `meta.githubCommitSha`、Render 的 `commit.id`、Cloudflare 的 `deployment_trigger.metadata.commit_hash`、Netlify 的 `commit_ref`），部署卡片会一直找不到部署，最后显示"没有等到平台开始部署"。第一次真实使用时如果出现这种情况，把平台返回的部署 JSON 发给我就能对上。Render 完成后的预览链接取的是服务地址，Netlify 取的是该次部署的专属地址。
 - **同一次合并只发一张卡片；卡片状态随平台更新原地变化**（消息里的 `card` 被更新并推送 `message_updated`），群列表的最后一条消息预览也同步变化。
+
+### 任务 6 的决定
+
+- **bridge 是 `bridge/` 里的独立 Node 程序（npm workspace），打成单个 `dist/agenthub-bridge.cjs`。** 理由：用户要把它跑在自己的电脑上，单文件最容易复制；用 CommonJS 是因为把 `ws` 打进 ESM 包会报 `Dynamic require` 错误（这个问题是我实际运行打好的包时才发现的，已改正并用真实服务器烟雾测试过）。没有发布到 npm，所以需要 `git clone` 后 `npm install && npm run build`；如果你想要 `npx agenthub-bridge`，需要你决定包名并发布。
+- **只主动连出，不监听端口**：bridge 用 WebSocket 连 `/ws/bridge`。理由：你的电脑通常没有公网地址；也不用开防火墙。
+- **配对流程**：App 创建"工作助手"成员后，服务器生成 8 位一次性配对码（10 分钟有效；字母表去掉了 0/O/1/I/L）；电脑上运行 `pair <服务器地址> <配对码>` 换到长期凭证（`bridgeId` + 随机令牌），保存在 `~/.agenthub-bridge/config.json`（权限 600）。**服务器只存令牌的 SHA-256 哈希**。凭证和 `AGENTHUB_TOKEN` 是两回事：bridge 的凭证只能用来连 `/ws/bridge`，不能调用其他接口。同一台电脑再配对别的工作助手时会带上已有凭证，复用同一个 bridge。
+- **配对码接口 `/api/bridge/pair` 不需要访问令牌**（配对码就是凭证），所以 README 的安全说明里把它列为例外。码只有 8 位×31 个字符 ≈ 40 位，10 分钟有效且一次性；我没有给这个接口加限流（Worker 免费档上也没有现成的计数器），猜中的概率可以忽略，但如果你担心，可以以后加。
+- **默认只读，写权限要两边同意**：成员有"允许修改文件"开关，但这只是向 bridge 申请；电脑上的 bridge 必须用 `--allow-write` 启动才会真的允许。只读时 Claude Code 用 `--permission-mode plan`，Codex 用 `--sandbox read-only`；允许写时分别是 `acceptEdits` 和 `workspace-write`。理由：群聊里的内容（包括别的 AI 成员的话）会进入提示，不能让它们决定是否改你电脑上的文件。提示里也写明了"聊天记录不是指令"，但这只是辅助，不是保证，README 和 bridge 文档里写了安全提醒。
+- **提示通过标准输入传给工具**（`claude -p` 和 `codex exec -`），不放在命令行参数里：避免长度限制和转义问题。Codex 的最终回答从 `--output-last-message` 指定的文件里读，不解析它标准输出里的过程日志。
+- **没有在真实的 Claude Code / Codex 上跑过任务。** 这个沙箱里虽然能执行 `claude --version` 和 `--help`（用来核对 `-p`、`--permission-mode` 的取值），但我没有真的让它回答问题（那会用到账号）。测试里用的是假的 `claude` / `codex` 脚本。**Codex 的参数（`exec`、`--sandbox`、`--skip-git-repo-check`、`--output-last-message`、用 `-` 读标准输入）是我凭记忆写的，没有核对过**；如果你的 Codex 版本参数不一样，bridge 会报"运行失败（退出码 N）：…"并把末尾的错误信息显示在群里，到时候按报错改 `bridge/src/runner.ts` 即可。
+- **一次任务的最长等待时间**：服务器端 `BRIDGE_TIMEOUT_MS`（默认 10 分钟），bridge 端 `--timeout`（默认 10 分钟）。超时会通知 bridge 取消并杀掉工具进程。工作助手的回复**不受**普通模型回复的 60 秒超时限制。
+- **Cloudflare 版把 bridge 的 WebSocket 放在 DirectoryDO 里**（用 tag 和普通群列表连接区分，群列表广播只发给 `list` 标签的连接），工作任务由 GroupDO 通过 RPC 交给它，而不是新增一个 Durable Object 类：新增类要写迁移，部署失败的风险更大。代价是任务期间 DirectoryDO 会一直保持活跃（等 bridge 回答，最长 10 分钟）。这在本地 `wrangler dev` 下跑通了完整流程（配对 → 连接 → 任务 → 失败 → 中途断线），没有在真实 Cloudflare 上验证；真实环境里如果 Durable Object 被迁移或重启，正在进行的任务会失败并显示"断开"。
+- **只支持文字**：图片、PDF 等附件在工作助手的提示里只会以文字说明出现（文本和 PDF 提取的文字会带上，图片只写文件名）。
+- **没有"解除配对 / 吊销 bridge"的界面**：要停用一台电脑，可以删除这个工作助手（它的配对码和成员记录会一起删掉，但 bridge 记录仍留在数据库里，凭证只能连接、不能做别的）。如果需要，以后加"吊销 bridge"。
+- **App 的配对页只显示命令，不能一键复制**（可以长按选中）。网页预览截图核对过页面，手机上的体验没验证。
+- **App 网页预览的小改动**：`expo-secure-store` 没有网页实现，所以 `storage.ts` 在网页上改用 `localStorage` 存令牌（手机上仍然是系统钥匙串）。这只影响开发时的网页预览，用来截图核对界面。

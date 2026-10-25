@@ -18,7 +18,7 @@ core/     共用核心（纯 TypeScript）：协调者、适配器、上下文�
 server/   Node 版服务器：node:http + ws + SQLite（better-sqlite3）
 worker/   Cloudflare 版服务器：Workers + Durable Objects（SQLite 存储）
 app/      Expo（React Native）手机 App，用 Expo Go 打开
-bridge/   预留：以后连接 Claude Code / Codex 等本地编程助手
+bridge/   运行在你自己电脑上的小程序：让"工作助手"调用电脑里已登录的 Claude Code / Codex
 docs/     手机部署指南
 ```
 
@@ -104,6 +104,7 @@ App 里的服务器地址填 `https://agenthub.example.com`（App 会自动改�
 | `USER_DISPLAY_NAME` | `用户` | 发给模型的聊天记录里，你的显示名 |
 | `MOCK_DELAY_MS` | `400-1400` | 模拟成员回复前的随机等待（毫秒，范围） |
 | `DEPLOY_POLL_MS` | `10000` | 合并后多久查一次部署进度（毫秒） |
+| `BRIDGE_TIMEOUT_MS` | `600000` | 工作助手的一个任务最长等多久（毫秒） |
 
 Cloudflare 版：上面这些写在 `worker/wrangler.jsonc` 的 `vars` 里；`AGENTHUB_TOKEN` 和 `AGENTHUB_SECRET`
 是 Wrangler secrets，由部署流程从 GitHub Secrets 写入，**不要写进仓库**。
@@ -163,6 +164,27 @@ Fine-grained tokens），Repository access 只选要给助手用的仓库，Repo
 `createTools`、`cardAction`），在 `core/src/index.ts` 的 `defaultIntegrations()` 里注册即可，Node 版和 Cloudflare 版同时生效。
 `createTools` 返回的工具可以往 `cards` 里放确认卡片。参考 `core/src/integrations/github.ts`。
 
+## 工作助手：调用你电脑上的 Claude Code / Codex
+
+"工作助手"是一种特殊的成员：它不直接连模型接口，而是通过运行在**你自己电脑**上的 [bridge](bridge/README.md)
+调用那台电脑里**已经登录**的 Claude Code（`claude -p`）或 Codex（`codex exec`），把结果发回群里，像普通成员一样可以被 @、也可以 @ 别人。
+
+1. App → 新建助手 → 类型选"工作助手"，选工具；创建后显示一个**配对码**（10 分钟有效，一次性）。
+2. 在电脑上构建并配对 bridge：`node dist/agenthub-bridge.cjs pair <服务器地址> <配对码>`，再运行 `run`。
+3. App 里该助手显示"电脑已连接"后即可对话。助手的对话设置页（点聊天顶部名字）里能随时看到连接状态、重新配对或换电脑。
+
+要点：
+
+- **项目不接触任何 Claude.ai / ChatGPT 账号凭证**：bridge 只是在你的电脑上启动命令行工具，登录信息始终由那些工具自己保管。
+  使用它们是否符合各自的使用条款，**需要你自己确认**（详见 [bridge/README.md](bridge/README.md)）。
+- bridge 只**主动连出**到你配对过的服务器，不监听端口；配对凭证与 `AGENTHUB_TOKEN` 不同，服务器只保存它的哈希。
+- 默认**只读**；要让工具改文件，助手要勾选"允许修改文件"，**并且**在电脑上用 `--allow-write` 启动 bridge，两边都同意才会生效。
+- 一个任务最长等 `BRIDGE_TIMEOUT_MS`（默认 10 分钟）；电脑离线或中途断开，群里会立刻显示原因，不会一直转圈。
+- 在电脑上运行的内容来自群聊（包括其他 AI 成员的话），请阅读 bridge 文档里的安全提醒，并用 `--workdir` 把它限制在专门的目录。
+
+协议和接口见 bridge 文档；服务器端是 `core/src/bridge.ts`（派发器）、`core/src/adapters/bridge.ts`（成员类型）、
+Node 版 `server/src/hub.ts` 和 Cloudflare 版 `worker/src/directory-do.ts` 里的 `/ws/bridge` 连接。
+
 ## 部署平台：合并后自动跟踪部署
 
 "连接"里除了 GitHub，还能连接托管平台：**Cloudflare Pages、Vercel、Netlify、Render**。它们和 GitHub 一样，
@@ -219,10 +241,11 @@ Fine-grained tokens），Repository access 只选要给助手用的仓库，Repo
 
 ## 安全说明
 
-- 所有 HTTP 接口都要求 `Authorization: Bearer <AGENTHUB_TOKEN>`；WebSocket 连接后第一条消息必须是 `{"type":"auth","token":"..."}`，否则会被断开。令牌比较用常数时间算法。
+- 所有 HTTP 接口都要求 `Authorization: Bearer <AGENTHUB_TOKEN>`（例外：`/api/health`、10 分钟有效的签名文件链接、以及用一次性配对码换凭证的 `/api/bridge/pair`）；WebSocket 连接后第一条消息必须是 `{"type":"auth","token":"..."}`，否则会被断开。令牌比较用常数时间算法。
 - API Key 用 Web Crypto 的 AES-256-GCM 加密后存进 SQLite，密钥由 `AGENTHUB_SECRET` 经 HKDF-SHA256 派生。接口永远不会返回 Key 明文，App 里只显示 `sk-…abcd` 这样的打码形式。
 - App 把访问令牌存在系统安全存储里（iOS Keychain / Android Keystore，通过 `expo-secure-store`），服务器地址等普通设置存在 AsyncStorage。
 - 公网访问请务必使用 HTTPS（Cloudflare 版自带）。
+- bridge 配对码 8 位、10 分钟有效、只能用一次；换到的凭证服务器只存 SHA-256 哈希，bridge 用它认证 `/ws/bridge`，它**不能**访问其他 HTTP 接口。
 - 连接的令牌（如 GitHub）和 API Key 一样加密保存，接口不返回明文，也不会出现在发给模型的内容和错误信息里。
 
 ### 从旧版本升级
@@ -287,7 +310,7 @@ export function createEchoAdapter(): MemberAdapter {
 
 ```bash
 npm install            # 仓库根目录
-npm test               # core 单元测试 + Node 版端到端 + Cloudflare 版端到端
+npm test               # core 单元测试 + Node 版端到端 + Cloudflare 版端到端 + bridge 测试
 npm run typecheck
 
 cd app && npm install && npm run typecheck
@@ -322,11 +345,15 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 | POST | `/api/groups/:id/files/:fid/link` | 生成 10 分钟有效的签名下载链接 |
 | PUT | `/api/groups/:id/binding` | 绑定 / 解除代码仓库和部署项目。两个键都可省略（省略 = 保持不变），`null` = 清除：`{"repo": {"integrationId", "repo"}, "deploy": {"integrationId", "project", "name"}}` |
 | POST | `/api/groups/:id/messages/:mid/card` | 点确认卡片的按钮（`{"action": "merge" 或 "reject"}`） |
+| POST | `/api/members/:id/pairing` | 为工作助手生成一次性配对码（10 分钟有效） |
+| GET | `/api/members/:id/bridge` | 工作助手的电脑状态：`paired`、`online`、`name`、`tools` |
+| POST | `/api/bridge/pair` | bridge 用配对码换取凭证（**不需要访问令牌**，配对码就是凭证） |
 | GET | `/api/integrations/types` | 可用的连接类型及表单字段 |
 | GET / POST | `/api/integrations` | 已有连接（令牌打码）/ 添加连接（先验证再保存） |
 | DELETE | `/api/integrations/:id` | 删除连接（同时解除用到它的绑定） |
 | GET | `/api/integrations/:id/resources` | 这个连接能看到的仓库 / 部署项目列表 |
 | WS | `/ws` | 群列表事件：`group_updated`、`groups_changed`、`members_changed` |
+| WS | `/ws/bridge` | bridge 的连接（用配对时拿到的凭证认证，协议见 bridge 文档） |
 | WS | `/ws/groups/:id` | 单个群的聊天事件：`message`、`message_updated`（比如卡片被合并）、`typing`、`relay`（接力进度） |
 
 两个 WebSocket 连上后都要先发 `{"type":"auth","token":"..."}`，收到 `{"type":"hello"}` 后才开始推送。
