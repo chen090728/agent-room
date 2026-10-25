@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AnimatedBlob } from '../components/AnimatedBlob';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel, Switch } from '../components/ui';
 import { showMessage } from '../dialogs';
 import { pickPicture } from '../photo';
+import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, useSheetClose } from '../sheets';
 import { useStore } from '../store';
 import { colors, shadows, type Avatar } from '../theme';
@@ -92,7 +93,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior="padding">
+    <KeyboardAvoider style={styles.root}>
       <SheetHeader title="新建助手" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <AvatarPicker value={avatar} onChange={(a) => { setAvatar(a); }} preview={<AnimatedBlob avatar={avatar} size={104} picture={picture?.uri} />} />
@@ -227,7 +228,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
         <ErrorText>{error}</ErrorText>
         <PrimaryButton title={work ? '创建并去配对' : '创建助手'} onPress={create} disabled={missing} busy={busy} />
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 

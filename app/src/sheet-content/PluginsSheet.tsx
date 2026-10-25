@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronRightIcon, LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
 import { confirmAction, showMessage } from '../dialogs';
 import { PLUGIN_HELP, PLUGINS, type PluginInfo } from '../plugins';
 import type { IntegrationView, ResourceInfo } from '../protocol';
+import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
@@ -126,7 +127,7 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior="padding">
+    <KeyboardAvoider style={styles.root}>
       <SheetHeader title={`连接 ${plugin.label}`} onBack={onBack} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>{info?.description ?? plugin.description}</Text>
@@ -169,7 +170,7 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
         <ErrorText>{error}</ErrorText>
         <PrimaryButton title="验证并保存" onPress={save} disabled={missing} busy={busy} />
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 
@@ -243,7 +244,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
   const bound = plugin.binds === 'repo' ? group?.binding?.repo : group?.binding?.deploy;
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior="padding">
+    <KeyboardAvoider style={styles.root}>
       <SheetHeader title={plugin.binds === 'repo' ? '选择仓库' : '选择部署项目'} onBack={onBack} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {connections.length > 1 && (
@@ -310,7 +311,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
           <Text style={styles.disconnectText}>断开「{current.name}」</Text>
         </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 

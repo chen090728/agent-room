@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AddPersonIcon } from '../components/Icons';
 import { MemberChecklist } from '../components/MemberChecklist';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
+import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, useSheetClose, useSheets } from '../sheets';
 import { useStore } from '../store';
 import { colors } from '../theme';
@@ -37,7 +38,7 @@ export function NewGroupSheet() {
 
   return (
     <View style={styles.root}>
-      <KeyboardAvoidingView style={styles.root} behavior="padding">
+      <KeyboardAvoider style={styles.root}>
         <SheetHeader title="新建群聊" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Card>
@@ -57,7 +58,7 @@ export function NewGroupSheet() {
           <ErrorText>{error}</ErrorText>
           <PrimaryButton title="创建群聊" onPress={create} disabled={!name.trim()} busy={busy} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </View>
   );
 }
