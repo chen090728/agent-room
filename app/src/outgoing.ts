@@ -169,31 +169,64 @@ function sameSnapshot(prev: ChatMessage, next: Message): boolean {
   );
 }
 
+/** Server payload only. Local send fields are not part of what HTTP returns. */
+function persistedShape(message: object): string {
+  const copy = { ...(message as Record<string, unknown>) };
+  delete copy.clientKey;
+  delete copy.delivery;
+  delete copy.pending;
+  delete copy.local;
+  return JSON.stringify(copy);
+}
+
 /**
  * Merge a history page into what's on screen.
- * Messages already shown keep their object. A pending send is replaced when
- * this page contains its server copy, so a reload cannot duplicate it.
+ * Messages already shown keep their object when the server copy is unchanged,
+ * and pick up card edits (and any extra fields, such as a future `notice`)
+ * when it is not. A pending send is replaced when this page contains its
+ * server copy, so a reload cannot duplicate it. `clientKey` stays put.
  */
 export function mergeServerMessages(existing: ChatMessage[] | undefined, incoming: Message[]): ChatMessage[] {
   const list = existing ?? [];
-  const seen = new Set(list.map((item) => item.id));
-  const pendingCount = list.reduce((count, item) => count + (item.delivery !== undefined ? 1 : 0), 0);
-  let pendingLeft = list.filter((item) => item.delivery !== undefined);
-  const added: ChatMessage[] = [];
+  if (!incoming.length) return list;
+
+  let next = list;
+  let changed = false;
+  const ensure = () => {
+    if (!changed) {
+      next = list.slice();
+      changed = true;
+    }
+  };
+  const taken = new Set<string>();
+
   for (const item of incoming) {
-    if (seen.has(item.id)) continue;
-    const match = matchPending(pendingLeft, item);
-    if (match) {
-      pendingLeft = pendingLeft.filter((row) => row !== match);
-      added.push({ ...item, clientKey: match.clientKey, local: match.local });
+    const index = next.findIndex((row) => row.id === item.id);
+    if (index >= 0) {
+      const prev = next[index];
+      if (prev.delivery !== undefined) continue;
+      if (persistedShape(prev) === persistedShape(item)) continue;
+      ensure();
+      next[index] = { ...prev, ...item, clientKey: prev.clientKey || item.id, delivery: prev.delivery, pending: prev.pending, local: prev.local };
       continue;
     }
-    added.push({ ...item, clientKey: item.id });
+    const pending = matchPending(
+      next.filter((row) => row.delivery !== undefined && !taken.has(row.clientKey)),
+      item,
+    );
+    if (pending) {
+      taken.add(pending.clientKey);
+      ensure();
+      const pendingIndex = next.findIndex((row) => row.clientKey === pending.clientKey && row.delivery !== undefined);
+      if (pendingIndex >= 0) next[pendingIndex] = { ...item, clientKey: pending.clientKey, local: pending.local };
+      continue;
+    }
+    ensure();
+    next.push({ ...item, clientKey: item.id });
   }
-  if (!added.length && pendingLeft.length === pendingCount) return list;
-  const pendingIds = new Set(pendingLeft.map((item) => item.clientKey));
-  const kept = list.filter((item) => item.delivery === undefined || pendingIds.has(item.clientKey));
-  const next = [...kept, ...added].sort(byTime);
+
+  if (!changed) return list;
+  next.sort(byTime);
   if (next.length === list.length && next.every((item, index) => item === list[index])) return list;
   return next;
 }

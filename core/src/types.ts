@@ -201,7 +201,7 @@ export interface GroupSummary {
   binding: GroupBinding | null;
 }
 
-/** Events for one group's chat, sent over /ws/groups/:id. */
+/** Events for one group's chat. Bare on `/ws/groups/:id`, and inside `{ type: 'chat', event }` on `/ws`. */
 export type ChatEvent =
   | { type: 'message'; message: Message }
   /** An existing message changed, e.g. a pull request card was merged. */
@@ -209,11 +209,16 @@ export type ChatEvent =
   | { type: 'typing'; groupId: string; memberId: string; active: boolean }
   | { type: 'relay'; relay: RelayState };
 
-/** Events for the group list, sent over /ws. */
+/**
+ * Events for the app-wide socket, `/ws`.
+ * `chat` carries the same object `/ws/groups/:id` sends, including fields
+ * this version does not read. Older apps ignore `type` values they do not know.
+ */
 export type ListEvent =
   | { type: 'group_updated'; group: GroupSummary }
   | { type: 'groups_changed' }
-  | { type: 'members_changed' };
+  | { type: 'members_changed' }
+  | { type: 'chat'; event: ChatEvent };
 
 /** An error whose message is meant for the user (shown in the App as is). */
 export class UserError extends Error {

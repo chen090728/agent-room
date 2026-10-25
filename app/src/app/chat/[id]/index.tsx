@@ -4,8 +4,10 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { KeyboardAvoider } from '../../../components/KeyboardAvoider';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAfterTransition } from '../../../afterTransition';
 import { Blob, GroupAvatar, MacDots } from '../../../components/Avatar';
 import { BubbleMenu, useBubbleAnchor } from '../../../components/BubbleMenu';
+import { ConnectionBanner } from '../../../components/ConnectionBanner';
 import { PluginChips } from '../../../components/PluginChips';
 import { ThinPlusIcon } from '../../../components/Icons';
 import { Composer, type PickedFile } from '../../../components/Composer';
@@ -120,6 +122,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
   const { send, retry } = store;
   const sheets = useSheets();
   const [menu, setMenu] = useState(false);
+  const [menuShown, setMenuShown] = useState(false);
   const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(topInset);
   const group = store.groups.find((g) => g.id === id);
   const messages = store.messages[id];
@@ -129,9 +132,11 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
   const error = channel.error;
   const members = group?.members;
 
-  useEffect(() => {
-    store.refreshIntegrations().catch(() => {});
-  }, [store.refreshIntegrations]);
+  const refreshIntegrations = store.refreshIntegrations;
+  const refreshPlugins = useCallback(() => {
+    refreshIntegrations().catch(() => {});
+  }, [refreshIntegrations]);
+  useAfterTransition(refreshPlugins);
 
   // Ids present once history is on screen. Later sends are not in the set, so
   // only those rows play the entrance animation.
@@ -188,7 +193,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
   }
 
   const direct = group.kind === 'direct';
-  const empty = error ?? (messages ? (direct ? '发一句话，开始聊天吧' : '还没有消息，@ 一位成员开始聊天吧') : '加载中…');
+  const empty = error ?? (messages ? (direct ? '发一句话，开始聊天吧' : '还没有消息，@ 一位成员开始聊天吧') : '');
 
   return (
     <View ref={rootRef} style={styles.root} collapsable={false} onLayout={onLayout}>
@@ -206,7 +211,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
           </Text>
         </Pressable>
         <View style={styles.right}>
-          <View ref={plusRef} collapsable={false}>
+          <View ref={plusRef} collapsable={false} pointerEvents={menu || menuShown ? 'none' : 'auto'} style={{ opacity: menu || menuShown ? 0 : 1 }}>
             <RoundButton label="更多" onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
               <ThinPlusIcon />
             </RoundButton>
@@ -214,9 +219,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
         </View>
       </View>
 
-      {channel.status !== 'online' && (
-        <Text style={styles.banner}>{channel.status === 'connecting' ? '正在连接服务器…' : '与服务器断开，正在重连…'}</Text>
-      )}
+      <ConnectionBanner status={channel.status} />
 
       <MessageList rows={rows} typing={typing} members={members} empty={empty} onRetry={onRetry} fresh={fresh} />
 
@@ -238,6 +241,7 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
       <BubbleMenu
         open={menu}
         anchor={anchor}
+        onVisibility={setMenuShown}
         onClose={() => setMenu(false)}
         items={[
           { label: '新建助手', icon: <AddPersonIcon size={20} />, onPress: () => sheets.open('member-new', direct ? {} : { groupId: id }) },
@@ -266,7 +270,6 @@ const styles = StyleSheet.create({
   right: { width: 110, alignItems: 'flex-end' },
   center: { flex: 1, alignItems: 'center', gap: 3, paddingTop: 4 },
   titleText: { fontSize: 12.5, fontWeight: '500', color: colors.text, maxWidth: '100%' },
-  banner: { textAlign: 'center', fontSize: 12, color: colors.warning, paddingTop: 10 },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 15 },
   relay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 12 },

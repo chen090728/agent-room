@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ScrollViewProps } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { interpolate, useAnimatedReaction, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { BackIcon, CloseIcon } from './components/Icons';
@@ -105,6 +105,51 @@ function AppFrame({ children }: { children: ReactNode }) {
 
 const OVERSHOOT = 48; // the sheet extends below the screen so its spring can overshoot without a gap
 
+// Softer than a snappy slide: a little settle, without a hard stop.
+const SHEET_OPEN = { damping: 26, stiffness: 128, mass: 0.95 };
+const SHEET_RETURN = { damping: 24, stiffness: 140, mass: 0.9 };
+const SHEET_CLOSE = { damping: 32, stiffness: 180, mass: 0.9, overshootClamping: true as const };
+
+interface SheetGestureValue {
+  scrollY: SharedValue<number>;
+  gesture: ReturnType<typeof Gesture.Simultaneous>;
+}
+
+const SheetGestureContext = createContext<SheetGestureValue | null>(null);
+
+/**
+ * Scroll body of a sheet. At the top of the content, pulling down continues
+ * into dismissing the sheet. Outside a sheet it is an ordinary scroller.
+ */
+export function SheetScrollView({ style, children, ...props }: ScrollViewProps) {
+  const ctx = useContext(SheetGestureContext);
+  const fallbackY = useSharedValue(0);
+  const scrollY = ctx?.scrollY ?? fallbackY;
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+  useEffect(() => {
+    scrollY.value = 0;
+  }, [scrollY]);
+
+  if (!ctx) {
+    return (
+      <ScrollView style={style} {...props}>
+        {children}
+      </ScrollView>
+    );
+  }
+  return (
+    <GestureDetector gesture={ctx.gesture}>
+      <Animated.ScrollView {...props} bounces={false} overScrollMode="never" scrollEventThrottle={16} onScroll={onScroll} style={[styles.fill, style]}>
+        {children}
+      </Animated.ScrollView>
+    </GestureDetector>
+  );
+}
+
 interface BottomSheetProps {
   children: ReactNode;
   heightFraction?: number;
@@ -125,15 +170,57 @@ function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop,
   const frame = useRef({ lowerOpen, isTop });
   frame.current = { lowerOpen, isTop };
 
+  const scrollY = useSharedValue(0);
+  const pullBase = useSharedValue(0);
+  const travelY = useSharedValue(travel);
+  travelY.value = travel;
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
+  const notifyClosed = useCallback(() => onClosedRef.current(), []);
+
+  const native = useMemo(() => Gesture.Native(), []);
+  const contentPan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY([-9999, 12])
+        .failOffsetY([-16, 9999])
+        .failOffsetX([-28, 28])
+        .onBegin(() => {
+          pullBase.value = 0;
+        })
+        .onChange((event) => {
+          // Still reading content: remember the finger so the sheet does not jump when we hit the top.
+          if (scrollY.value > 1 && y.value <= 0) {
+            pullBase.value = event.translationY;
+            return;
+          }
+          const pulled = event.translationY - pullBase.value;
+          y.value = pulled < 0 ? pulled / 5 : pulled;
+        })
+        .onEnd((event) => {
+          if (y.value > 110 || (y.value > 36 && event.velocityY > 900)) {
+            closing.value = true;
+            y.value = withSpring(travelY.value, { ...SHEET_CLOSE, velocity: event.velocityY }, (finished) => {
+              if (finished) scheduleOnRN(notifyClosed);
+            });
+          } else {
+            y.value = withSpring(0, { ...SHEET_RETURN, velocity: event.velocityY });
+          }
+          pullBase.value = 0;
+        }),
+    [closing, notifyClosed, pullBase, scrollY, travelY, y],
+  );
+  const sheetGesture = useMemo<SheetGestureValue>(() => ({ scrollY, gesture: Gesture.Simultaneous(contentPan, native) }), [contentPan, native, scrollY]);
+
   useEffect(() => {
-    y.value = withSpring(0, { damping: 20, stiffness: 190, mass: 0.9 });
+    y.value = withSpring(0, SHEET_OPEN);
   }, [y]);
 
   const close = useCallback(
     (after?: () => void) => {
       if (closing.value) return;
       closing.value = true;
-      y.value = withTiming(travel, { duration: 240, easing: Easing.in(Easing.cubic) }, (finished) => {
+      y.value = withSpring(travel, SHEET_CLOSE, (finished) => {
         if (finished) {
           scheduleOnRN(onClosed);
           if (after) scheduleOnRN(after);
@@ -166,11 +253,11 @@ function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop,
     .onEnd((e) => {
       if (e.translationY > 110 || e.velocityY > 900) {
         closing.value = true;
-        y.value = withTiming(travel, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
+        y.value = withSpring(travel, { ...SHEET_CLOSE, velocity: e.velocityY }, (finished) => {
           if (finished) scheduleOnRN(onClosed);
         });
       } else {
-        y.value = withSpring(0, { damping: 14, stiffness: 220, mass: 0.8, velocity: e.velocityY });
+        y.value = withSpring(0, { ...SHEET_RETURN, velocity: e.velocityY });
       }
     });
 
@@ -184,7 +271,9 @@ function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop,
       <Animated.View style={[styles.sheet, { height: sheetH + OVERSHOOT, bottom: -OVERSHOOT }, sheetStyle]}>
         <SheetCloseContext.Provider value={close}>
           <PanContext.Provider value={pan}>
-            <View style={{ flex: 1, paddingBottom: OVERSHOOT }}>{children}</View>
+            <SheetGestureContext.Provider value={sheetGesture}>
+              <View style={{ flex: 1, paddingBottom: OVERSHOOT }}>{children}</View>
+            </SheetGestureContext.Provider>
           </PanContext.Provider>
         </SheetCloseContext.Provider>
       </Animated.View>
@@ -217,6 +306,7 @@ export function SheetHeader({ title, right, onBack }: { title: string; right?: R
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   frameBack: { flex: 1, backgroundColor: '#000000' },
   frame: { flex: 1, overflow: 'hidden', backgroundColor: colors.bg },
   dim: { backgroundColor: '#000000' },

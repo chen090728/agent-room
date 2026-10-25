@@ -177,15 +177,20 @@ export interface BridgeStatus {
   lastSeen: number | null;
 }
 
-/** Events for one group's chat, sent over /ws/groups/:id. */
+/** Events for one group's chat. Bare on `/ws/groups/:id`, and inside `{ type: 'chat', event }` on `/ws`. */
 export type ChatEvent =
   | { type: 'message'; message: Message }
   | { type: 'message_updated'; message: Message }
   | { type: 'typing'; groupId: string; memberId: string; active: boolean }
   | { type: 'relay'; relay: RelayState };
 
-/** Events for the group list, sent over /ws. */
+/**
+ * Events for the app-wide socket, `/ws`.
+ * `chat` is the envelope around a chat event. `event` is the original object,
+ * so fields this app does not know (a future `notice`) stay on it.
+ */
 export type ListEvent =
   | { type: 'group_updated'; group: GroupSummary }
   | { type: 'groups_changed' }
-  | { type: 'members_changed' };
+  | { type: 'members_changed' }
+  | { type: 'chat'; event: ChatEvent };
