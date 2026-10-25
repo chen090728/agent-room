@@ -2,11 +2,13 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { boundPlugins } from '../plugins';
 import type { GroupSummary } from '../protocol';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows  } from '../theme';
 import { BranchIcon, LinkIcon } from './Icons';
 
 /** Small tags above the input box for the plugins bound to this conversation. Tap one to view or unbind it. */
 export function PluginChips({ group, onPress }: { group: GroupSummary; onPress(kind: 'repo' | 'deploy'): void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { integrations } = useStore();
   const bound = boundPlugins(group.binding, integrations);
   if (!bound.length) return null;
@@ -24,7 +26,7 @@ export function PluginChips({ group, onPress }: { group: GroupSummary; onPress(k
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   scroll: { flexGrow: 0 },
   row: { gap: 8, paddingHorizontal: 18, paddingBottom: 8 },
   chip: {

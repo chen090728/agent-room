@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { COLOR_HEX, type Avatar } from '../theme';
+import { COLOR_HEX, useTheme, type Avatar } from '../theme';
 import { BlobShape } from './Avatar';
 
 const SWAP_SPRING = { damping: 11, stiffness: 170, mass: 0.55 };
@@ -56,6 +56,7 @@ export function AnimatedBlob({ avatar, size, picture }: { avatar: Avatar; size: 
 }
 
 function EnterBlob({ intro, onIntro, avatar, size, picture }: { intro: boolean; onIntro: () => void; avatar: Avatar; size: number; picture: string | null }) {
+  const { colors } = useTheme();
   const playIntro = useRef(intro).current;
   const reveal = useSharedValue(playIntro ? 0 : 1);
   const bounce = useSharedValue(0);
@@ -118,7 +119,7 @@ function EnterBlob({ intro, onIntro, avatar, size, picture }: { intro: boolean; 
       )}
       <Animated.View style={[StyleSheet.absoluteFill, avatarStyle]}>
         {picture ? (
-          <Image source={{ uri: picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: COLOR_HEX.gray }} />
+          <Image source={{ uri: picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.photoPlaceholder }} />
         ) : (
           <BlobShape avatar={avatar} size={size} />
         )}
@@ -128,6 +129,7 @@ function EnterBlob({ intro, onIntro, avatar, size, picture }: { intro: boolean; 
 }
 
 function ExitBlob({ snap, size, onDone }: { snap: Snap; size: number; onDone: (key: string) => void }) {
+  const { colors } = useTheme();
   const leave = useSharedValue(1);
   const doneKey = snap.key;
   useEffect(() => {
@@ -142,7 +144,7 @@ function ExitBlob({ snap, size, onDone }: { snap: Snap; size: number; onDone: (k
   return (
     <Animated.View style={[StyleSheet.absoluteFill, style]}>
       {snap.picture ? (
-        <Image source={{ uri: snap.picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: COLOR_HEX.gray }} />
+        <Image source={{ uri: snap.picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.photoPlaceholder }} />
       ) : (
         <BlobShape avatar={snap.avatar} size={size} />
       )}

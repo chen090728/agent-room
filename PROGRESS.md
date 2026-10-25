@@ -211,3 +211,10 @@
 ## 以后再改（合并时发现的小问题，不拦合并）
 
 - PR #12 把"最近一次运行总结"整段换掉了，任务 1–7 的总结只剩在 git 历史和各 PR 说明里；以后可以把它们压成几行放回来。
+
+## 深色模式（dark/theme-foundation）
+
+- 把 `dark/theme-foundation` 合并了最新 `main`（含 #11、#12）。合并没有冲突。页面颜色改走 `useTheme()`，根布局挂了 `ThemeProvider`，`app.json` 的 `userInterfaceStyle` 改为 `automatic`，状态栏样式跟着当前主题。
+- 设置里单独加了「外观」：跟随系统 / 浅色 / 深色。没有改已有界面文字，也没有动语言区块的位置（语言区块还不在这支上）。
+- 没加需要原生构建的依赖。动画仍在 UI 线程，`check:animations` 通过。
+- 验证：根目录 `npm test`（core 121、server 16、worker 19、bridge 14）通过；App `npm test` 30 通过；`tsc --noEmit` 通过；`check:animations` 61 个文件通过。没有在 Expo Go 里看过。手机对照清单在 PR #14：https://github.com/chen090728/agent-room/pull/14

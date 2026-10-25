@@ -1,21 +1,18 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DeploymentCard as Card } from '../protocol';
-import { colors, shadows } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { CheckIcon } from './Icons';
-
-const GREEN = '#148A5A';
-const RED = '#C73C40';
-
-const STATE: Record<Card['state'], { text: string; color: string }> = {
-  queued: { text: '排队中', color: colors.textSecondary },
-  building: { text: '部署中', color: colors.warning },
-  ready: { text: '已上线', color: GREEN },
-  error: { text: '部署失败', color: RED },
-};
 
 /** Where a merged change is being deployed: platform, project, progress and the preview link. */
 export function DeploymentCard({ card }: { card: Card }) {
-  const state = STATE[card.state];
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const state = {
+    queued: { text: '排队中', color: colors.textSecondary },
+    building: { text: '部署中', color: colors.warning },
+    ready: { text: '已上线', color: colors.success },
+    error: { text: '部署失败', color: colors.danger },
+  }[card.state];
   const open = () => {
     if (card.url && /^https?:\/\//i.test(card.url)) Linking.openURL(card.url).catch(() => {});
   };
@@ -45,7 +42,7 @@ export function DeploymentCard({ card }: { card: Card }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   card: {
     gap: 6,
     padding: 14,
@@ -61,8 +58,8 @@ const styles = StyleSheet.create({
   state: { fontSize: 12, fontWeight: '500' },
   title: { fontSize: 14, lineHeight: 20, color: colors.text },
   meta: { fontSize: 12, color: colors.textSecondary },
-  error: { fontSize: 12.5, lineHeight: 18, color: RED },
-  open: { alignSelf: 'flex-start', marginTop: 4, height: 36, paddingHorizontal: 18, borderRadius: 18, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
-  openText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  error: { fontSize: 12.5, lineHeight: 18, color: colors.danger },
+  open: { alignSelf: 'flex-start', marginTop: 4, height: 36, paddingHorizontal: 18, borderRadius: 18, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' },
+  openText: { color: colors.buttonText, fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.75 },
 });

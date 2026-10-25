@@ -3,28 +3,26 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'r
 import { confirmAction, showMessage } from '../dialogs';
 import type { Message, PullRequestCard as Card } from '../protocol';
 import { useStore } from '../store';
-import { colors, shadows } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { BranchIcon } from './Icons';
 
-const GREEN = '#148A5A';
-const RED = '#C73C40';
 const MAX_FILES_SHOWN = 5;
-
-const STATE_LABEL: Record<Card['state'], { text: string; color: string }> = {
-  open: { text: '等你确认', color: colors.warning },
-  merged: { text: '已合并', color: GREEN },
-  closed: { text: '已拒绝', color: colors.textSecondary },
-  failed: { text: '合并失败', color: RED },
-};
 
 /**
  * Confirmation card for a pull request an assistant opened: which files
  * changed, and buttons to merge or reject. Only a tap here merges anything.
  */
 export function PullRequestCard({ message, card }: { message: Message; card: Card }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { api, dispatch } = useStore();
   const [busy, setBusy] = useState<'merge' | 'reject' | null>(null);
-  const state = STATE_LABEL[card.state];
+  const state = {
+    open: { text: '等你确认', color: colors.warning },
+    merged: { text: '已合并', color: colors.success },
+    closed: { text: '已拒绝', color: colors.textSecondary },
+    failed: { text: '合并失败', color: colors.danger },
+  }[card.state];
   const decidable = card.state === 'open' || card.state === 'failed';
 
   const act = async (action: 'merge' | 'reject') => {
@@ -73,13 +71,13 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
               {f.path}
             </Text>
             <Text style={styles.counts}>
-              <Text style={{ color: GREEN }}>+{f.additions}</Text> <Text style={{ color: RED }}>−{f.deletions}</Text>
+              <Text style={{ color: colors.success }}>+{f.additions}</Text> <Text style={{ color: colors.danger }}>−{f.deletions}</Text>
             </Text>
           </View>
         ))}
         {card.files.length > shown.length && <Text style={styles.more}>另外 {card.files.length - shown.length} 个文件</Text>}
         <Text style={styles.total}>
-          共 {card.files.length} 个文件 · <Text style={{ color: GREEN }}>+{card.additions}</Text> <Text style={{ color: RED }}>−{card.deletions}</Text>
+          共 {card.files.length} 个文件 · <Text style={{ color: colors.success }}>+{card.additions}</Text> <Text style={{ color: colors.danger }}>−{card.deletions}</Text>
         </Text>
       </View>
 
@@ -94,7 +92,7 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
             onPress={confirmMerge}
             style={({ pressed }) => [styles.approve, busy !== null && styles.disabled, pressed && styles.pressed]}
           >
-            {busy === 'merge' ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.approveText}>{card.state === 'failed' ? '重试合并' : '同意合并'}</Text>}
+            {busy === 'merge' ? <ActivityIndicator color={colors.buttonText} /> : <Text style={styles.approveText}>{card.state === 'failed' ? '重试合并' : '同意合并'}</Text>}
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -115,7 +113,7 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   card: {
     minWidth: 270,
     gap: 10,
@@ -136,10 +134,10 @@ const styles = StyleSheet.create({
   counts: { fontSize: 12.5 },
   more: { fontSize: 12, color: colors.textSecondary },
   total: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  error: { fontSize: 12.5, lineHeight: 18, color: RED },
+  error: { fontSize: 12.5, lineHeight: 18, color: colors.danger },
   buttons: { flexDirection: 'row', gap: 8 },
-  approve: { flex: 1, height: 40, borderRadius: 20, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
-  approveText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  approve: { flex: 1, height: 40, borderRadius: 20, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' },
+  approveText: { color: colors.buttonText, fontSize: 14, fontWeight: '600' },
   reject: { height: 40, paddingHorizontal: 20, borderRadius: 20, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
   rejectText: { color: colors.text, fontSize: 14 },
   disabled: { opacity: 0.5 },

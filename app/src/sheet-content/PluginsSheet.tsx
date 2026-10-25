@@ -8,7 +8,7 @@ import type { IntegrationView, ResourceInfo } from '../protocol';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView } from '../sheets';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 type View_ = { kind: 'list' } | { kind: 'connect'; plugin: PluginInfo } | { kind: 'bind'; plugin: PluginInfo; integrationId: string };
 
@@ -18,6 +18,7 @@ type View_ = { kind: 'list' } | { kind: 'connect'; plugin: PluginInfo } | { kind
  * a project to follow deployments of).
  */
 export function PluginsSheet({ params }: { params: Record<string, string> }) {
+  const styles = useThemedStyles(createStyles);
   const { groups, integrations, integrationTypes, refreshIntegrations } = useStore();
   const group = groups.find((g) => g.id === params.groupId);
   const [view, setView] = useState<View_>({ kind: 'list' });
@@ -104,6 +105,8 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
 }
 
 function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBack(): void; onConnected(integration: IntegrationView): void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { api, integrationTypes, refreshIntegrations } = useStore();
   const info = integrationTypes.find((t) => t.type === plugin.type);
   const [config, setConfig] = useState<Record<string, string>>({});
@@ -175,6 +178,8 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
 }
 
 function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: PluginInfo; groupId: string; integrationId: string; onBack(): void; onDone(): void }) {
+  const { colors, colorScheme } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { api, integrations, groups, refreshIntegrations, upsertGroup } = useStore();
   const connections = integrations.filter((i) => i.type === plugin.type);
   const [currentId, setCurrentId] = useState(integrationId);
@@ -264,7 +269,8 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
             value={query}
             onChangeText={setQuery}
             placeholder="搜索仓库，或直接输入 所有者/仓库名"
-            placeholderTextColor="#A3A3A0"
+            placeholderTextColor={colors.placeholder}
+            keyboardAppearance={colorScheme}
             accessibilityLabel="搜索仓库"
             autoCapitalize="none"
             autoCorrect={false}
@@ -315,7 +321,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 30, gap: 16 },
   intro: { fontSize: 13, lineHeight: 19, color: colors.textSecondary, paddingHorizontal: 4 },
@@ -326,9 +332,9 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, color: colors.text },
   sub: { fontSize: 12, lineHeight: 17, color: colors.textSecondary },
   pill: { height: 32, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
-  pillOn: { backgroundColor: colors.text },
+  pillOn: { backgroundColor: colors.button },
   pillText: { fontSize: 13, color: colors.text },
-  pillTextOn: { color: '#FFFFFF' },
+  pillTextOn: { color: colors.buttonText },
   lockNote: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
   lockText: { fontSize: 12, color: colors.textSecondary },
   help: { gap: 6, padding: 14, borderRadius: 16, backgroundColor: colors.selected },
@@ -336,9 +342,9 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.text },
+  chipOn: { backgroundColor: colors.button },
   chipText: { fontSize: 13, color: colors.text },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: colors.buttonText },
   search: { height: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.selected, fontSize: 14, color: colors.text },
   loading: { padding: 20 },
   error: { padding: 16, fontSize: 13, color: colors.danger },

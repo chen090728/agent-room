@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BridgeStatus } from '../protocol';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { CheckIcon } from './Icons';
 import { Card, ErrorText, SectionLabel } from './ui';
 
@@ -16,6 +16,8 @@ const formatCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
  * to run there, and follows the connection until the bridge shows up.
  */
 export function BridgePairing({ memberId }: { memberId: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { api, settings } = useStore();
   const [code, setCode] = useState<{ code: string; expiresAt: number } | null>(null);
   const [status, setStatus] = useState<BridgeStatus | null>(null);
@@ -131,11 +133,11 @@ export function BridgePairing({ memberId }: { memberId: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { gap: 26 },
   section: { gap: 10 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  okDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#148A5A', alignItems: 'center', justifyContent: 'center' },
+  okDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
   statusText: { flex: 1, gap: 2 },
   statusTitle: { fontSize: 15, color: colors.text },
   sub: { fontSize: 12, lineHeight: 17, color: colors.textSecondary },

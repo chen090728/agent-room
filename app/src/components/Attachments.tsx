@@ -3,7 +3,7 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Attachment } from '../protocol';
 import { showMessage } from '../dialogs';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { FileIcon } from './Icons';
 
 export function formatSize(bytes: number): string {
@@ -14,6 +14,7 @@ export function formatSize(bytes: number): string {
 
 /** A thumbnail loaded through a short-lived signed link, so no custom request headers are needed. */
 function Thumbnail({ groupId, attachment, onPress }: { groupId: string; attachment: Attachment; onPress: () => void }) {
+  const styles = useThemedStyles(createStyles);
   const { api } = useStore();
   const [uri, setUri] = useState<string | null>(null);
 
@@ -41,6 +42,7 @@ function Thumbnail({ groupId, attachment, onPress }: { groupId: string; attachme
 
 /** The files of a message: images as thumbnails, everything else as a tappable chip. */
 export function Attachments({ groupId, attachments, align = 'flex-start' }: { groupId: string; attachments: Attachment[]; align?: 'flex-start' | 'flex-end' }) {
+  const styles = useThemedStyles(createStyles);
   const { api } = useStore();
   if (!api || !attachments.length) return null;
 
@@ -75,7 +77,7 @@ export function Attachments({ groupId, attachments, align = 'flex-start' }: { gr
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   list: { gap: 8 },
   image: { width: 220, height: 160, borderRadius: 16, backgroundColor: colors.selected },
   chip: {
