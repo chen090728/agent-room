@@ -5,7 +5,7 @@ import { useAppTranslation } from '../i18n';
 import type { BridgeStatus, GroupSummary } from '../protocol';
 import { useSheetClose } from '../sheets';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { Blob } from './Avatar';
 import { ChevronRightIcon } from './Icons';
 import { Card, SectionLabel } from './ui';
@@ -13,6 +13,7 @@ import { Card, SectionLabel } from './ui';
 /** The work assistants of a conversation, with whether their computer is connected. */
 export function BridgeMembers({ group }: { group: GroupSummary }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const { api, members } = useStore();
   const close = useSheetClose();
   const workers = group.members.map((m) => members.find((x) => x.id === m.id)).filter((m) => m?.type === 'bridge');
@@ -63,12 +64,12 @@ export function BridgeMembers({ group }: { group: GroupSummary }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   divider: { borderTopWidth: 1, borderTopColor: colors.divider },
   text: { flex: 1, minWidth: 0, gap: 2 },
   name: { fontSize: 15, color: colors.text },
   sub: { fontSize: 12, color: colors.textSecondary },
-  online: { color: '#148A5A' },
+  online: { color: colors.success },
 });

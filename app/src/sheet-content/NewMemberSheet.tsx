@@ -11,7 +11,7 @@ import { pickPicture } from '../photo';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView, useSheetClose } from '../sheets';
 import { useStore } from '../store';
-import { colors, shadows, type Avatar } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows, type Avatar } from '../theme';
 
 // The App's "chat assistant" with the mock switch off maps to this adapter;
 // its input fields come from the server, so new fields need no App change.
@@ -25,6 +25,7 @@ const WORK_TOOLS = [
 /** Sheet: create an assistant. `params.groupId` offers to add it to that group. */
 export function NewMemberSheet({ params }: { params: Record<string, string> }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const { api, adapters, groups, refreshGroups, filesEnabled } = useStore();
   const close = useSheetClose();
   const group = groups.find((g) => g.id === params.groupId);
@@ -234,7 +235,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 20, gap: 24 },
   section: { gap: 10 },
@@ -254,9 +255,9 @@ const styles = StyleSheet.create({
   switchSub: { fontSize: 12, color: colors.textSecondary },
   toolRow: { flexDirection: 'row', gap: 8, padding: 12 },
   toolChip: { flex: 1, height: 40, borderRadius: 20, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
-  toolChipOn: { backgroundColor: colors.text },
+  toolChipOn: { backgroundColor: colors.button },
   toolText: { fontSize: 14, color: colors.text },
-  toolTextOn: { color: '#FFFFFF' },
+  toolTextOn: { color: colors.buttonText },
   note: { fontSize: 12, lineHeight: 18, color: colors.textSecondary, paddingHorizontal: 4 },
   switchDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },

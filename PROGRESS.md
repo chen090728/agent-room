@@ -212,10 +212,17 @@
 
 - PR #12 把"最近一次运行总结"整段换掉了，任务 1–7 的总结只剩在 git 历史和各 PR 说明里；以后可以把它们压成几行放回来。
 
+## 深色模式（dark/theme-foundation）
+
+- 把 `dark/theme-foundation` 合并了最新 `main`（含 #11、#12）。合并没有冲突。页面颜色改走 `useTheme()`，根布局挂了 `ThemeProvider`，`app.json` 的 `userInterfaceStyle` 改为 `automatic`，状态栏样式跟着当前主题。
+- 设置里单独加了「外观」：跟随系统 / 浅色 / 深色。没有改已有界面文字，也没有动语言区块的位置（语言区块还不在这支上）。
+- 没加需要原生构建的依赖。动画仍在 UI 线程，`check:animations` 通过。
+- 验证：根目录 `npm test`（core 121、server 16、worker 19、bridge 14）通过；App `npm test` 30 通过；`tsc --noEmit` 通过；`check:animations` 61 个文件通过。没有在 Expo Go 里看过。手机对照清单在 PR #14：https://github.com/chen090728/agent-room/pull/14
+
 ## 中英双语（i18n/foundation）
 
-- 把 App 里用户看得到的中文换成 `t(key)`。启动时在 `app/src/app/_layout.tsx` 先 `await initI18n()`。设置页在「我」和「服务器」之间加了单独的「语言」一块（跟随系统 / 中文 / English），不放进外观。PR #14 的「外观」会插在同一位置的前面；后合并的一边把 `THEME_PREFERENCE_LABELS` 接到已有的 `settings.appearance.*`。颜色仍用 main 上的 `colors` / `shadows`。
+- 把 App 里用户看得到的中文换成 `t(key)`。启动时在 `app/src/app/_layout.tsx` 先 `await initI18n()`。等语言就绪的空白页放在 `ThemeProvider` 里面，背景用当前主题的 `colors.bg`。
 - 系统通知仍写中文 `content`，并带 `notice: { code, params }`。HTTP 看 `Accept-Language`（没有、或 Node 默认的 `*`，仍是中文）；WebSocket 的 `auth` / `subscribe` 可以带 `lang`。演示群欢迎语、模拟回复、种子成员的角色和人设有中英两套，名字和「演示群」不变。旧的数组格式 `config.replies` 继续可用。App 按 code 显示当前语言，不认识的 code 用 `content`。
-- 英文较长的地方只加了换行和收缩（`numberOfLines`、`flexShrink`、按钮允许两行），没有改颜色。
-- 和 main 合并时 `app/package.json` 的测试脚本和 `check:animations` 粘在一起少了逗号，已补上。
-- 测试：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）通过；`cd app && npm test` 35 通过；`cd app && npx tsc --noEmit` 通过；`app/scripts/check-animations.mjs` 通过。没有在 Expo Go 里看过。
+- 英文较长的地方只加了换行和收缩（`numberOfLines`、`flexShrink`），没有改颜色。颜色和样式用 #14 的 `useTheme()` / `useThemedStyles()`。
+- 合并了已进入 main 的 #14。冲突里留住深色模式的配色和主题逻辑，界面文字改走翻译。设置页顺序是「我」→「外观」→「语言」→「服务器」。外观标题和跟随系统 / 浅色 / 深色用已有的 `settings.appearance.*`；`THEME_PREFERENCE_LABELS` 仍留在 `app/src/theme/preference.ts`，设置页不再读它。语言仍是紧挨在外观后面的单独一块。
+- `app/package.json` 的测试脚本同时包含 `src/i18n/*.test.ts` 和 `src/theme/*.test.ts`。

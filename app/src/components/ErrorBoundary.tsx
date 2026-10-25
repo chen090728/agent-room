@@ -3,7 +3,7 @@ import { Component, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { recordError } from '../errorLog';
 import { useAppTranslation } from '../i18n';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 interface State {
   error: Error | null;
@@ -36,12 +36,13 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
-    return <ErrorView error={error} onReload={this.reload} onRetry={() => this.setState({ error: null })} />;
+    return <ErrorFallback error={error} onReload={() => void this.reload()} onRetry={() => this.setState({ error: null })} />;
   }
 }
 
-function ErrorView({ error, onReload, onRetry }: { error: Error; onReload(): void; onRetry(): void }) {
+function ErrorFallback({ error, onReload, onRetry }: { error: Error; onReload: () => void; onRetry: () => void }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.root}>
       <Text style={styles.title}>{t('error.title')}</Text>
@@ -58,13 +59,13 @@ function ErrorView({ error, onReload, onRetry }: { error: Error; onReload(): voi
         <Text style={styles.buttonText} numberOfLines={1}>{t('error.reload')}</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={onRetry} style={styles.secondary}>
-        <Text style={styles.secondaryText}>{t('error.retry')}</Text>
+        <Text style={styles.secondaryText} numberOfLines={1}>{t('error.retry')}</Text>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 22, paddingTop: 90, paddingBottom: 40, gap: 14 },
   title: { fontSize: 22, fontWeight: '600', color: colors.text },
   text: { fontSize: 14, lineHeight: 21, color: colors.textSecondary },
@@ -72,8 +73,8 @@ const styles = StyleSheet.create({
   boxContent: { padding: 14, gap: 10 },
   message: { fontSize: 14, lineHeight: 20, color: colors.danger },
   stack: { fontSize: 11, lineHeight: 16, color: colors.textSecondary, fontFamily: 'monospace' },
-  button: { height: 50, borderRadius: 25, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600', paddingHorizontal: 16 },
+  button: { height: 50, borderRadius: 25, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  buttonText: { color: colors.buttonText, fontSize: 16, fontWeight: '600' },
   secondary: { height: 44, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 14, color: colors.text },
 });

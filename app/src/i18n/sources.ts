@@ -7,11 +7,11 @@ type LeafKeys<T, P extends string = ''> = {
 /**
  * Where each catalog key is read from. Screens call `t(key)` instead of the old literal.
  *
- * `settings.appearance.*` is still hardcoded on branch `dark/theme-foundation`
- * (`THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts`). Whichever PR
- * merges second should wire those labels to these keys.
- * `settings.language.*` is its own block on the settings sheet, between "me"
- * and "server", immediately after where appearance will sit.
+ * `settings.appearance.*` is the appearance block on the settings sheet.
+ * `THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts` (from
+ * `dark/theme-foundation`) stays in that module; the sheet does not read it.
+ * `settings.language.*` is its own block immediately after appearance
+ * (me, appearance, language, server).
  */
 export const STRING_SOURCES: { [K in LeafKeys<Catalog>]: readonly string[] } = {
   'common.cancel': ["app/src/dialogs.ts"],
@@ -292,10 +292,10 @@ export const STRING_SOURCES: { [K in LeafKeys<Catalog>]: readonly string[] } = {
   'settings.errorUnhandled': ["app/src/sheet-content/SettingsSheet.tsx"],
   'settings.errorNote': ["app/src/sheet-content/SettingsSheet.tsx"],
   'settings.connectSave': ["app/src/sheet-content/SettingsSheet.tsx"],
-  'settings.appearance.title': ["dark/theme-foundation:app/src/theme/preference.ts"],
-  'settings.appearance.system': ["dark/theme-foundation:app/src/theme/preference.ts"],
-  'settings.appearance.light': ["dark/theme-foundation:app/src/theme/preference.ts"],
-  'settings.appearance.dark': ["dark/theme-foundation:app/src/theme/preference.ts"],
+  'settings.appearance.title': ["app/src/sheet-content/SettingsSheet.tsx"],
+  'settings.appearance.system': ["app/src/sheet-content/SettingsSheet.tsx"],
+  'settings.appearance.light': ["app/src/sheet-content/SettingsSheet.tsx"],
+  'settings.appearance.dark': ["app/src/sheet-content/SettingsSheet.tsx"],
   'settings.language.title': ["app/src/sheet-content/SettingsSheet.tsx"],
   'settings.language.system': ["app/src/sheet-content/SettingsSheet.tsx"],
   'settings.language.zh': ["app/src/sheet-content/SettingsSheet.tsx"],

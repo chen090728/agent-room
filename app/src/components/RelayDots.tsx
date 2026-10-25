@@ -1,7 +1,7 @@
 import Svg, { Circle } from 'react-native-svg';
 import { useAppTranslation } from '../i18n';
 import type { RelayState } from '../protocol';
-import { COLOR_HEX, colors } from '../theme';
+import { COLOR_HEX, useTheme } from '../theme';
 
 /**
  * One dot per allowed relay step: finished steps take the colour of the member
@@ -9,6 +9,7 @@ import { COLOR_HEX, colors } from '../theme';
  */
 export function RelayDots({ relay, r = 3, gap = 4 }: { relay: RelayState; r?: number; gap?: number }) {
   const { t } = useAppTranslation();
+  const { colors } = useTheme();
   const step = r * 2 + gap;
   const width = (relay.maxHops - 1) * step + r * 2;
   return (

@@ -4,7 +4,7 @@ import { separatorTime } from '../format';
 import { useAppTranslation } from '../i18n';
 import { renderNotice } from '../i18n/notice';
 import type { ChatRow } from '../outgoing';
-import { colors, shadows, type Avatar } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows, type Avatar } from '../theme';
 import { Attachments } from './Attachments';
 import { Blob } from './Avatar';
 import { DeploymentCard } from './DeploymentCard';
@@ -19,6 +19,7 @@ function sameRow(prev: { row: ChatRow; onRetry?: (clientKey: string) => void }, 
 
 export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: ChatRow; onRetry?: (clientKey: string) => void }) {
   const { t, i18n } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   if (row.kind === 'time') return <Text style={styles.time}>{separatorTime(row.at)}</Text>;
   const { message: m, avatar } = row;
   const body = renderNotice(m.notice, m.content, t, (key) => i18n.exists(key));
@@ -81,6 +82,7 @@ export const MessageItem = memo(function MessageItem({ row, onRetry }: { row: Ch
 
 export function TypingRow({ name, avatar }: { name: string; avatar: Avatar }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.typing}>
       <Blob avatar={avatar} size={28} />
@@ -91,7 +93,7 @@ export function TypingRow({ name, avatar }: { name: string; avatar: Avatar }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   time: { alignSelf: 'center', fontSize: 12, color: colors.textSecondary, marginVertical: 11 },
   system: {
     alignSelf: 'center',
@@ -107,12 +109,12 @@ const styles = StyleSheet.create({
   mine: {
     alignSelf: 'flex-end',
     maxWidth: '100%',
-    backgroundColor: colors.text,
+    backgroundColor: colors.mineBubble,
     borderRadius: 20,
     paddingHorizontal: 15,
     paddingVertical: 11,
   },
-  mineText: { color: '#FFFFFF', fontSize: 14, lineHeight: 22 },
+  mineText: { color: colors.mineBubbleText, fontSize: 14, lineHeight: 22 },
   sending: { opacity: 0.45 },
   delivery: { alignSelf: 'flex-end', fontSize: 11, lineHeight: 16, color: colors.textSecondary },
   failed: { alignSelf: 'flex-end', fontSize: 11, lineHeight: 16, color: colors.warning },
@@ -120,7 +122,7 @@ const styles = StyleSheet.create({
   sender: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   senderName: { fontSize: 12, color: colors.textSecondary },
   bubble: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.assistantBubble,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 20,
@@ -128,7 +130,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     boxShadow: shadows.card,
   },
-  bubbleText: { color: colors.text, fontSize: 14, lineHeight: 22 },
+  bubbleText: { color: colors.assistantBubbleText, fontSize: 14, lineHeight: 22 },
   typing: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 1, marginVertical: 11 },
   typingText: { fontSize: 13, color: colors.textSecondary },
 });

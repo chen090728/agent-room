@@ -20,9 +20,9 @@ Step 2 replaces the Chinese literals in the source files below with `t('key')` f
 
 ## Appearance and language rows
 
-`settings.appearance.*` matches `THEME_PREFERENCE_LABELS` on branch `dark/theme-foundation` (`app/src/theme/preference.ts`: 跟随系统 / 浅色 / 深色). That branch is not on main. Do not edit it or its files. `settings.appearance.title` (外观 / Appearance) is the section title; the branch itself only has the three choice labels. Whichever of the language PR and the appearance PR merges second should replace `THEME_PREFERENCE_LABELS` with these keys. The appearance block stays its own section.
+`settings.appearance.*` is the appearance section on the settings sheet. `settings.appearance.title` is 外观 / Appearance. The choices are `settings.appearance.system` (跟随系统 / System), `settings.appearance.light` (浅色 / Light), and `settings.appearance.dark` (深色 / Dark). The screen calls `t('settings.appearance.title')` and `t('settings.appearance.' + option)`. `THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts` (from `dark/theme-foundation`) still holds the Chinese literals for the theme module; the settings sheet does not read that constant. The appearance block stays its own section.
 
-`settings.language.*` is the language section on the settings sheet (语言 / Language, 跟随系统 / System, 中文, English). It is its own block between “我” and “服务器”, immediately after where appearance will sit, never inside it. The choice labels 中文 and English stay in their own language in both catalogs. `useLanguage()`: `preference` is `system` | `zh` | `en`, `setPreference` persists it, `language` is the resolved `zh` | `en`.
+`settings.language.*` is the language section on the settings sheet (语言 / Language, 跟随系统 / System, 中文, English). Section order is 我, then appearance, then language, then 服务器. Language is its own block immediately after appearance, never inside it. The choice labels 中文 and English stay in their own language in both catalogs. `useLanguage()`: `preference` is `system` | `zh` | `en`, `setPreference` persists it, `language` is the resolved `zh` | `en`.
 
 ## Translation notes
 
@@ -2067,39 +2067,39 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: 外观
 - en: Appearance
-- note: From branch `dark/theme-foundation` (`THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts`). Not on main. Do not edit that branch.
+- note: Appearance section title. `THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts` (branch `dark/theme-foundation`) is not read by the screen.
 - sources:
-  - dark/theme-foundation:app/src/theme/preference.ts
+  - app/src/sheet-content/SettingsSheet.tsx
 
 ### settings.appearance.system
 
 - zh: 跟随系统
 - en: System
-- note: From branch `dark/theme-foundation` (`THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts`). Not on main. Do not edit that branch.
+- note: Appearance choice. `THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts` (branch `dark/theme-foundation`) is not read by the screen.
 - sources:
-  - dark/theme-foundation:app/src/theme/preference.ts
+  - app/src/sheet-content/SettingsSheet.tsx
 
 ### settings.appearance.light
 
 - zh: 浅色
 - en: Light
-- note: From branch `dark/theme-foundation` (`THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts`). Not on main. Do not edit that branch.
+- note: Appearance choice. `THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts` (branch `dark/theme-foundation`) is not read by the screen.
 - sources:
-  - dark/theme-foundation:app/src/theme/preference.ts
+  - app/src/sheet-content/SettingsSheet.tsx
 
 ### settings.appearance.dark
 
 - zh: 深色
 - en: Dark
-- note: From branch `dark/theme-foundation` (`THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts`). Not on main. Do not edit that branch.
+- note: Appearance choice. `THEME_PREFERENCE_LABELS` in `app/src/theme/preference.ts` (branch `dark/theme-foundation`) is not read by the screen.
 - sources:
-  - dark/theme-foundation:app/src/theme/preference.ts
+  - app/src/sheet-content/SettingsSheet.tsx
 
 ### settings.language.title
 
 - zh: 语言
 - en: Language
-- note: New language row. Not shown by any screen yet.
+- note: Language section, its own block immediately after appearance.
 - sources:
   - app/src/sheet-content/SettingsSheet.tsx
 
@@ -2107,7 +2107,7 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: 跟随系统
 - en: System
-- note: New language row. Not shown by any screen yet.
+- note: Language section, its own block immediately after appearance.
 - sources:
   - app/src/sheet-content/SettingsSheet.tsx
 
@@ -2115,7 +2115,7 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: 中文
 - en: 中文
-- note: New language row. Not shown by any screen yet.
+- note: Language section, its own block immediately after appearance.
 - sources:
   - app/src/sheet-content/SettingsSheet.tsx
 
@@ -2123,7 +2123,7 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: English
 - en: English
-- note: New language row. Not shown by any screen yet.
+- note: Language section, its own block immediately after appearance.
 - sources:
   - app/src/sheet-content/SettingsSheet.tsx
 

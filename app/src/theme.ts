@@ -1,30 +1,35 @@
-export const colors = {
-  bg: '#F9F9F8',
-  homeBg: '#FBFBFA',
-  surface: '#FFFFFF',
-  text: '#1F1F1F',
-  textSecondary: '#6B6B6B',
-  icon: '#2A2A2A',
-  border: '#EDECE8',
-  hairline: 'rgba(0,0,0,0.05)',
-  divider: '#F0EFEB',
-  selected: '#EFEEEA',
-  switchOff: '#E3E2DE',
-  idleDot: '#DEDDD9',
-  overlay: 'rgba(20,20,20,0.22)',
-  warning: '#B4461D',
-  danger: '#C73C40',
-};
+/**
+ * Appearance tokens.
+ *
+ * `colors` and `shadows` stay the light palette so older imports keep working.
+ * Screens read the active palette from `useTheme()` (see `theme/ThemeProvider.tsx`);
+ * the light and dark values live in `theme/palette.ts`. Mac dots and avatar
+ * colors below do not change with the mode.
+ */
+export {
+  darkColors,
+  darkShadows,
+  lightColors,
+  lightColors as colors,
+  lightShadows,
+  lightShadows as shadows,
+  paletteFor,
+  statusBarFor,
+} from './theme/palette';
+export type { ColorScheme, ThemeColors, ThemeShadows } from './theme/palette';
 
-export const shadows = {
-  float: '0 6px 20px rgba(0,0,0,0.07)',
-  composer: '0 8px 24px rgba(0,0,0,0.07)',
-  card: '0 1px 2px rgba(0,0,0,0.03)',
-  button: '0 8px 24px rgba(0,0,0,0.14)',
-  segment: '0 1px 3px rgba(0,0,0,0.07)',
-  popover: '0 12px 32px rgba(0,0,0,0.12)',
-  bar: '0 8px 24px rgba(0,0,0,0.08)',
-};
+export { ThemeProvider, useTheme, useThemedStyles } from './theme/ThemeProvider';
+export type { Theme } from './theme/ThemeProvider';
+
+export {
+  THEME_PREFERENCE_LABELS,
+  THEME_STORAGE_KEY,
+  createThemePreferenceStore,
+  isThemePreference,
+  parseThemePreference,
+  resolveColorScheme,
+} from './theme/preference';
+export type { ThemeKeyValueStore, ThemePreference, ThemePreferenceStore } from './theme/preference';
 
 // Avatars are coloured blobs with white eyes: 12 shapes x 11 colours.
 export const AVATAR_SHAPES = ['circle', 'cloud', 'square', 'flower', 'egg', 'hexagon', 'triangle', 'capsule', 'star', 'diamond', 'drop', 'bean'] as const;

@@ -2,31 +2,20 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTranslation } from '../i18n';
 import { renderNotice } from '../i18n/notice';
 import type { DeploymentCard as Card } from '../protocol';
-import { colors, shadows } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { CheckIcon } from './Icons';
-
-const GREEN = '#148A5A';
-const RED = '#C73C40';
-
-const STATE_COLOR: Record<Card['state'], string> = {
-  queued: colors.textSecondary,
-  building: colors.warning,
-  ready: GREEN,
-  error: RED,
-};
-
-const STATE_KEY: Record<Card['state'], string> = {
-  queued: 'deployment.queued',
-  building: 'deployment.building',
-  ready: 'deployment.ready',
-  error: 'deployment.failed',
-};
 
 /** Where a merged change is being deployed: platform, project, progress and the preview link. */
 export function DeploymentCard({ card }: { card: Card }) {
   const { t, i18n } = useAppTranslation();
-  const stateText = t(STATE_KEY[card.state]);
-  const state = { text: stateText, color: STATE_COLOR[card.state] };
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const state = {
+    queued: { text: t('deployment.queued'), color: colors.textSecondary },
+    building: { text: t('deployment.building'), color: colors.warning },
+    ready: { text: t('deployment.ready'), color: colors.success },
+    error: { text: t('deployment.failed'), color: colors.danger },
+  }[card.state];
   const errorText = card.error ? renderNotice(card.errorNotice, card.error, t, (key) => i18n.exists(key)) : '';
   const open = () => {
     if (card.url && /^https?:\/\//i.test(card.url)) Linking.openURL(card.url).catch(() => {});
@@ -61,7 +50,7 @@ export function DeploymentCard({ card }: { card: Card }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   card: {
     gap: 6,
     padding: 14,
@@ -77,8 +66,8 @@ const styles = StyleSheet.create({
   state: { flexShrink: 1, fontSize: 12, fontWeight: '500' },
   title: { fontSize: 14, lineHeight: 20, color: colors.text },
   meta: { fontSize: 12, color: colors.textSecondary },
-  error: { fontSize: 12.5, lineHeight: 18, color: RED },
-  open: { alignSelf: 'flex-start', marginTop: 4, height: 36, paddingHorizontal: 18, borderRadius: 18, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
-  openText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  error: { fontSize: 12.5, lineHeight: 18, color: colors.danger },
+  open: { alignSelf: 'flex-start', marginTop: 4, height: 36, paddingHorizontal: 18, borderRadius: 18, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' },
+  openText: { color: colors.buttonText, fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.75 },
 });

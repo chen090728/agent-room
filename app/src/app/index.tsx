@@ -16,7 +16,7 @@ import { renderNotice } from '../i18n/notice';
 import type { GroupSummary, MemberView } from '../protocol';
 import { displayNickname } from '../storage';
 import { useStore } from '../store';
-import { colors, shadows } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Role label next to an assistant's name; mock assistants are marked as such. */
 export function roleLabel(role: string, type: string, t: (key: string) => string): string {
@@ -49,6 +49,8 @@ function previewText(g: GroupSummary, myName: string, t: ReturnType<typeof useAp
 /** The app opens here: every assistant (one-to-one chat) and group, newest first. */
 export default function HomeScreen() {
   const { t, i18n } = useAppTranslation();
+  const { colors, colorScheme } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { settingsLoaded, settings, groupsLoaded, groups, members, profile, api, refreshGroups, refreshMembers, status } = useStore();
   const insets = useSafeAreaInsets();
   const { rootRef, plusRef, onLayout, anchor, measure } = useBubbleAnchor(insets.top);
@@ -183,7 +185,8 @@ export default function HomeScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder={t('home.searchPlaceholder')}
-              placeholderTextColor="#A3A3A0"
+              placeholderTextColor={colors.placeholder}
+              keyboardAppearance={colorScheme}
               accessibilityLabel={t('home.searchA11y')}
               style={styles.searchInput}
               returnKeyType="search"
@@ -206,7 +209,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.homeBg },
   center: { alignItems: 'center', justifyContent: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
@@ -217,7 +220,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.04)',
+    borderColor: colors.roundBorder,
     boxShadow: shadows.float,
     alignItems: 'center',
     justifyContent: 'center',
@@ -233,7 +236,7 @@ const styles = StyleSheet.create({
   time: { flexShrink: 0, fontSize: 12, color: colors.textSecondary },
   rowBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 20 },
   preview: { flex: 1, minWidth: 0, fontSize: 14, color: colors.textSecondary },
-  pendingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#E0703F' },
+  pendingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.pending },
   empty: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, paddingVertical: 32, paddingHorizontal: 24 },
   bottom: { paddingHorizontal: 16, paddingTop: 8 },
   search: {
@@ -242,7 +245,7 @@ const styles = StyleSheet.create({
     gap: 8,
     height: 54,
     paddingHorizontal: 18,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.input,
     borderRadius: 27,
     borderWidth: 1,
     borderColor: colors.hairline,

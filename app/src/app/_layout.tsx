@@ -15,7 +15,7 @@ import { SheetProvider } from '../sheets';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { installGlobalErrorHandler } from '../errorLog';
 import { StoreProvider } from '../store';
-import { colors } from '../theme';
+import { ThemeProvider, useTheme } from '../theme';
 
 installGlobalErrorHandler();
 
@@ -29,6 +29,15 @@ const SHEETS = {
 };
 
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootShell />
+    </ThemeProvider>
+  );
+}
+
+function RootShell() {
+  const { colors, statusBar } = useTheme();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     void initI18n().then(
@@ -42,7 +51,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ErrorBoundary>
         <StoreProvider>
-          <StatusBar style="dark" />
+          <StatusBar style={statusBar} />
           <SheetProvider registry={SHEETS}>
           <Stack
             screenOptions={{

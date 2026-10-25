@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { BackIcon, CloseIcon } from './components/Icons';
 import { useAppTranslation } from './i18n';
-import { colors } from './theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from './theme';
 
 /*
  * Bottom sheets. They are not routes: they live in a host outside the scaled
@@ -92,6 +92,7 @@ export function SheetProvider({ registry, children }: { registry: Registry; chil
 
 /** The app itself: shrinks into rounded corners while a sheet is up. */
 function AppFrame({ children }: { children: ReactNode }) {
+  const styles = useThemedStyles(createStyles);
   const { backdrop } = useSheets();
   const style = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - 0.07 * backdrop.value }, { translateY: 6 * backdrop.value }],
@@ -123,6 +124,7 @@ const SheetGestureContext = createContext<SheetGestureValue | null>(null);
  * into dismissing the sheet. Outside a sheet it is an ordinary scroller.
  */
 export function SheetScrollView({ style, children, ...props }: ScrollViewProps) {
+  const styles = useThemedStyles(createStyles);
   const ctx = useContext(SheetGestureContext);
   const fallbackY = useSharedValue(0);
   const scrollY = ctx?.scrollY ?? fallbackY;
@@ -163,6 +165,7 @@ interface BottomSheetProps {
 
 function BottomSheet({ children, heightFraction = 1, lowerOpen, isTop, backdrop, registerClose, onClosed }: BottomSheetProps) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const { height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const sheetH = Math.round((screenH - insets.top - 10) * heightFraction);
@@ -289,6 +292,7 @@ const PanContext = createContext<ReturnType<typeof Gesture.Pan> | null>(null);
 /** With `onBack` the left button goes back (a step inside the sheet) instead of closing it. */
 export function SheetHeader({ title, right, onBack }: { title: string; right?: ReactNode; onBack?: () => void }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const close = useSheetClose();
   const pan = useContext(PanContext);
   const header = (
@@ -308,23 +312,23 @@ export function SheetHeader({ title, right, onBack }: { title: string; right?: R
   return pan ? <GestureDetector gesture={pan}>{header}</GestureDetector> : header;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   fill: { flex: 1 },
-  frameBack: { flex: 1, backgroundColor: '#000000' },
+  frameBack: { flex: 1, backgroundColor: colors.scrim },
   frame: { flex: 1, overflow: 'hidden', backgroundColor: colors.bg },
-  dim: { backgroundColor: '#000000' },
+  dim: { backgroundColor: colors.scrim },
   sheet: {
     position: 'absolute',
     left: 0,
     right: 0,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.sheet,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
-    boxShadow: '0 -8px 32px rgba(0,0,0,0.18)',
+    boxShadow: shadows.sheet,
   },
-  header: { paddingTop: 8, paddingBottom: 6, backgroundColor: colors.bg },
-  handle: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: '#D8D7D3', marginBottom: 6 },
+  header: { paddingTop: 8, paddingBottom: 6, backgroundColor: colors.sheet },
+  handle: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.handle, marginBottom: 6 },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 48 },
   closeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
   title: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 16, fontWeight: '600', color: colors.text, marginHorizontal: 8 },

@@ -4,7 +4,7 @@ import Svg, { Circle, Path, Polygon, RadialGradient, Stop } from 'react-native-s
 import { useAvatarImage } from '../avatarImages';
 import { useAppTranslation } from '../i18n';
 import { useStore } from '../store';
-import { COLOR_HEX, MAC_DOTS, type Avatar } from '../theme';
+import { COLOR_HEX, MAC_DOTS, useTheme, type Avatar } from '../theme';
 
 const STAR = '20,4 24.5,14.5 36,15.5 27.2,23 30,34.5 20,28.5 10,34.5 12.8,23 4,15.5 15.5,14.5';
 
@@ -152,11 +152,12 @@ export function Blob({ avatar, size }: { avatar: Avatar; size: number }) {
 
 /** The uploaded picture in a circle; the blob shows until it has loaded. */
 function PictureAvatar({ avatar, size }: { avatar: Avatar; size: number }) {
+  const { colors } = useTheme();
   const uri = useAvatarImage(avatar.image);
   return (
     <View style={{ width: size, height: size }}>
       <BlobShape avatar={avatar} size={size} />
-      {uri ? <Image source={{ uri }} style={[styles.abs, { width: size, height: size, borderRadius: size / 2, backgroundColor: '#E7E6E2' }]} /> : null}
+      {uri ? <Image source={{ uri }} style={[styles.abs, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.photoPlaceholder }]} /> : null}
     </View>
   );
 }
@@ -197,12 +198,13 @@ export function GroupAvatar({ avatars, size = 50 }: { avatars: Avatar[]; size?: 
  * leave it out to show the saved photo.
  */
 export function MeAvatar({ avatar, size = 38, photo }: { avatar: Avatar | null; size?: number; photo?: string | null }) {
+  const { colors } = useTheme();
   const gradient = 'me' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const { t } = useAppTranslation();
   const { profile } = useStore();
   const shownPhoto = photo === undefined ? profile.photo : photo;
   if (shownPhoto) {
-    return <Image accessibilityLabel={t('avatar.mineA11y')} source={{ uri: shownPhoto }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#E7E6E2' }} />;
+    return <Image accessibilityLabel={t('avatar.mineA11y')} source={{ uri: shownPhoto }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.photoPlaceholder }} />;
   }
   if (avatar) return <Blob avatar={avatar} size={size} />;
   return (

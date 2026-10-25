@@ -8,11 +8,12 @@ import { useAppTranslation } from '../i18n';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView, useSheetClose, useSheets } from '../sheets';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Sheet: create a group chat. */
 export function NewGroupSheet() {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const { api, members, upsertGroup } = useStore();
   const close = useSheetClose();
   const sheets = useSheets();
@@ -65,7 +66,7 @@ export function NewGroupSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 20, gap: 26 },
   section: { gap: 10 },

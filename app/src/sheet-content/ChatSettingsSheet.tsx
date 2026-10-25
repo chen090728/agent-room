@@ -7,11 +7,12 @@ import { ErrorText, PrimaryButton, SectionLabel } from '../components/ui';
 import { useAppTranslation } from '../i18n';
 import { SheetHeader, SheetScrollView, useSheets } from '../sheets';
 import { useStore } from '../store';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Sheet: the members of a group and the state of its work assistants. */
 export function ChatSettingsSheet({ params }: { params: Record<string, string> }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const id = params.groupId;
   const { api, groups, members, upsertGroup } = useStore();
   const sheets = useSheets();
@@ -74,7 +75,7 @@ export function ChatSettingsSheet({ params }: { params: Record<string, string> }
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 40, gap: 28 },
   section: { gap: 10 },

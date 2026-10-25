@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, type ViewInstance } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useAppTranslation } from '../i18n';
-import { colors, shadows } from '../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { ThinPlusIcon } from './Icons';
 
 const MENU_WIDTH = 220;
@@ -91,6 +91,7 @@ export function BubbleMenu({
   onVisibility?: (visible: boolean) => void;
 }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const [present, setPresent] = useState(false);
   const [interactive, setInteractive] = useState(false);
   const shown = useRef(false);
@@ -212,13 +213,13 @@ export function BubbleMenu({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, backgroundColor: 'transparent' },
   card: {
     position: 'absolute',
     zIndex: 31,
     overflow: 'hidden',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.menu,
     borderWidth: 1,
     borderColor: colors.hairline,
     boxShadow: shadows.popover,

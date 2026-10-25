@@ -15,7 +15,7 @@ import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView, useSheetClose } from '../sheets';
 import { displayNickname } from '../storage';
 import { useStore } from '../store';
-import { colors, shadows } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows, type ThemePreference } from '../theme';
 
 /**
  * The settings form: "me" (name and photo) and the server. `firstRun` is the
@@ -23,6 +23,7 @@ import { colors, shadows } from '../theme';
  */
 export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?: boolean; onDone(): void }) {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const { settings, status, profile, connect, disconnect, updateProfile } = useStore();
   const me = t('settings.me');
   const [nickname, setNickname] = useState(() => displayNickname(profile.nickname));
@@ -126,7 +127,9 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
           </View>
         </View>
 
-        {/* Own block. Appearance (PR #14) belongs immediately before this one, never wrapping it. */}
+        {/* Own block. A language section belongs beside this one, not inside it. */}
+        <AppearanceSection />
+        {/* Own block. Appearance belongs immediately before this one, never wrapping it. */}
         <LanguageSection />
 
         <View style={styles.section}>
@@ -216,13 +219,47 @@ export function SettingsContent({ firstRun: firstRunProp, onDone }: { firstRun?:
   );
 }
 
+const THEME_OPTIONS: ThemePreference[] = ['system', 'light', 'dark'];
+
+function AppearanceSection() {
+  const { preference, setPreference } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const { t } = useAppTranslation();
+  return (
+    <View style={styles.section}>
+      <SectionLabel>{t('settings.appearance.title')}</SectionLabel>
+      <View style={styles.segment}>
+        {THEME_OPTIONS.map((option) => {
+          const selected = preference === option;
+          const label = t(`settings.appearance.${option}`);
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              accessibilityState={{ selected }}
+              onPress={() => void setPreference(option)}
+              style={[styles.segmentItem, selected && styles.segmentOn]}
+            >
+              <Text style={selected ? styles.segmentOnText : styles.segmentOffText} numberOfLines={1}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 /** Language choice. Its own block, meant to sit after appearance, never inside it. */
 function LanguageSection() {
   const { preference, setPreference, t } = useLanguage();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.section}>
       <SectionLabel>{t('settings.language.title')}</SectionLabel>
-      <View style={styles.langSegment}>
+      <View style={styles.segment}>
         {languageChoices.map((option) => {
           const selected = preference === option;
           const label = t(`settings.language.${option}`);
@@ -233,9 +270,9 @@ function LanguageSection() {
               accessibilityLabel={label}
               accessibilityState={{ selected }}
               onPress={() => void setPreference(option)}
-              style={[styles.langItem, selected && styles.langOn]}
+              style={[styles.segmentItem, selected && styles.segmentOn]}
             >
-              <Text style={selected ? styles.langOnText : styles.langOffText} numberOfLines={1}>
+              <Text style={selected ? styles.segmentOnText : styles.segmentOffText} numberOfLines={1}>
                 {label}
               </Text>
             </Pressable>
@@ -252,7 +289,7 @@ export function SettingsSheet() {
   return <SettingsContent firstRun={false} onDone={() => close()} />;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   firstRunHeader: { alignItems: 'center', paddingTop: 22, paddingBottom: 6 },
   firstRunTitle: { fontSize: 16, fontWeight: '600', color: colors.text, textAlign: 'center', paddingHorizontal: 16 },
@@ -278,9 +315,9 @@ const styles = StyleSheet.create({
   signOut: { alignItems: 'center', justifyContent: 'center', height: 48 },
   signOutText: { fontSize: 14, color: colors.danger },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },
-  langSegment: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.selected, borderRadius: 16 },
-  langItem: { flex: 1, minWidth: 0, height: 42, paddingHorizontal: 4, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  langOn: { backgroundColor: colors.surface, boxShadow: shadows.segment },
-  langOnText: { fontSize: 14, fontWeight: '500', color: colors.text, textAlign: 'center' },
-  langOffText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+  segment: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.selected, borderRadius: 16 },
+  segmentItem: { flex: 1, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  segmentOn: { backgroundColor: colors.surface, boxShadow: shadows.segment },
+  segmentOnText: { fontSize: 14, fontWeight: '500', color: colors.text },
+  segmentOffText: { fontSize: 14, color: colors.textSecondary },
 });

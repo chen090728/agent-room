@@ -5,11 +5,12 @@ import { BridgePairing } from '../../components/BridgePairing';
 import { BackIcon } from '../../components/Icons';
 import { RoundButton, ScreenHeader } from '../../components/ui';
 import { useAppTranslation } from '../../i18n';
-import { colors } from '../../theme';
+import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../../theme';
 
 /** Connects a work assistant to a computer. */
 export default function PairScreen() {
   const { t } = useAppTranslation();
+  const styles = useThemedStyles(createStyles);
   const { memberId } = useLocalSearchParams<{ memberId: string }>();
   return (
     <SafeAreaView style={styles.root}>
@@ -26,7 +27,7 @@ export default function PairScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 18, paddingTop: 30, paddingBottom: 40 },
 });

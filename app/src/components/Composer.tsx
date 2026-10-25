@@ -6,7 +6,7 @@ import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, T
 import { showMessage } from '../dialogs';
 import { useAppTranslation } from '../i18n';
 import type { Attachment, GroupMemberRef } from '../protocol';
-import { colors, shadows } from '../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { formatSize } from './Attachments';
 import { Blob } from './Avatar';
 import { AtIcon, CloseIcon, FileIcon, ImageIcon, LinkIcon, PlusIcon, SendIcon } from './Icons';
@@ -49,6 +49,8 @@ export const Composer = memo(function Composer({
   onPlugins?: () => void;
 }) {
   const { t } = useAppTranslation();
+  const { colors, colorScheme } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [text, setText] = useState('');
   const [picker, setPicker] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -222,7 +224,8 @@ export const Composer = memo(function Composer({
           value={text}
           onChangeText={change}
           placeholder={placeholder ?? t('chat.placeholderGroup')}
-          placeholderTextColor="#A3A3A0"
+          placeholderTextColor={colors.placeholder}
+          keyboardAppearance={colorScheme}
           accessibilityLabel={t('composer.messageA11y')}
           style={styles.input}
           multiline
@@ -245,6 +248,7 @@ export const Composer = memo(function Composer({
 });
 
 function MenuItem({ label, onPress, children }: { label: string; onPress: () => void; children: ReactNode }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}>
       {children}
@@ -253,7 +257,7 @@ function MenuItem({ label, onPress, children }: { label: string; onPress: () => 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   wrap: { paddingHorizontal: 14 },
   popover: {
     maxHeight: 220,
@@ -293,7 +297,7 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
     paddingRight: 7,
     paddingVertical: 4,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.input,
     borderRadius: 26,
     borderWidth: 1,
     borderColor: colors.hairline,
@@ -306,7 +310,7 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     marginBottom: 3,
-    backgroundColor: colors.text,
+    backgroundColor: colors.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
