@@ -227,3 +227,10 @@
 - 合并了已进入 main 的 #14。冲突里留住深色模式的配色和主题逻辑，界面文字改走翻译。设置页顺序是「我」→「外观」→「语言」→「服务器」。外观标题和跟随系统 / 浅色 / 深色用已有的 `settings.appearance.*`；`THEME_PREFERENCE_LABELS` 仍留在 `app/src/theme/preference.ts`，设置页不再读它。语言仍是紧挨在外观后面的单独一块。
 - `app/package.json` 的测试脚本同时包含 `src/i18n/*.test.ts` 和 `src/theme/*.test.ts`。
 - 合并 #14 之后的测试：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）通过；`cd app && npm test` 46 通过；`cd app && npx tsc --noEmit` 通过；`app/scripts/check-animations.mjs` 72 个文件通过。没有在 Expo Go 里看过。
+
+## 深色配色改成中性深灰（dark/neutral-palette）
+
+- 从最新 `main`（已含 #14、#15）开了新分支，只改深色色板。浅色色值和浅色阴影没动，界面文字和翻译没动。
+- 深色页面改成接近黑色的中性灰（`#0E0E0F`），卡片 / 底部卡片 / 菜单高一档（`#1C1C1E`），输入框和助手气泡再高一档（`#2A2A2D`）。主要文字 `#F5F5F5`，次要文字和占位符 `#A1A1A6`。深色去掉投影；底部卡片和分段选中块没有自己的描边，所以用 1px 细线代替，浅色阴影还在。
+- 首页搜索栏在深色下用卡片那一档（浅色里卡片和输入框都是白的，看起来不变）。
+- 测试锁住了这些色值，并检查主要 / 次要文字在每一层背景上的对比度至少 4.5:1。根目录 `npm test`（core 126、server 18、worker 21、bridge 14）、App 46、`tsc --noEmit`、`check:animations`（72）通过。没有在 Expo Go 里看过。
