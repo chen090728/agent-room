@@ -1,5 +1,6 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import i18n from 'i18next';
 
 export type PhotoSource = 'library' | 'camera';
 
@@ -20,7 +21,7 @@ export async function pickPicture(source: PhotoSource): Promise<{ uri: string; d
   let result: ImagePicker.ImagePickerResult;
   if (source === 'camera') {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) throw new Error('没有相机权限。请在系统设置里允许 AgentHub 使用相机');
+    if (!permission.granted) throw new Error(i18n.t('photo.cameraDenied'));
     result = await ImagePicker.launchCameraAsync(options);
   } else {
     result = await ImagePicker.launchImageLibraryAsync(options);
@@ -36,6 +37,6 @@ export async function pickPicture(source: PhotoSource): Promise<{ uri: string; d
   }
   actions.push({ resize: { width: PHOTO_SIZE, height: PHOTO_SIZE } });
   const out = await ImageManipulator.manipulateAsync(asset.uri, actions, { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true });
-  if (!out.base64) throw new Error('处理图片失败');
+  if (!out.base64) throw new Error(i18n.t('photo.processFailed'));
   return { uri: out.uri, dataUri: `data:image/jpeg;base64,${out.base64}` };
 }

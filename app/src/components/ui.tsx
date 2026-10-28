@@ -34,7 +34,7 @@ export function ScreenHeader({ title, left }: { title: string; left?: ReactNode 
   return (
     <View style={styles.header}>
       <View style={styles.headerSide}>{left}</View>
-      <Text style={styles.headerTitle}>{title}</Text>
+      <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
       <View style={styles.headerSide} />
     </View>
   );
@@ -49,7 +49,7 @@ export function SectionLabel({ children, right }: { children: string; right?: Re
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.sectionLabelRow}>
-      <Text style={styles.sectionLabel}>{children}</Text>
+      <Text style={styles.sectionLabel} numberOfLines={2}>{children}</Text>
       {right}
     </View>
   );
@@ -95,7 +95,7 @@ export function PrimaryButton({
       onPress={onPress}
       style={({ pressed }) => [styles.primary, (disabled || busy) && styles.primaryDisabled, pressed && styles.pressed]}
     >
-      {busy ? <ActivityIndicator color={colors.buttonText} /> : <Text style={styles.primaryText}>{title}</Text>}
+      {busy ? <ActivityIndicator color={colors.buttonText} /> : <Text style={styles.primaryText} numberOfLines={1}>{title}</Text>}
     </Pressable>
   );
 }
@@ -144,7 +144,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   pressed: { opacity: 0.7 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14 },
   headerSide: { width: 48 },
-  headerTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+  headerTitle: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.text },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 20,
@@ -153,7 +153,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
     boxShadow: shadows.card,
   },
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, color: colors.textSecondary },
+  sectionLabel: { flexShrink: 1, fontSize: 12, color: colors.textSecondary },
   field: { paddingHorizontal: 16, paddingVertical: 12, gap: 4 },
   fieldDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
   fieldLabel: { fontSize: 12, color: colors.textSecondary },
@@ -168,7 +168,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
     boxShadow: shadows.button,
   },
   primaryDisabled: { opacity: 0.4 },
-  primaryText: { color: colors.buttonText, fontSize: 16, fontWeight: '600' },
+  primaryText: { color: colors.buttonText, fontSize: 16, fontWeight: '600', paddingHorizontal: 16 },
   switch: { width: 52, height: 32, borderRadius: 16, padding: 3, justifyContent: 'center' },
   knob: { width: 26, height: 26, borderRadius: 13 },
   check: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

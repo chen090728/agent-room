@@ -38,6 +38,8 @@ export interface PullRequestCard {
   deletions: number;
   state: CardState;
   error?: string;
+  /** Code for this app. Older payloads only have `error`. */
+  errorNotice?: Notice;
 }
 
 export type DeployState = 'queued' | 'building' | 'ready' | 'error';
@@ -58,11 +60,19 @@ export interface DeploymentCard {
   url?: string;
   deployId?: string;
   error?: string;
+  /** Code for this app. Older payloads only have `error`. */
+  errorNotice?: Notice;
   startedAt: number;
   updatedAt: number;
 }
 
 export type Card = PullRequestCard | DeploymentCard;
+
+/** A stable sentence id from the server. `content` is the Chinese fallback. */
+export interface Notice {
+  code: string;
+  params?: Record<string, string | number>;
+}
 
 export interface Message {
   id: string;
@@ -71,6 +81,8 @@ export interface Message {
   senderId: string | null;
   senderName: string;
   content: string;
+  /** Set on system notices and a few member lines. Missing on older messages. */
+  notice?: Notice | null;
   attachments?: Attachment[];
   card?: Card | null;
   rootId: string;

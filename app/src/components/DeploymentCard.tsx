@@ -1,30 +1,36 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAppTranslation } from '../i18n';
+import { renderNotice } from '../i18n/notice';
 import type { DeploymentCard as Card } from '../protocol';
 import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { CheckIcon } from './Icons';
 
 /** Where a merged change is being deployed: platform, project, progress and the preview link. */
 export function DeploymentCard({ card }: { card: Card }) {
+  const { t, i18n } = useAppTranslation();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const state = {
-    queued: { text: '排队中', color: colors.textSecondary },
-    building: { text: '部署中', color: colors.warning },
-    ready: { text: '已上线', color: colors.success },
-    error: { text: '部署失败', color: colors.danger },
+    queued: { text: t('deployment.queued'), color: colors.textSecondary },
+    building: { text: t('deployment.building'), color: colors.warning },
+    ready: { text: t('deployment.ready'), color: colors.success },
+    error: { text: t('deployment.failed'), color: colors.danger },
   }[card.state];
+  const errorText = card.error ? renderNotice(card.errorNotice, card.error, t, (key) => i18n.exists(key)) : '';
   const open = () => {
     if (card.url && /^https?:\/\//i.test(card.url)) Linking.openURL(card.url).catch(() => {});
   };
 
   return (
-    <View style={styles.card} accessibilityLabel={`${card.platformLabel} 部署 ${card.projectName}：${state.text}`}>
+    <View style={styles.card} accessibilityLabel={t('deployment.a11y', { platform: card.platformLabel, project: card.projectName, state: state.text })}>
       <View style={styles.top}>
         <View style={[styles.dot, { backgroundColor: state.color }]}>{card.state === 'ready' && <CheckIcon size={9} />}</View>
         <Text style={styles.platform} numberOfLines={1}>
           {card.platformLabel} · {card.projectName}
         </Text>
-        <Text style={[styles.state, { color: state.color }]}>{state.text}</Text>
+        <Text style={[styles.state, { color: state.color }]} numberOfLines={1}>
+          {state.text}
+        </Text>
       </View>
       <Text style={styles.title} numberOfLines={2}>
         {card.title}
@@ -32,10 +38,12 @@ export function DeploymentCard({ card }: { card: Card }) {
       <Text style={styles.meta}>
         {card.branch} · {card.commit.slice(0, 7)}
       </Text>
-      {card.state === 'error' && card.error ? <Text style={styles.error}>{card.error}</Text> : null}
+      {card.state === 'error' && errorText ? <Text style={styles.error}>{errorText}</Text> : null}
       {card.state === 'ready' && card.url ? (
-        <Pressable accessibilityRole="link" accessibilityLabel="打开预览" onPress={open} style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
-          <Text style={styles.openText}>打开预览</Text>
+        <Pressable accessibilityRole="link" accessibilityLabel={t('deployment.openPreview')} onPress={open} style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
+          <Text style={styles.openText} numberOfLines={1}>
+            {t('deployment.openPreview')}
+          </Text>
         </Pressable>
       ) : null}
     </View>
@@ -55,7 +63,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 14, height: 14, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   platform: { flex: 1, minWidth: 0, fontSize: 12, color: colors.textSecondary },
-  state: { fontSize: 12, fontWeight: '500' },
+  state: { flexShrink: 1, fontSize: 12, fontWeight: '500' },
   title: { fontSize: 14, lineHeight: 20, color: colors.text },
   meta: { fontSize: 12, color: colors.textSecondary },
   error: { fontSize: 12.5, lineHeight: 18, color: colors.danger },

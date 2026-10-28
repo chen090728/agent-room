@@ -1,3 +1,4 @@
+import { DEPLOY_CANCELED, deployStageFailed } from '../../copy.js';
 import type { DeployStatus, IntegrationType } from '../types.js';
 import { PlatformClient } from './http.js';
 
@@ -13,11 +14,13 @@ function toStatus(d: any): DeployStatus {
       : stage.name === 'queued'
         ? 'queued'
         : 'building';
+  const failure = state === 'error' ? (stage.status === 'canceled' ? DEPLOY_CANCELED : deployStageFailed(stage.name ?? '构建', 'Cloudflare')) : undefined;
   return {
     state,
     id: d?.id,
     url: d?.url ?? undefined,
-    error: state === 'error' ? (stage.status === 'canceled' ? '部署被取消了' : `部署在「${stage.name ?? '构建'}」这一步失败了，请到 Cloudflare 查看日志`) : undefined,
+    error: failure?.content,
+    errorNotice: failure?.notice,
   };
 }
 

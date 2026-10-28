@@ -1,4 +1,6 @@
 export * from './types.js';
+export * from './locale.js';
+export * from './copy.js';
 export * from './sql.js';
 export * from './crypto.js';
 export * from './mentions.js';

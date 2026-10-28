@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ApiError } from '../api';
 import { confirmAction, showMessage } from '../dialogs';
+import { useAppTranslation } from '../i18n';
+import { renderNotice } from '../i18n/notice';
 import type { Message, PullRequestCard as Card } from '../protocol';
 import { useStore } from '../store';
 import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
@@ -13,16 +16,18 @@ const MAX_FILES_SHOWN = 5;
  * changed, and buttons to merge or reject. Only a tap here merges anything.
  */
 export function PullRequestCard({ message, card }: { message: Message; card: Card }) {
+  const { t, i18n } = useAppTranslation();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { api, dispatch } = useStore();
   const [busy, setBusy] = useState<'merge' | 'reject' | null>(null);
   const state = {
-    open: { text: '等你确认', color: colors.warning },
-    merged: { text: '已合并', color: colors.success },
-    closed: { text: '已拒绝', color: colors.textSecondary },
-    failed: { text: '合并失败', color: colors.danger },
+    open: { text: t('pr.open'), color: colors.warning },
+    merged: { text: t('pr.merged'), color: colors.success },
+    closed: { text: t('pr.closed'), color: colors.textSecondary },
+    failed: { text: t('pr.failed'), color: colors.danger },
   }[card.state];
+  const exists = (key: string) => i18n.exists(key);
   const decidable = card.state === 'open' || card.state === 'failed';
 
   const act = async (action: 'merge' | 'reject') => {
@@ -32,7 +37,8 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
       const next = await api.cardAction(message.groupId, message.id, action);
       dispatch({ type: 'chat', event: { type: 'message_updated', message: next } });
     } catch (e) {
-      showMessage(action === 'merge' ? '合并失败' : '操作失败', (e as Error).message);
+      const detail = e instanceof ApiError && e.notice ? renderNotice(e.notice, e.message, t, exists) : (e as Error).message;
+      showMessage(action === 'merge' ? t('pr.failed') : t('common.actionFailed'), detail);
     } finally {
       setBusy(null);
     }
@@ -40,9 +46,9 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
 
   const confirmMerge = async () => {
     const ok = await confirmAction({
-      title: `合并 #${card.number}？`,
-      message: `「${card.title}」会合并进 ${card.repo} 的 ${card.base} 分支。`,
-      confirmText: '同意合并',
+      title: t('pr.confirmTitle', { number: card.number }),
+      message: t('pr.confirmMessage', { title: card.title, repo: card.repo, base: card.base }),
+      confirmText: t('pr.confirm'),
     });
     if (ok) await act('merge');
   };
@@ -54,13 +60,15 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
   const shown = card.files.slice(0, MAX_FILES_SHOWN);
 
   return (
-    <View style={styles.card} accessibilityLabel={`修改建议 #${card.number}：${card.title}，${state.text}`}>
+    <View style={styles.card} accessibilityLabel={t('pr.a11y', { number: card.number, title: card.title, state: state.text })}>
       <View style={styles.top}>
         <BranchIcon />
         <Text style={styles.repo} numberOfLines={1}>
           {card.repo} · #{card.number}
         </Text>
-        <Text style={[styles.state, { color: state.color }]}>{state.text}</Text>
+        <Text style={[styles.state, { color: state.color }]} numberOfLines={1}>
+          {state.text}
+        </Text>
       </View>
       <Text style={styles.title}>{card.title}</Text>
 
@@ -75,39 +83,40 @@ export function PullRequestCard({ message, card }: { message: Message; card: Car
             </Text>
           </View>
         ))}
-        {card.files.length > shown.length && <Text style={styles.more}>另外 {card.files.length - shown.length} 个文件</Text>}
+        {card.files.length > shown.length && <Text style={styles.more}>{t('pr.moreFiles', { count: card.files.length - shown.length })}</Text>}
         <Text style={styles.total}>
-          共 {card.files.length} 个文件 · <Text style={{ color: colors.success }}>+{card.additions}</Text> <Text style={{ color: colors.danger }}>−{card.deletions}</Text>
+          {t('pr.summary', { count: card.files.length })}
+          <Text style={{ color: colors.success }}>+{card.additions}</Text> <Text style={{ color: colors.danger }}>−{card.deletions}</Text>
         </Text>
       </View>
 
-      {card.state === 'failed' && card.error ? <Text style={styles.error}>{card.error}</Text> : null}
+      {card.state === 'failed' && card.error ? <Text style={styles.error}>{renderNotice(card.errorNotice, card.error, t, exists)}</Text> : null}
 
       {decidable && (
         <View style={styles.buttons}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="同意合并"
+            accessibilityLabel={t('pr.confirm')}
             disabled={busy !== null}
             onPress={confirmMerge}
             style={({ pressed }) => [styles.approve, busy !== null && styles.disabled, pressed && styles.pressed]}
           >
-            {busy === 'merge' ? <ActivityIndicator color={colors.buttonText} /> : <Text style={styles.approveText}>{card.state === 'failed' ? '重试合并' : '同意合并'}</Text>}
+            {busy === 'merge' ? <ActivityIndicator color={colors.buttonText} /> : <Text style={styles.approveText} numberOfLines={1}>{card.state === 'failed' ? t('pr.retry') : t('pr.confirm')}</Text>}
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="拒绝"
+            accessibilityLabel={t('pr.reject')}
             disabled={busy !== null}
             onPress={() => act('reject')}
             style={({ pressed }) => [styles.reject, busy !== null && styles.disabled, pressed && styles.pressed]}
           >
-            {busy === 'reject' ? <ActivityIndicator color={colors.text} /> : <Text style={styles.rejectText}>拒绝</Text>}
+            {busy === 'reject' ? <ActivityIndicator color={colors.text} /> : <Text style={styles.rejectText} numberOfLines={1}>{t('pr.reject')}</Text>}
           </Pressable>
         </View>
       )}
 
       <Pressable accessibilityRole="link" onPress={openOnGitHub} style={styles.linkRow}>
-        <Text style={styles.link}>在 GitHub 查看</Text>
+        <Text style={styles.link}>{t('pr.viewOnGitHub')}</Text>
       </Pressable>
     </View>
   );
@@ -126,7 +135,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   repo: { flex: 1, minWidth: 0, fontSize: 12, color: colors.textSecondary },
-  state: { fontSize: 12, fontWeight: '500' },
+  state: { flexShrink: 1, fontSize: 12, fontWeight: '500' },
   title: { fontSize: 15, fontWeight: '500', lineHeight: 21, color: colors.text },
   files: { gap: 6, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.divider },
   fileRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

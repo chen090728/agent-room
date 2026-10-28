@@ -1,3 +1,5 @@
+import { localizedField } from '../copy.js';
+import type { AppLanguage } from '../locale.js';
 import type { MemberAdapter, ReplyContext } from './types.js';
 
 /**
@@ -8,17 +10,34 @@ import type { MemberAdapter, ReplyContext } from './types.js';
  * - replies:     JSON array of reply templates; {sender} is replaced
  * - mentionRate: chance (0–1) of handing over to another member
  */
-const GENERIC_REPLIES = [
-  '收到，{sender}。我按自己的理解说两句：先把目标说清楚，再定下一步。',
-  '这个问题挺有意思，我的看法是先做一个最小版本试试。',
-  '同意{sender}的方向，不过细节上还可以再想想。',
-  '我补充一点：别忘了考虑用户第一次使用时的感受。',
-  '好的，这部分我来跟进。',
-];
+const GENERIC_REPLIES: Record<AppLanguage, string[]> = {
+  zh: [
+    '收到，{sender}。我按自己的理解说两句：先把目标说清楚，再定下一步。',
+    '这个问题挺有意思，我的看法是先做一个最小版本试试。',
+    '同意{sender}的方向，不过细节上还可以再想想。',
+    '我补充一点：别忘了考虑用户第一次使用时的感受。',
+    '好的，这部分我来跟进。',
+  ],
+  en: [
+    "Got it, {sender}. Here's how I see it: name the goal, then decide the next step.",
+    "Interesting question. I'd try the smallest version first.",
+    "I agree with {sender}'s direction, though the details could use another pass.",
+    'One more thing: think about how this feels the first time someone uses it.',
+    "Okay, I'll follow up on this part.",
+  ],
+};
 
-const GREETINGS = ['你好呀！我是{self}，{persona}。', '你好～我是{self}，{persona}，有什么想聊的？'];
+const GREETINGS: Record<AppLanguage, string[]> = {
+  zh: ['你好呀！我是{self}，{persona}。', '你好～我是{self}，{persona}，有什么想聊的？'],
+  en: ["Hi, I'm {self}, {persona}.", "Hi, I'm {self} — {persona}. What should we talk about?"],
+};
 
-const HANDOVERS = ['@{name} 你怎么看？', '@{name} 你来补充一下？', '@{name} 这块你更熟，交给你。', '@{name} 有不同意见吗？'];
+const HANDOVERS: Record<AppLanguage, string[]> = {
+  zh: ['@{name} 你怎么看？', '@{name} 你来补充一下？', '@{name} 这块你更熟，交给你。', '@{name} 有不同意见吗？'],
+  en: ['@{name} what do you think?', '@{name} can you add to that?', '@{name} you know this better — over to you.', '@{name} do you see it differently?'],
+};
+
+const PERSONA_FALLBACK: Record<AppLanguage, string> = { zh: '很高兴认识你', en: 'nice to meet you' };
 
 export interface MockOptions {
   random?: () => number;
@@ -39,37 +58,55 @@ export function createMockAdapter(opts: MockOptions = {}): MemberAdapter {
       const [min, max] = opts.delayMs ?? [0, 0];
       if (max > 0) await sleep(min + random() * (max - min), ctx.signal);
 
-      const pool = parsePool(config.replies) ?? GENERIC_REPLIES;
+      const lang = ctx.language ?? 'zh';
+      const pool = parsePool(config.replies, lang) ?? GENERIC_REPLIES[lang];
       // Only greet the human, so members don't keep greeting each other.
       const isGreeting = ctx.trigger.senderKind === 'user' && /你好|您好|hello|\bhi\b|嗨|哈喽/i.test(ctx.trigger.content);
-      const persona = ctx.self.persona.split(/[，,。.!！？?\n]/)[0].trim() || '很高兴认识你';
-      let text = (isGreeting ? pick(GREETINGS) : pick(pool))
+      const personaSource = localizedField(ctx.self.persona, config.personaI18n, lang);
+      const persona = personaSource.split(/[，,。.!！？?\n]/)[0].trim() || PERSONA_FALLBACK[lang];
+      let text = (isGreeting ? pick(GREETINGS[lang]) : pick(pool))
         .replaceAll('{sender}', ctx.trigger.senderName)
         .replaceAll('{self}', ctx.self.name)
         .replaceAll('{persona}', persona);
 
       // Mock members cannot read files, but they can say they got them (handy for demos and tests).
       const files = ctx.trigger.attachments ?? [];
-      if (files.length) text = `收到你发的${files.length > 1 ? `${files.length} 个文件` : '文件'}：${files.map((f) => f.name).join('、')}。 ${text}`;
+      if (files.length) {
+        const names = files.map((f) => f.name).join(lang === 'en' ? ', ' : '、');
+        const lead =
+          lang === 'en'
+            ? `Got your ${files.length > 1 ? `${files.length} files` : 'file'}: ${names}.`
+            : `收到你发的${files.length > 1 ? `${files.length} 个文件` : '文件'}：${names}。`;
+        text = `${lead} ${text}`;
+      }
 
       const rate = clamp(Number(config.mentionRate ?? 0.6));
       const candidates = ctx.others.filter((o) => !o.isHuman).map((o) => o.name);
       if (candidates.length && random() < rate) {
-        text += ' ' + pick(HANDOVERS).replace('{name}', pick(candidates));
+        text += ' ' + pick(HANDOVERS[lang]).replace('{name}', pick(candidates));
       }
       return text;
     },
   };
 }
 
-function parsePool(raw: string | undefined): string[] | undefined {
+/** A JSON array is used for every language. An object `{ zh, en }` follows the request, then zh, then en. */
+export function parsePool(raw: string | undefined, lang: AppLanguage): string[] | undefined {
   if (!raw) return undefined;
   try {
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) && arr.length && arr.every((s) => typeof s === 'string') ? arr : undefined;
+    const parsed = JSON.parse(raw) as unknown;
+    if (isStringList(parsed)) return parsed;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const packs = parsed as Record<string, unknown>;
+    const chosen = packs[lang] ?? packs.zh ?? packs.en;
+    return isStringList(chosen) ? chosen : undefined;
   } catch {
     return undefined;
   }
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string');
 }
 
 function clamp(n: number): number {

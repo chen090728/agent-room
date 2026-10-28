@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddPersonIcon } from '../components/Icons';
 import { MemberChecklist } from '../components/MemberChecklist';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
+import { useAppTranslation } from '../i18n';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView, useSheetClose, useSheets } from '../sheets';
 import { useStore } from '../store';
@@ -11,6 +12,7 @@ import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Sheet: create a group chat. */
 export function NewGroupSheet() {
+  const { t } = useAppTranslation();
   const styles = useThemedStyles(createStyles);
   const { api, members, upsertGroup } = useStore();
   const close = useSheetClose();
@@ -40,24 +42,24 @@ export function NewGroupSheet() {
   return (
     <View style={styles.root}>
       <KeyboardAvoider style={styles.root}>
-        <SheetHeader title="新建群聊" />
+        <SheetHeader title={t('common.newGroup')} />
         <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Card>
-            <FieldRow first label="群名" value={name} onChangeText={setName} placeholder="例如：产品讨论组" maxLength={40} />
+            <FieldRow first label={t('group.name')} value={name} onChangeText={setName} placeholder={t('group.namePlaceholder')} maxLength={40} />
           </Card>
 
           <View style={styles.section}>
-            <SectionLabel>选择成员</SectionLabel>
+            <SectionLabel>{t('group.members')}</SectionLabel>
             {members.length > 0 && <MemberChecklist members={members} selected={selected} onToggle={toggle} />}
             <Pressable accessibilityRole="button" onPress={() => sheets.open('member-new')} style={styles.addRow}>
               <AddPersonIcon size={20} />
-              <Text style={styles.addText}>新建助手</Text>
+              <Text style={styles.addText}>{t('common.newAssistant')}</Text>
             </Pressable>
           </View>
         </SheetScrollView>
         <View style={styles.footer}>
           <ErrorText>{error}</ErrorText>
-          <PrimaryButton title="创建群聊" onPress={create} disabled={!name.trim()} busy={busy} />
+          <PrimaryButton title={t('group.create')} onPress={create} disabled={!name.trim()} busy={busy} />
         </View>
       </KeyboardAvoider>
     </View>

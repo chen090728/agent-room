@@ -1,3 +1,4 @@
+import { DEPLOY_CANCELED, deployPlatformFailed } from '../../copy.js';
 import type { DeployStatus, IntegrationType } from '../types.js';
 import { PlatformClient } from './http.js';
 
@@ -14,7 +15,8 @@ function toStatus(raw: any): DeployStatus {
         : s === 'created'
           ? 'queued'
           : 'building';
-  return { state, id: d?.id, error: state === 'error' ? (s === 'canceled' ? '部署被取消了' : '部署失败，请到 Render 查看日志') : undefined };
+  const failure = state === 'error' ? (s === 'canceled' ? DEPLOY_CANCELED : deployPlatformFailed('Render')) : undefined;
+  return { state, id: d?.id, error: failure?.content, errorNotice: failure?.notice };
 }
 
 export function createRenderIntegration(fetchImpl: typeof fetch = fetch): IntegrationType {

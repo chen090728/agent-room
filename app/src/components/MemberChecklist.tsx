@@ -32,7 +32,7 @@ export function MemberChecklist({
             >
               <Blob avatar={m.avatar} size={34} />
               <View style={styles.text}>
-                <Text style={styles.name}>{m.name}</Text>
+                <Text style={styles.name} numberOfLines={1}>{m.name}</Text>
                 <Text style={styles.sub} numberOfLines={1}>
                   {m.role ? `${m.role} · ` : ''}
                   {m.typeLabel}
@@ -53,6 +53,6 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 56 },
   divider: { height: 1, backgroundColor: colors.divider, marginLeft: 60 },
   text: { flex: 1, minWidth: 0, gap: 2 },
-  name: { fontSize: 15, color: colors.text },
+  name: { flexShrink: 1, fontSize: 15, color: colors.text },
   sub: { fontSize: 12, color: colors.textSecondary },
 });

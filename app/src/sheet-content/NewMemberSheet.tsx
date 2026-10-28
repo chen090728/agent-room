@@ -6,6 +6,7 @@ import { AvatarPicker } from '../components/AvatarPicker';
 import { LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel, Switch } from '../components/ui';
 import { showMessage } from '../dialogs';
+import { useAppTranslation } from '../i18n';
 import { pickPicture } from '../photo';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView, useSheetClose } from '../sheets';
@@ -23,6 +24,7 @@ const WORK_TOOLS = [
 
 /** Sheet: create an assistant. `params.groupId` offers to add it to that group. */
 export function NewMemberSheet({ params }: { params: Record<string, string> }) {
+  const { t } = useAppTranslation();
   const styles = useThemedStyles(createStyles);
   const { api, adapters, groups, refreshGroups, filesEnabled } = useStore();
   const close = useSheetClose();
@@ -50,7 +52,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
       const picked = await pickPicture('library');
       if (picked) setPicture({ uri: picked.uri });
     } catch (e) {
-      showMessage('没能选择图片', (e as Error).message);
+      showMessage(t('member.pickFailed'), (e as Error).message);
     }
   };
 
@@ -72,11 +74,11 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
       if (picture && filesEnabled) {
         try {
           const direct = (await api.groups()).find((g) => g.kind === 'direct' && g.members[0]?.id === member.id);
-          if (!direct) throw new Error('找不到这个助手的单聊');
+          if (!direct) throw new Error(t('member.directMissing'));
           const file = await api.upload(direct.id, { uri: picture.uri, name: 'avatar.jpg', mime: 'image/jpeg' });
           await api.setAvatarImage(member.id, { groupId: direct.id, fileId: file.id });
         } catch (e) {
-          showMessage('助手已创建，但头像图片没传上去', (e as Error).message);
+          showMessage(t('member.avatarUploadFailed'), (e as Error).message);
         }
       }
 
@@ -95,51 +97,51 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
 
   return (
     <KeyboardAvoider style={styles.root}>
-      <SheetHeader title="新建助手" />
+      <SheetHeader title={t('common.newAssistant')} />
       <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <AvatarPicker value={avatar} onChange={(a) => { setAvatar(a); }} preview={<AnimatedBlob avatar={avatar} size={104} picture={picture?.uri} />} />
 
         {filesEnabled && (
           <View style={styles.pictureRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="上传图片" onPress={choosePicture} style={styles.pictureButton}>
-              <Text style={styles.pictureText}>上传图片作为头像</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('member.uploadA11y')} onPress={choosePicture} style={styles.pictureButton}>
+              <Text style={styles.pictureText} numberOfLines={2}>{t('member.upload')}</Text>
             </Pressable>
             {picture && (
-              <Pressable accessibilityRole="button" accessibilityLabel="不用图片" onPress={() => setPicture(null)} style={styles.pictureButton}>
-                <Text style={styles.pictureText}>不用图片</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('member.removePicture')} onPress={() => setPicture(null)} style={styles.pictureButton}>
+                <Text style={styles.pictureText} numberOfLines={2}>{t('member.removePicture')}</Text>
               </Pressable>
             )}
           </View>
         )}
 
         <Card>
-          <FieldRow first label="名字" value={name} onChangeText={setName} placeholder="例如：小青" maxLength={20} />
-          <FieldRow label="角色标签" value={role} onChangeText={setRole} placeholder="例如：产品经理" maxLength={20} />
+          <FieldRow first label={t('member.name')} value={name} onChangeText={setName} placeholder={t('member.namePlaceholder')} maxLength={20} />
+          <FieldRow label={t('member.role')} value={role} onChangeText={setRole} placeholder={t('member.rolePlaceholder')} maxLength={20} />
           <FieldRow
-            label="人设"
+            label={t('member.persona')}
             value={persona}
             onChangeText={setPersona}
-            placeholder="它是谁、怎么说话、擅长什么。比如：挑剔的审查员，发现问题就 @ 负责的人。"
+            placeholder={t('member.personaPlaceholder')}
             multiline
             maxLength={2000}
           />
         </Card>
 
         <View style={styles.section}>
-          <SectionLabel>类型</SectionLabel>
+          <SectionLabel>{t('member.type')}</SectionLabel>
           <View style={styles.segment}>
-            <Pressable style={[styles.segmentItem, !work && styles.segmentOn]} onPress={() => setWork(false)} accessibilityRole="button" accessibilityState={{ selected: !work }}>
-              <Text style={!work ? styles.segmentOnText : styles.segmentOffText}>聊天助手</Text>
+            <Pressable style={[styles.segmentItem, !work && styles.segmentOn]} onPress={() => setWork(false)} accessibilityRole="button" accessibilityLabel={t('member.chat')} accessibilityState={{ selected: !work }}>
+              <Text style={!work ? styles.segmentOnText : styles.segmentOffText} numberOfLines={2}>{t('member.chat')}</Text>
             </Pressable>
-            <Pressable style={[styles.segmentItem, work && styles.segmentOn]} onPress={() => setWork(true)} accessibilityRole="button" accessibilityState={{ selected: work }}>
-              <Text style={work ? styles.segmentOnText : styles.segmentOffText}>工作助手</Text>
+            <Pressable style={[styles.segmentItem, work && styles.segmentOn]} onPress={() => setWork(true)} accessibilityRole="button" accessibilityLabel={t('bridge.workAssistant')} accessibilityState={{ selected: work }}>
+              <Text style={work ? styles.segmentOnText : styles.segmentOffText} numberOfLines={2}>{t('bridge.workAssistant')}</Text>
             </Pressable>
           </View>
         </View>
 
         {work && (
           <View style={styles.section}>
-            <SectionLabel>电脑上的工具</SectionLabel>
+            <SectionLabel>{t('member.tools')}</SectionLabel>
             <Card>
               <View style={styles.toolRow}>
                 {WORK_TOOLS.map((t) => (
@@ -150,14 +152,14 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
               </View>
               <View style={[styles.switchRow, styles.switchDivider]}>
                 <View style={styles.switchText}>
-                  <Text style={styles.switchTitle}>允许修改文件</Text>
-                  <Text style={styles.switchSub}>默认只读，只看代码和回答问题；电脑上的 bridge 也要同意才行</Text>
+                  <Text style={styles.switchTitle}>{t('member.allowWrite')}</Text>
+                  <Text style={styles.switchSub}>{t('member.allowWriteHint')}</Text>
                 </View>
-                <Switch label="允许修改文件" value={write} onChange={setWrite} />
+                <Switch label={t('member.allowWrite')} value={write} onChange={setWrite} />
               </View>
             </Card>
             <Text style={styles.note}>
-              创建后会给你一个配对码，在你的电脑上运行 bridge 并配对。它调用的是电脑里已经登录的 {tool === 'codex' ? 'Codex' : 'Claude Code'}，AgentHub 不会接触你的登录信息；使用它们要遵守各自的使用条款，请自行确认。
+              {t('member.workNote', { tool: tool === 'codex' ? 'Codex' : 'Claude Code' })}
             </Text>
           </View>
         )}
@@ -168,19 +170,19 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
               right={
                 <View style={styles.lockNote}>
                   <LockIcon />
-                  <Text style={styles.lockText}>Key 只存在你的服务器</Text>
+                  <Text style={styles.lockText}>{t('member.keyNote')}</Text>
                 </View>
               }
             >
-              模型连接
+              {t('member.modelSection')}
             </SectionLabel>
             <Card>
               <View style={styles.switchRow}>
                 <View style={styles.switchText}>
-                  <Text style={styles.switchTitle}>模拟助手</Text>
-                  <Text style={styles.switchSub}>不需要 Key，先体验效果</Text>
+                  <Text style={styles.switchTitle}>{t('member.mock')}</Text>
+                  <Text style={styles.switchSub}>{t('member.mockHint')}</Text>
                 </View>
-                <Switch label="模拟助手" value={mock} onChange={setMock} />
+                <Switch label={t('member.mock')} value={mock} onChange={setMock} />
               </View>
               {!mock &&
                 fields.map((f) =>
@@ -188,7 +190,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
                     <View key={f.key} style={[styles.switchRow, styles.switchDivider]}>
                       <View style={styles.switchText}>
                         <Text style={styles.switchTitle}>{f.label}</Text>
-                        <Text style={styles.switchSub}>关闭后不会把图片发给这个模型</Text>
+                        <Text style={styles.switchSub}>{t('member.visionHint')}</Text>
                       </View>
                       <Switch label={f.label} value={(config[f.key] ?? f.defaultValue ?? 'false') === 'true'} onChange={(v) => setConfig((c) => ({ ...c, [f.key]: String(v) }))} />
                     </View>
@@ -214,12 +216,12 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
           <Card>
             <View style={styles.switchRow}>
               <View style={styles.switchText}>
-                <Text style={styles.switchTitle}>加入当前群聊</Text>
+                <Text style={styles.switchTitle}>{t('member.join')}</Text>
                 <Text style={styles.switchSub} numberOfLines={1}>
                   {group.name}
                 </Text>
               </View>
-              <Switch label="加入当前群聊" value={joinGroup} onChange={setJoinGroup} />
+              <Switch label={t('member.join')} value={joinGroup} onChange={setJoinGroup} />
             </View>
           </Card>
         )}
@@ -227,7 +229,7 @@ export function NewMemberSheet({ params }: { params: Record<string, string> }) {
 
       <View style={styles.footer}>
         <ErrorText>{error}</ErrorText>
-        <PrimaryButton title={work ? '创建并去配对' : '创建助手'} onPress={create} disabled={missing} busy={busy} />
+        <PrimaryButton title={work ? t('member.createAndPair') : t('member.create')} onPress={create} disabled={missing} busy={busy} />
       </View>
     </KeyboardAvoider>
   );
@@ -238,15 +240,15 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   content: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 20, gap: 24 },
   section: { gap: 10 },
   pictureRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: -10 },
-  pictureButton: { height: 36, paddingHorizontal: 16, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  pictureText: { fontSize: 13, color: colors.text },
+  pictureButton: { flexShrink: 1, minHeight: 36, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  pictureText: { fontSize: 13, color: colors.text, textAlign: 'center' },
   segment: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.selected, borderRadius: 16 },
-  segmentItem: { flex: 1, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  segmentItem: { flex: 1, minWidth: 0, minHeight: 42, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   segmentOn: { backgroundColor: colors.surface, boxShadow: shadows.segment },
-  segmentOnText: { fontSize: 14, fontWeight: '500', color: colors.text },
-  segmentOffText: { fontSize: 14, color: colors.textSecondary },
+  segmentOnText: { fontSize: 14, fontWeight: '500', color: colors.text, textAlign: 'center' },
+  segmentOffText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
   lockNote: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  lockText: { fontSize: 12, color: colors.textSecondary },
+  lockText: { flexShrink: 1, fontSize: 12, color: colors.textSecondary },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 12 },
   switchText: { flex: 1, gap: 2 },
   switchTitle: { fontSize: 15, color: colors.text },

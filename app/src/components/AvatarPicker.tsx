@@ -1,21 +1,23 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { AVATAR_COLORS, AVATAR_SHAPES, COLOR_HEX, COLOR_LABELS, SHAPE_LABELS, useThemedStyles, type Avatar, type ThemeColors, type ThemeShadows } from '../theme';
+import { useAppTranslation } from '../i18n';
+import { AVATAR_COLORS, AVATAR_SHAPES, COLOR_HEX, useThemedStyles, type Avatar, type ThemeColors, type ThemeShadows } from '../theme';
 import { Blob } from './Avatar';
 import { AnimatedBlob } from './AnimatedBlob';
 import { Card } from './ui';
 
 /** Large preview plus the 12 shapes and 11 colours to choose from. */
 export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onChange: (v: Avatar) => void; preview?: ReactNode }) {
+  const { t } = useAppTranslation();
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.root}>
-      <View style={styles.preview} accessibilityLabel="头像预览">
+      <View style={styles.preview} accessibilityLabel={t('avatar.previewA11y')}>
         {preview ?? <AnimatedBlob avatar={value} size={104} />}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.label}>形状</Text>
+        <Text style={styles.label}>{t('avatar.shape')}</Text>
         <Card style={styles.grid}>
           {AVATAR_SHAPES.map((shape) => {
             const on = shape === value.shape;
@@ -23,7 +25,7 @@ export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onCh
               <Pressable
                 key={shape}
                 accessibilityRole="button"
-                accessibilityLabel={SHAPE_LABELS[shape]}
+                accessibilityLabel={t(`avatar.shapeName.${shape}`)}
                 accessibilityState={{ selected: on }}
                 onPress={() => onChange({ ...value, shape })}
                 style={[styles.shapeCell, on && styles.shapeOn]}
@@ -36,7 +38,7 @@ export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onCh
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.label}>颜色</Text>
+        <Text style={styles.label}>{t('avatar.color')}</Text>
         <Card style={styles.colorGrid}>
           {AVATAR_COLORS.map((color) => {
             const on = color === value.color;
@@ -44,7 +46,7 @@ export function AvatarPicker({ value, onChange, preview }: { value: Avatar; onCh
               <Pressable
                 key={color}
                 accessibilityRole="button"
-                accessibilityLabel={COLOR_LABELS[color]}
+                accessibilityLabel={t(`avatar.colorName.${color}`)}
                 accessibilityState={{ selected: on }}
                 onPress={() => onChange({ ...value, color })}
                 style={styles.colorCell}

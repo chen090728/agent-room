@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useAppTranslation } from '../i18n';
 import { COLOR_HEX, useTheme, type Avatar } from '../theme';
 import { BlobShape } from './Avatar';
 
@@ -26,6 +27,7 @@ interface Snap {
  * changes spring the new form in. All of this runs on the UI thread.
  */
 export function AnimatedBlob({ avatar, size, picture }: { avatar: Avatar; size: number; picture?: string | null }) {
+  const { t } = useAppTranslation();
   const key = picture ? `picture:${picture.slice(-24)}` : `${avatar.shape}:${avatar.color}`;
   const [outgoing, setOutgoing] = useState<Snap | null>(null);
   const current = useRef<Snap>({ key, avatar, picture: picture ?? null });
@@ -48,7 +50,7 @@ export function AnimatedBlob({ avatar, size, picture }: { avatar: Avatar; size: 
   const showIntro = !introPlayed.current && outgoing === null;
 
   return (
-    <View style={{ width: size, height: size }} accessibilityLabel="头像预览">
+    <View style={{ width: size, height: size }} accessibilityLabel={t('avatar.previewA11y')}>
       {outgoing && <ExitBlob key={outgoing.key} snap={outgoing} size={size} onDone={clearOutgoing} />}
       <EnterBlob key={key} intro={showIntro} onIntro={markIntro} avatar={avatar} size={size} picture={picture ?? null} />
     </View>

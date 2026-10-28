@@ -4,12 +4,14 @@ import { BridgeMembers } from '../components/BridgeMembers';
 import { AddPersonIcon } from '../components/Icons';
 import { MemberChecklist } from '../components/MemberChecklist';
 import { ErrorText, PrimaryButton, SectionLabel } from '../components/ui';
+import { useAppTranslation } from '../i18n';
 import { SheetHeader, SheetScrollView, useSheets } from '../sheets';
 import { useStore } from '../store';
 import { useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
 /** Sheet: the members of a group and the state of its work assistants. */
 export function ChatSettingsSheet({ params }: { params: Record<string, string> }) {
+  const { t } = useAppTranslation();
   const styles = useThemedStyles(createStyles);
   const id = params.groupId;
   const { api, groups, members, upsertGroup } = useStore();
@@ -45,29 +47,29 @@ export function ChatSettingsSheet({ params }: { params: Record<string, string> }
 
   return (
     <View style={styles.root}>
-      <SheetHeader title={group ? group.name : '对话设置'} />
+      <SheetHeader title={group ? group.name : t('chatSettings.title')} />
       <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {group && isGroup && (
           <View style={styles.section}>
-            <SectionLabel>{`群成员 · 已选 ${selected.length} 位`}</SectionLabel>
-            {members.length > 0 ? <MemberChecklist members={members} selected={selected} onToggle={toggle} /> : <Text style={styles.empty}>还没有助手</Text>}
+            <SectionLabel>{t('chatSettings.members', { count: selected.length })}</SectionLabel>
+            {members.length > 0 ? <MemberChecklist members={members} selected={selected} onToggle={toggle} /> : <Text style={styles.empty}>{t('chatSettings.noAssistants')}</Text>}
             <Pressable accessibilityRole="button" onPress={() => sheets.open('member-new', { groupId: id })} style={styles.addRow}>
               <AddPersonIcon size={20} />
-              <Text style={styles.addText}>新建助手</Text>
+              <Text style={styles.addText}>{t('common.newAssistant')}</Text>
             </Pressable>
             {changed && (
               <View style={styles.saveBox}>
                 <ErrorText>{error}</ErrorText>
-                <PrimaryButton title="保存成员" onPress={save} busy={busy} />
+                <PrimaryButton title={t('chatSettings.saveMembers')} onPress={save} busy={busy} />
               </View>
             )}
           </View>
         )}
         {group && <BridgeMembers group={group} />}
         {group && !isGroup && !group.members.some((m) => members.find((x) => x.id === m.id)?.type === 'bridge') && (
-          <Text style={styles.empty}>这是和 {group.name} 的单聊。点输入框左边的加号，可以给这个对话添加插件（GitHub、部署平台）。</Text>
+          <Text style={styles.empty}>{t('chatSettings.directHint', { name: group.name })}</Text>
         )}
-        {!group && <Text style={styles.empty}>找不到这个对话</Text>}
+        {!group && <Text style={styles.empty}>{t('chatSettings.missing')}</Text>}
       </SheetScrollView>
     </View>
   );

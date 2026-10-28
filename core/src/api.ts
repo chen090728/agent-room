@@ -14,7 +14,10 @@ import {
   type FileStore,
 } from './files.js';
 import type { IntegrationRegistry } from './integrations/registry.js';
-import { AVATAR_COLORS, AVATAR_SHAPES, UserError, type Attachment, type Member, type Message } from './types.js';
+import { localizeMember } from './copy.js';
+import { explicitLanguage } from './locale.js';
+import { AVATAR_COLORS, AVATAR_SHAPES, UserError, type Attachment, type GroupSummary, type Member, type Message, type Notice } from './types.js';
+import type { AppLanguage } from './locale.js';
 
 export interface ApiDeps {
   token: string;
@@ -30,7 +33,7 @@ export interface ApiDeps {
   /** Which bridges are connected right now; absent when the host has no bridge support. */
   bridges?: { isOnline(bridgeId: string): Promise<boolean> };
   rooms: {
-    post(groupId: string, content: string, attachments: string[]): Promise<Message>;
+    post(groupId: string, content: string, attachments: string[], lang?: AppLanguage): Promise<Message>;
     registerUpload(groupId: string, attachment: Attachment): Promise<Attachment>;
     messages(groupId: string, limit: number, before?: string): Promise<Message[]>;
     cardAction(groupId: string, messageId: string, action: 'merge' | 'reject'): Promise<Message>;
@@ -98,7 +101,7 @@ const createIntegrationBody = z.object({
 });
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
-const fail = (status: number, error: string) => json(status, { error });
+const fail = (status: number, error: string, notice?: Notice) => json(status, notice ? { error, errorNotice: notice } : { error });
 
 /**
  * The HTTP API, shared by the Node server and the Cloudflare Worker.
@@ -144,7 +147,7 @@ export async function handleApi(request: Request, deps: ApiDeps): Promise<Respon
     return (await route(request, url, path, deps)) ?? fail(404, '接口不存在');
   } catch (err) {
     if (err instanceof z.ZodError) return fail(400, err.issues[0]?.message ?? '参数错误');
-    if (err instanceof UserError) return fail(err.status, err.message);
+    if (err instanceof UserError) return fail(err.status, err.message, err.notice);
     if (err instanceof SyntaxError) return fail(400, '请求内容不是有效的 JSON');
     console.error('[api]', err);
     return fail(500, '服务器内部错误');
@@ -155,10 +158,24 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
   const { directory, registry, integrations, rooms } = deps;
   const method = request.method;
   const body = async () => (request.headers.get('content-length') === '0' ? {} : await request.json());
+  const lang = explicitLanguage(request.headers.get('accept-language')) ?? 'zh';
 
   const memberView = (m: Member) => {
-    const { secretPreview, ...rest } = m;
+    const { secretPreview, ...rest } = localizeMember(m, lang);
     return { ...rest, typeLabel: registry.get(m.type)?.label ?? m.type, secrets: secretPreview };
+  };
+
+  const localizeGroups = async (groups: GroupSummary[]) => {
+    if (lang === 'zh') return groups;
+    const members = await directory.listMembers();
+    const byId = new Map(members.map((m) => [m.id, m]));
+    return groups.map((group) => ({
+      ...group,
+      members: group.members.map((ref) => {
+        const full = byId.get(ref.id);
+        return full ? { ...ref, role: localizeMember(full, lang).role } : ref;
+      }),
+    }));
   };
 
   if (path === '/api/adapters' && method === 'GET') {
@@ -232,12 +249,12 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
   }
 
   if (path === '/api/groups') {
-    if (method === 'GET') return json(200, await directory.listGroups());
+    if (method === 'GET') return json(200, await localizeGroups(await directory.listGroups()));
     if (method === 'POST') {
       const input = createGroupBody.parse(await body());
       const created = await directory.createGroup(input.name, input.memberIds);
       if (!created.ok) return fail(400, created.error);
-      return json(201, created.value);
+      return json(201, (await localizeGroups([created.value]))[0]);
     }
   }
 
@@ -362,13 +379,13 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
     const group = await directory.getGroup(groupId);
     if (!group) return fail(404, '群聊不存在');
 
-    if (!sub && method === 'GET') return json(200, group);
+    if (!sub && method === 'GET') return json(200, (await localizeGroups([group]))[0]);
 
     if (sub === '/members' && method === 'PUT') {
       const input = setMembersBody.parse(await body());
       const updated = await directory.setGroupMembers(groupId, input.memberIds);
       if (!updated.ok) return fail(400, updated.error);
-      return json(200, updated.value);
+      return json(200, (await localizeGroups([updated.value]))[0]);
     }
 
     if (sub === '/binding' && method === 'PUT') {
@@ -387,7 +404,7 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
 
     if (sub === '/messages' && method === 'POST') {
       const { content, attachments } = sendBody.parse(await body());
-      return json(201, await rooms.post(groupId, content, attachments));
+      return json(201, await rooms.post(groupId, content, attachments, explicitLanguage(request.headers.get('accept-language'))));
     }
   }
 

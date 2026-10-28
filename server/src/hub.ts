@@ -5,10 +5,12 @@ import {
   registerUpload,
   defaultIntegrations,
   defaultRegistry,
+  agreedLanguage,
   encodeChatFrames,
   handleApi,
   HELLO,
   isValidAuth,
+  languageFromExtra,
   parseBridgeAuth,
   readClientFrame,
   SecretBox,
@@ -17,6 +19,7 @@ import {
   SqlDirectory,
   SqlRoom,
   UNAUTHORIZED_CODE,
+  type AppLanguage,
   type Attachment,
   type ChatEvent,
   type ListEvent,
@@ -118,7 +121,7 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
     }
   };
 
-  if (await seedIfEmpty(directory, (groupId, content) => coordinator.addSystemMessage(groupId, content))) {
+  if (await seedIfEmpty(directory, (groupId, content, notice) => coordinator.addSystemMessage(groupId, content, undefined, notice))) {
     if (log) console.log('Created demo group with mock members');
   }
   // Pick up relays interrupted by a restart.
@@ -126,8 +129,9 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
   room.watchGroups().forEach(scheduleWatch);
 
   const rooms = {
-    async post(groupId: string, content: string, attachments: string[]) {
-      const { message, pending } = await coordinator.postUserMessage(groupId, content, attachments);
+    async post(groupId: string, content: string, attachments: string[], lang?: AppLanguage) {
+      const language = lang ?? socketLanguage() ?? 'zh';
+      const { message, pending } = await coordinator.postUserMessage(groupId, content, attachments, language);
       if (pending) drive(groupId);
       return message;
     },
@@ -162,8 +166,18 @@ export async function createHub(config: Config, { log = true } = {}): Promise<Hu
   });
 
   const wss = new WebSocketServer({ noServer: true });
-  // Extra keys from auth / subscribe (for example a future `lang`). This version stores them and does not branch.
+  // Extra keys from auth / subscribe are stored. `lang` (`zh` | `en`) is the client's language.
   const clientParams = new WeakMap<WebSocket, Record<string, unknown>>();
+  const socketLanguage = (): AppLanguage | undefined => {
+    const langs: AppLanguage[] = [];
+    const consider = (ws: WebSocket) => {
+      const lang = languageFromExtra(clientParams.get(ws));
+      if (lang) langs.push(lang);
+    };
+    listSockets.forEach(consider);
+    groupSockets.forEach((set) => set.forEach(consider));
+    return agreedLanguage(langs);
+  };
   const noteClient = (ws: WebSocket, extra: Record<string, unknown>) => {
     clientParams.set(ws, { ...clientParams.get(ws), ...extra });
   };

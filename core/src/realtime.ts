@@ -6,9 +6,10 @@ import type { ChatEvent } from './types.js';
  *   /ws              the one app socket: list events, plus every chat event
  *   /ws/groups/:id   one group's chat events, bare (older apps)
  * and must send {"type":"auth","token":"..."} as the first frame. Extra keys
- * on that frame (a later `lang`, for example) are kept and not interpreted.
+ * on that frame are kept. Hosts read `lang` (`zh` or `en`) from those keys;
+ * anything else is still not validated.
  * After hello, a `{ "type": "subscribe", ... }` frame is accepted the same
- * way: its extra keys are kept and this version does not branch on them.
+ * way: its extra keys are kept, and `lang` updates the client's language.
  * The server answers {"type":"hello"} and only then starts pushing events.
  *
  * Chat events on `/ws` use an envelope, `{ "type": "chat", "event": <same

@@ -1,16 +1,25 @@
-import type { AdapterInfo, Attachment, BridgeStatus, GroupSummary, IntegrationView, MemberView, Message, ResourceInfo } from './protocol';
+import i18n from 'i18next';
+import { getLanguageSnapshot } from './i18n/runtime';
+import type { AdapterInfo, Attachment, BridgeStatus, GroupSummary, IntegrationView, MemberView, Message, Notice, ResourceInfo } from './protocol';
 import type { ConnectionSettings } from './storage';
 import type { Avatar } from './theme';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export class ApiError extends Error {
+  readonly notice?: Notice;
   constructor(
     message: string,
     public status: number,
+    notice?: Notice,
   ) {
     super(message);
+    this.notice = notice;
   }
+}
+
+function tr(key: string, params?: Record<string, unknown>): string {
+  return i18n.isInitialized ? String(i18n.t(key, params as never)) : key;
 }
 
 /** "https://host/" -> "https://host" */
@@ -32,11 +41,12 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'Accept-Language': getLanguageSnapshot().language,
           ...init.headers,
         },
       });
     } catch {
-      throw new ApiError('连不上服务器，请检查地址和网络', 0);
+      throw new ApiError(tr('api.unreachable'), 0);
     }
     const text = await res.text();
     let body: any = undefined;
@@ -46,7 +56,7 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
       // Not JSON, e.g. a proxy error page.
     }
     if (!res.ok) {
-      throw new ApiError(body?.error ?? `服务器返回 ${res.status}`, res.status);
+      throw new ApiError(body?.error ?? tr('api.httpStatus', { status: res.status }), res.status, body?.errorNotice);
     }
     return body as T;
   }
@@ -81,9 +91,9 @@ export function createApi({ serverUrl, token }: ConnectionSettings) {
       try {
         blob = await (await fetch(file.uri)).blob();
       } catch {
-        throw new ApiError('读取这个文件失败', 0);
+        throw new ApiError(tr('api.readFailed'), 0);
       }
-      if (blob.size > MAX_UPLOAD_BYTES) throw new ApiError('文件太大，最多 10 MB', 413);
+      if (blob.size > MAX_UPLOAD_BYTES) throw new ApiError(tr('api.tooBig', { size: '10 MB' }), 413);
       return request<Attachment>(`/api/groups/${groupId}/uploads`, {
         method: 'POST',
         headers: { 'Content-Type': file.mime || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },

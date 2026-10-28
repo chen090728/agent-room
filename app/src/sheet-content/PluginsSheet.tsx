@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { ChevronRightIcon, LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
 import { confirmAction, showMessage } from '../dialogs';
-import { PLUGIN_HELP, PLUGINS, type PluginInfo } from '../plugins';
+import { useAppTranslation } from '../i18n';
+import { pluginHelp, plugins, type PluginInfo } from '../plugins';
 import type { IntegrationView, ResourceInfo } from '../protocol';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView } from '../sheets';
@@ -18,6 +19,7 @@ type View_ = { kind: 'list' } | { kind: 'connect'; plugin: PluginInfo } | { kind
  * a project to follow deployments of).
  */
 export function PluginsSheet({ params }: { params: Record<string, string> }) {
+  const { t } = useAppTranslation();
   const styles = useThemedStyles(createStyles);
   const { groups, integrations, integrationTypes, refreshIntegrations } = useStore();
   const group = groups.find((g) => g.id === params.groupId);
@@ -46,27 +48,28 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
   const binding = group.binding;
   return (
     <View style={styles.root}>
-      <SheetHeader title="插件" />
+      <SheetHeader title={t('plugins.title')} />
       <SheetScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.intro}>给「{group.name}」添加插件。令牌加密保存在你的服务器上。</Text>
+        <Text style={styles.intro}>{t('plugins.intro', { name: group.name })}</Text>
         <Card>
-          {PLUGINS.map((plugin, i) => {
+          {plugins().map((plugin, i) => {
             const connections = integrations.filter((x) => x.type === plugin.type);
-            const offered = integrationTypes.some((t) => t.type === plugin.type);
+            const offered = integrationTypes.some((item) => item.type === plugin.type);
             const bound = plugin.binds === 'repo' ? binding?.repo : binding?.deploy;
             const boundHere = bound && connections.some((c) => c.id === bound.integrationId);
             const needsRepo = plugin.binds === 'deploy' && !binding?.repo;
-            const detail = boundHere ? `已绑定：${plugin.binds === 'repo' ? binding!.repo!.repo : binding!.deploy!.name || binding!.deploy!.project}` : null;
+            const target = boundHere ? (plugin.binds === 'repo' ? binding!.repo!.repo : binding!.deploy!.name || binding!.deploy!.project) : '';
+            const detail = boundHere ? t('plugins.bound', { target }) : null;
 
             let status = plugin.description;
-            let action = '连接';
+            let action = t('plugins.connect');
             if (!offered && integrationTypes.length > 0) {
-              status = '这个服务器还不支持它，请先更新服务器';
+              status = t('plugins.unsupported');
               action = '';
             } else if (connections.length) {
-              status = detail ?? `已连接 · ${connections[0]!.name}`;
-              action = needsRepo ? '' : boundHere ? '更换' : '绑定';
-              if (needsRepo && !boundHere) status = `已连接 · 先绑定 GitHub 仓库，才能跟踪部署`;
+              status = detail ?? t('plugins.connected', { name: connections[0]!.name });
+              action = needsRepo ? '' : boundHere ? t('common.change') : t('plugins.bind');
+              if (needsRepo && !boundHere) status = t('plugins.needsRepo');
             }
             const press = () => {
               if (!action) return;
@@ -77,18 +80,18 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
               <Pressable
                 key={plugin.type}
                 accessibilityRole="button"
-                accessibilityLabel={`${plugin.label}${action ? `，${action}` : ''}`}
+                accessibilityLabel={action ? t('plugins.rowA11y', { name: plugin.label, action }) : plugin.label}
                 disabled={!action}
                 onPress={press}
                 style={[styles.row, i > 0 && styles.rowDivider]}
               >
                 <View style={styles.rowText}>
-                  <Text style={styles.name}>{plugin.label}</Text>
+                  <Text style={styles.name} numberOfLines={1}>{plugin.label}</Text>
                   <Text style={styles.sub}>{status}</Text>
                 </View>
                 {action ? (
                   <View style={[styles.pill, boundHere && styles.pillOn]}>
-                    <Text style={[styles.pillText, boundHere && styles.pillTextOn]}>{action}</Text>
+                    <Text style={[styles.pillText, boundHere && styles.pillTextOn]} numberOfLines={1}>{action}</Text>
                   </View>
                 ) : null}
               </Pressable>
@@ -97,7 +100,7 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
         </Card>
         <View style={styles.lockNote}>
           <LockIcon />
-          <Text style={styles.lockText}>令牌只保存在你的服务器上，这里只显示打码后的样子</Text>
+          <Text style={styles.lockText}>{t('plugins.maskedNote')}</Text>
         </View>
       </SheetScrollView>
     </View>
@@ -105,6 +108,7 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
 }
 
 function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBack(): void; onConnected(integration: IntegrationView): void }) {
+  const { t } = useAppTranslation();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { api, integrationTypes, refreshIntegrations } = useStore();
@@ -131,12 +135,12 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
 
   return (
     <KeyboardAvoider style={styles.root}>
-      <SheetHeader title={`连接 ${plugin.label}`} onBack={onBack} />
+      <SheetHeader title={t('plugins.connectTitle', { name: plugin.label })} onBack={onBack} />
       <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>{info?.description ?? plugin.description}</Text>
-        {PLUGIN_HELP[plugin.type] && (
+        {pluginHelp(plugin.type) && (
           <View style={styles.help}>
-            {PLUGIN_HELP[plugin.type]!.map((line) => (
+            {pluginHelp(plugin.type)!.map((line) => (
               <Text key={line} style={styles.helpLine}>
                 {line}
               </Text>
@@ -145,7 +149,7 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
         )}
         {info && (
           <View style={styles.section}>
-            <SectionLabel>连接信息</SectionLabel>
+            <SectionLabel>{t('plugins.info')}</SectionLabel>
             <Card>
               {info.fields.map((f, i) => (
                 <FieldRow
@@ -163,21 +167,22 @@ function ConnectView({ plugin, onBack, onConnected }: { plugin: PluginInfo; onBa
             </Card>
             <View style={styles.lockNote}>
               <LockIcon />
-              <Text style={styles.lockText}>令牌加密保存在你的服务器上</Text>
+              <Text style={styles.lockText}>{t('plugins.encryptedNote')}</Text>
             </View>
           </View>
         )}
-        {!info && (integrationTypes.length ? <Text style={styles.intro}>这个服务器还不支持 {plugin.label}。请先更新服务器（重新部署最新版本）。</Text> : <ActivityIndicator color={colors.textSecondary} />)}
+        {!info && (integrationTypes.length ? <Text style={styles.intro}>{t('plugins.unsupportedNamed', { name: plugin.label })}</Text> : <ActivityIndicator color={colors.textSecondary} />)}
       </SheetScrollView>
       <View style={styles.footer}>
         <ErrorText>{error}</ErrorText>
-        <PrimaryButton title="验证并保存" onPress={save} disabled={missing} busy={busy} />
+        <PrimaryButton title={t('plugins.verify')} onPress={save} disabled={missing} busy={busy} />
       </View>
     </KeyboardAvoider>
   );
 }
 
 function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: PluginInfo; groupId: string; integrationId: string; onBack(): void; onDone(): void }) {
+  const { t } = useAppTranslation();
   const { colors, colorScheme } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { api, integrations, groups, refreshIntegrations, upsertGroup } = useStore();
@@ -221,7 +226,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
       upsertGroup(updated);
       onDone();
     } catch (e) {
-      showMessage('保存失败', (e as Error).message);
+      showMessage(t('plugins.saveFailed'), (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -230,9 +235,9 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
   const disconnect = async () => {
     if (!api || !current) return;
     const ok = await confirmAction({
-      title: `断开「${current.name}」？`,
-      message: '会同时解除所有用到它的对话的绑定，服务器上保存的令牌也会被删掉。',
-      confirmText: '断开',
+      title: t('plugins.disconnectTitle', { name: current.name }),
+      message: t('plugins.disconnectMessage'),
+      confirmText: t('common.disconnect'),
       destructive: true,
     });
     if (!ok) return;
@@ -241,7 +246,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
       await refreshIntegrations();
       onBack();
     } catch (e) {
-      showMessage('断开失败', (e as Error).message);
+      showMessage(t('plugins.disconnectFailed'), (e as Error).message);
     }
   };
 
@@ -250,7 +255,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
 
   return (
     <KeyboardAvoider style={styles.root}>
-      <SheetHeader title={plugin.binds === 'repo' ? '选择仓库' : '选择部署项目'} onBack={onBack} />
+      <SheetHeader title={plugin.binds === 'repo' ? t('plugins.pickRepo') : t('plugins.pickProject')} onBack={onBack} />
       <SheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {connections.length > 1 && (
           <View style={styles.chips}>
@@ -262,16 +267,16 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
           </View>
         )}
         <Text style={styles.intro}>
-          {plugin.binds === 'repo' ? '绑定后，这个对话里的助手可以读取这个仓库，并通过 PR 提交修改。' : '绑定后，你在聊天里点"同意合并"，群里会显示这个项目的部署进度和预览链接。'}
+          {plugin.binds === 'repo' ? t('plugins.repoHint') : t('plugins.deployHint')}
         </Text>
         {plugin.binds === 'repo' && (
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="搜索仓库，或直接输入 所有者/仓库名"
+            placeholder={t('plugins.searchPlaceholder')}
             placeholderTextColor={colors.placeholder}
             keyboardAppearance={colorScheme}
-            accessibilityLabel="搜索仓库"
+            accessibilityLabel={t('plugins.searchA11y')}
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.search}
@@ -286,7 +291,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
             <View>
               {typedLooksLikeRepo && (
                 <Pressable accessibilityRole="button" disabled={busy} onPress={() => bind({ id: typed, name: typed })} style={styles.resourceRow}>
-                  <Text style={styles.name}>使用 {typed}</Text>
+                  <Text style={styles.name} numberOfLines={1}>{t('plugins.useTyped', { name: typed })}</Text>
                 </Pressable>
               )}
               {filtered.slice(0, 40).map((r, i) => {
@@ -303,18 +308,18 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
                         </Text>
                       ) : null}
                     </View>
-                    {on ? <Text style={styles.current}>当前</Text> : <ChevronRightIcon />}
+                    {on ? <Text style={styles.current}>{t('plugins.current')}</Text> : <ChevronRightIcon />}
                   </Pressable>
                 );
               })}
               {!filtered.length && !typedLooksLikeRepo && (
-                <Text style={styles.empty}>{plugin.binds === 'repo' ? '没有找到仓库。细粒度令牌只能看到你授权过的仓库。' : '这个账号下还没有项目。'}</Text>
+                <Text style={styles.empty}>{plugin.binds === 'repo' ? t('plugins.emptyRepos') : t('plugins.emptyProjects')}</Text>
               )}
             </View>
           )}
         </Card>
         <Pressable accessibilityRole="button" onPress={disconnect} style={styles.disconnect}>
-          <Text style={styles.disconnectText}>断开「{current.name}」</Text>
+          <Text style={styles.disconnectText}>{t('plugins.disconnectNamed', { name: current.name })}</Text>
         </Pressable>
       </SheetScrollView>
     </KeyboardAvoider>
@@ -336,7 +341,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   pillText: { fontSize: 13, color: colors.text },
   pillTextOn: { color: colors.buttonText },
   lockNote: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
-  lockText: { fontSize: 12, color: colors.textSecondary },
+  lockText: { flexShrink: 1, fontSize: 12, color: colors.textSecondary },
   help: { gap: 6, padding: 14, borderRadius: 16, backgroundColor: colors.selected },
   helpLine: { fontSize: 12.5, lineHeight: 19, color: colors.text },
   footer: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12, gap: 10 },

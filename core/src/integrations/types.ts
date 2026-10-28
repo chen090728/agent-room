@@ -1,5 +1,5 @@
 import type { FieldSpec } from '../adapters/types.js';
-import type { Card, DeployState } from '../types.js';
+import type { Card, DeployState, Notice } from '../types.js';
 
 /** A function an assistant may call while writing a reply. */
 export interface ToolDef {
@@ -46,6 +46,8 @@ export interface DeployStatus {
   /** Where the deployment can be opened. */
   url?: string;
   error?: string;
+  /** Code for a new client. Old clients keep reading `error`. */
+  errorNotice?: Notice;
 }
 
 /** What a hosting platform offers: seeing, starting and following deployments. */

@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Polygon, RadialGradient, Stop } from 'react-native-svg';
 import { useAvatarImage } from '../avatarImages';
+import { useAppTranslation } from '../i18n';
 import { useStore } from '../store';
 import { COLOR_HEX, MAC_DOTS, useTheme, type Avatar } from '../theme';
 
@@ -199,10 +200,11 @@ export function GroupAvatar({ avatars, size = 50 }: { avatars: Avatar[]; size?: 
 export function MeAvatar({ avatar, size = 38, photo }: { avatar: Avatar | null; size?: number; photo?: string | null }) {
   const { colors } = useTheme();
   const gradient = 'me' + useId().replace(/[^a-zA-Z0-9]/g, '');
+  const { t } = useAppTranslation();
   const { profile } = useStore();
   const shownPhoto = photo === undefined ? profile.photo : photo;
   if (shownPhoto) {
-    return <Image accessibilityLabel="我的头像" source={{ uri: shownPhoto }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.photoPlaceholder }} />;
+    return <Image accessibilityLabel={t('avatar.mineA11y')} source={{ uri: shownPhoto }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.photoPlaceholder }} />;
   }
   if (avatar) return <Blob avatar={avatar} size={size} />;
   return (

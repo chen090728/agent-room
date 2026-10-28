@@ -1,4 +1,5 @@
 import type { BridgeGateway } from '../bridge.js';
+import type { AppLanguage } from '../locale.js';
 import type { ToolRuntime } from '../integrations/types.js';
 import type { AttachmentKind, SenderKind } from '../types.js';
 
@@ -53,6 +54,8 @@ export interface ReplyContext {
   /** Reaches the bridges on users' computers; undefined when this deployment has none. */
   bridge?: BridgeGateway;
   signal: AbortSignal;
+  /** Language of the request that started this reply. Absent on older callers → Chinese. */
+  language?: AppLanguage;
 }
 
 export interface MemberAdapter {

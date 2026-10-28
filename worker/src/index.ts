@@ -24,8 +24,9 @@ export default {
       signingSecret: env.AGENTHUB_SECRET ?? '',
       bridges: { isOnline: (bridgeId) => directoryStub(env).bridgeOnline(bridgeId) },
       rooms: {
-        post: async (groupId, content, attachments) => {
-          const result = await groupStub(env, groupId).post(groupId, content, attachments);
+        post: async (groupId, content, attachments, lang) => {
+          const fromList = lang ?? (await directoryStub(env).clientLanguage());
+          const result = await groupStub(env, groupId).post(groupId, content, attachments, fromList);
           if (!result.ok) throw new UserError(result.error, result.status);
           return result.message;
         },
@@ -33,7 +34,7 @@ export default {
         messages: (groupId, limit, before) => groupStub(env, groupId).messages(groupId, limit, before),
         cardAction: async (groupId, messageId, action) => {
           const result = await groupStub(env, groupId).cardAction(groupId, messageId, action);
-          if (!result.ok) throw new UserError(result.error, result.status);
+          if (!result.ok) throw new UserError(result.error, result.status, result.errorNotice);
           return result.message;
         },
       },

@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { memo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { showMessage } from '../dialogs';
+import { useAppTranslation } from '../i18n';
 import type { Attachment, GroupMemberRef } from '../protocol';
 import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 import { formatSize } from './Attachments';
@@ -34,7 +35,7 @@ export const Composer = memo(function Composer({
   members,
   onSend,
   onUpload,
-  placeholder = '给群里发消息，@ 点名',
+  placeholder,
   showMention = true,
   onPlugins,
 }: {
@@ -47,6 +48,7 @@ export const Composer = memo(function Composer({
   /** Adds a "插件" entry to the + menu. */
   onPlugins?: () => void;
 }) {
+  const { t } = useAppTranslation();
   const { colors, colorScheme } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [text, setText] = useState('');
@@ -78,7 +80,7 @@ export const Composer = memo(function Composer({
       setFiles((f) => f.map((p) => (p.key === key ? { ...p, status: 'done', attachment } : p)));
     } catch (e) {
       setFiles((f) => f.filter((p) => p.key !== key));
-      showMessage(`「${file.name}」没能上传`, (e as Error).message);
+      showMessage(t('composer.uploadFailed', { name: file.name }), (e as Error).message);
     }
   };
 
@@ -86,7 +88,7 @@ export const Composer = memo(function Composer({
 
   const pickImages = async () => {
     setMenu(false);
-    if (room() <= 0) return showMessage(`一条消息最多带 ${MAX_FILES} 个文件`);
+    if (room() <= 0) return showMessage(t('composer.maxFiles', { count: MAX_FILES }));
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.7,
@@ -97,13 +99,13 @@ export const Composer = memo(function Composer({
     for (const asset of result.assets.slice(0, room())) {
       const mime = asset.mimeType ?? 'image/jpeg';
       const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
-      await addFile({ uri: asset.uri, name: asset.fileName ?? `图片.${ext}`, mime });
+      await addFile({ uri: asset.uri, name: asset.fileName ?? t('composer.defaultImageName', { ext }), mime });
     }
   };
 
   const pickDocuments = async () => {
     setMenu(false);
-    if (room() <= 0) return showMessage(`一条消息最多带 ${MAX_FILES} 个文件`);
+    if (room() <= 0) return showMessage(t('composer.maxFiles', { count: MAX_FILES }));
     const result = await DocumentPicker.getDocumentAsync({ type: '*/*', multiple: true, copyToCacheDirectory: true });
     if (result.canceled) return;
     for (const asset of result.assets.slice(0, room())) {
@@ -154,15 +156,15 @@ export const Composer = memo(function Composer({
 
       {menu && (
         <View style={[styles.popover, styles.menu]}>
-          <MenuItem label="图片" onPress={pickImages}>
+          <MenuItem label={t('composer.photo')} onPress={pickImages}>
             <ImageIcon />
           </MenuItem>
-          <MenuItem label="文件" onPress={pickDocuments}>
+          <MenuItem label={t('composer.file')} onPress={pickDocuments}>
             <FileIcon />
           </MenuItem>
           {onPlugins && (
             <MenuItem
-              label="插件"
+              label={t('composer.plugins')}
               onPress={() => {
                 setMenu(false);
                 onPlugins();
@@ -173,7 +175,7 @@ export const Composer = memo(function Composer({
           )}
           {showMention && (
             <MenuItem
-              label="@ 成员"
+              label={t('composer.mention')}
               onPress={() => {
                 setMenu(false);
                 setPicker(true);
@@ -188,7 +190,7 @@ export const Composer = memo(function Composer({
       {files.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
           {files.map((f) => (
-            <View key={f.key} style={styles.chip} accessibilityLabel={`${f.name}${f.status === 'uploading' ? '，上传中' : ''}`}>
+            <View key={f.key} style={styles.chip} accessibilityLabel={f.status === 'uploading' ? t('composer.chipUploadingA11y', { name: f.name }) : f.name}>
               {f.status === 'uploading' ? <ActivityIndicator size="small" color={colors.textSecondary} /> : f.attachment?.kind === 'image' ? <ImageIcon size={16} /> : <FileIcon size={16} />}
               <View style={styles.chipText}>
                 <Text style={styles.chipName} numberOfLines={1}>
@@ -196,7 +198,7 @@ export const Composer = memo(function Composer({
                 </Text>
                 {f.attachment && <Text style={styles.chipSize}>{formatSize(f.attachment.size)}</Text>}
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel={`移除 ${f.name}`} hitSlop={8} onPress={() => setFiles((all) => all.filter((x) => x.key !== f.key))}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('composer.removeA11y', { name: f.name })} hitSlop={8} onPress={() => setFiles((all) => all.filter((x) => x.key !== f.key))}>
                 <CloseIcon size={12} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -207,7 +209,7 @@ export const Composer = memo(function Composer({
       <View style={styles.bar}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="添加附件或点名"
+          accessibilityLabel={t('composer.addA11y')}
           accessibilityState={{ expanded: menu }}
           onPress={() => {
             setPicker(false);
@@ -221,10 +223,10 @@ export const Composer = memo(function Composer({
           ref={input}
           value={text}
           onChangeText={change}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('chat.placeholderGroup')}
           placeholderTextColor={colors.placeholder}
           keyboardAppearance={colorScheme}
-          accessibilityLabel="消息"
+          accessibilityLabel={t('composer.messageA11y')}
           style={styles.input}
           multiline
           maxLength={4000}
@@ -232,7 +234,7 @@ export const Composer = memo(function Composer({
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="发送"
+          accessibilityLabel={t('composer.sendA11y')}
           accessibilityState={{ disabled: !canSend }}
           disabled={!canSend}
           onPress={send}

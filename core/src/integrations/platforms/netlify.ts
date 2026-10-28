@@ -1,3 +1,4 @@
+import { DEPLOY_FAILED, deployUpstream } from '../../copy.js';
 import type { DeployStatus, IntegrationType } from '../types.js';
 import { PlatformClient } from './http.js';
 
@@ -10,7 +11,8 @@ function toStatus(d: any): DeployStatus {
     state,
     id: d.id,
     url: d.deploy_ssl_url ?? d.ssl_url ?? d.url ?? undefined,
-    error: state === 'error' ? d.error_message ?? '部署失败' : undefined,
+    error: state === 'error' ? d.error_message ?? DEPLOY_FAILED.content : undefined,
+    errorNotice: state === 'error' ? (d.error_message ? deployUpstream('Netlify', d.error_message).errorNotice : DEPLOY_FAILED.notice) : undefined,
   };
 }
 
