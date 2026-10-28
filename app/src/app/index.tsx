@@ -159,9 +159,9 @@ export default function HomeScreen() {
               accessibilityLabel={t('home.newA11y')}
               accessibilityState={{ expanded: menu }}
               onPress={() => (menu ? setMenu(false) : openMenu())}
-              style={styles.round}
+              style={[styles.round, styles.roundAccent]}
             >
-              <ThinPlusIcon />
+              <ThinPlusIcon color={colors.accentIcon} />
             </Pressable>
           </View>
         </View>
@@ -225,6 +225,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
     alignItems: 'center',
     justifyContent: 'center',
   },
+  roundAccent: { backgroundColor: colors.accent },
   list: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingVertical: 12 },
   rowPressed: { backgroundColor: colors.selected },
