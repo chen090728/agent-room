@@ -20,7 +20,7 @@ import { useAppTranslation } from '../../../i18n';
 import { displayRows, rowKey, type ChatMessage, type ChatRow } from '../../../outgoing';
 import type { GroupMemberRef, RelayState } from '../../../protocol';
 import { useGroupChannel, useStore } from '../../../store';
-import { useThemedStyles, type ThemeColors, type ThemeShadows, type Avatar } from '../../../theme';
+import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows, type Avatar } from '../../../theme';
 
 const FALLBACK_AVATAR: Avatar = { shape: 'circle', color: 'gray' };
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -122,6 +122,7 @@ export default function ChatScreen() {
 const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string; topInset: number }) {
   const { t } = useAppTranslation();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const id = groupId;
   const store = useStore();
   const { send, retry } = store;
@@ -217,8 +218,8 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
         </Pressable>
         <View style={styles.right}>
           <View ref={plusRef} collapsable={false} pointerEvents={menu || menuShown ? 'none' : 'auto'} style={{ opacity: menu || menuShown ? 0 : 1 }}>
-            <RoundButton label={t('chat.moreA11y')} onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
-              <ThinPlusIcon />
+            <RoundButton accent label={t('chat.moreA11y')} onPress={() => (menu ? setMenu(false) : measure(() => setMenu(true)))}>
+              <ThinPlusIcon color={colors.accentIcon} />
             </RoundButton>
           </View>
         </View>

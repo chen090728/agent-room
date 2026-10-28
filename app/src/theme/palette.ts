@@ -6,10 +6,12 @@
  * Those light values match the literals exactly, so step 2 can switch a screen
  * to `useTheme()` without changing how light mode looks.
  *
- * Dark mode is a neutral near-black, in the vein of iOS and Grok Bot: the page
- * is about #0E0E0F, cards sit a step lighter, inputs another step up, and text
- * is #F5F5F5. Drop shadows are off in dark mode; a 1px hairline stands in only
- * where a view has no border of its own. Mac window dots and assistant avatar
+ * Dark mode follows the Claude app: an almost black page (#111111), cards,
+ * sheets and inputs a little lighter (#1E1E1D–#262625), warm white text
+ * (#F9F9F7) and warm grey secondary text (#C3C2B8). Layers are told apart by
+ * brightness and a faint #2A2A28 line, never by drop shadows. Primary round
+ * buttons are inverted: light #F2F2F2 with a dark #1F1F1E icon. Mac window dots
+ * and assistant avatar
  * colors are not in here — they stay constant in both modes (`MAC_DOTS`,
  * `COLOR_HEX` in `theme.ts`).
  */
@@ -91,6 +93,10 @@ export interface ThemeColors {
   scrim: string;
   /** Border of the round icon buttons. */
   roundBorder: string;
+  /** Fill of the round primary buttons (the "+" in the headers). */
+  accent: string;
+  /** Icon on `accent`. */
+  accentIcon: string;
 }
 
 export interface ThemeShadows {
@@ -145,46 +151,50 @@ export const lightColors: ThemeColors = {
   ring: '#BDBDBD',
   scrim: '#000000',
   roundBorder: 'rgba(0,0,0,0.04)',
+  accent: '#FFFFFF',
+  accentIcon: '#2A2A2A',
 };
 
 export const darkColors: ThemeColors = {
-  bg: '#0E0E0F',
-  homeBg: '#0E0E0F',
-  surface: '#1C1C1E',
-  text: '#F5F5F5',
-  textSecondary: '#A1A1A6',
-  icon: '#F5F5F5',
-  border: 'rgba(255,255,255,0.08)',
-  hairline: 'rgba(255,255,255,0.08)',
-  divider: 'rgba(255,255,255,0.08)',
-  selected: '#2A2A2D',
-  switchOff: '#3A3A3C',
-  switchOn: '#F5F5F5',
-  idleDot: '#3A3A3C',
-  overlay: 'rgba(0,0,0,0.55)',
+  bg: '#111111',
+  homeBg: '#111111',
+  surface: '#1E1E1D',
+  text: '#F9F9F7',
+  textSecondary: '#C3C2B8',
+  icon: '#F9F9F7',
+  border: '#2A2A28',
+  hairline: '#2A2A28',
+  divider: '#2A2A28',
+  selected: '#404040',
+  switchOff: '#3A3A38',
+  switchOn: '#F2F2F2',
+  idleDot: '#3A3A38',
+  overlay: 'rgba(0,0,0,0.6)',
   warning: '#FF9F0A',
-  danger: '#FF7A72',
-  placeholder: '#A1A1A6',
+  danger: '#FF8C84',
+  placeholder: '#8A8984',
   pending: '#FF9F0A',
   success: '#30D158',
-  photoPlaceholder: '#2A2A2D',
-  input: '#2A2A2D',
-  sheet: '#1C1C1E',
-  menu: '#1C1C1E',
-  mineBubble: '#F5F5F5',
-  mineBubbleText: '#0E0E0F',
-  assistantBubble: '#2A2A2D',
-  assistantBubbleText: '#F5F5F5',
-  button: '#F5F5F5',
-  buttonText: '#0E0E0F',
-  secondaryButton: '#2A2A2D',
-  knob: '#F5F5F5',
-  knobOn: '#0E0E0F',
-  handle: '#8E8E93',
-  checkOff: '#8E8E93',
-  ring: '#A1A1A6',
+  photoPlaceholder: '#262625',
+  input: '#262625',
+  sheet: '#1E1E1D',
+  menu: '#262625',
+  mineBubble: '#2A2A28',
+  mineBubbleText: '#F9F9F7',
+  assistantBubble: '#1E1E1D',
+  assistantBubbleText: '#F9F9F7',
+  button: '#F2F2F2',
+  buttonText: '#1F1F1E',
+  secondaryButton: '#333331',
+  knob: '#F9F9F7',
+  knobOn: '#1F1F1E',
+  handle: '#8A8984',
+  checkOff: '#8A8984',
+  ring: '#C3C2B8',
   scrim: '#000000',
-  roundBorder: 'rgba(255,255,255,0.08)',
+  roundBorder: '#2A2A28',
+  accent: '#F2F2F2',
+  accentIcon: '#1F1F1E',
 };
 
 export const lightShadows: ThemeShadows = {
@@ -202,7 +212,7 @@ export const lightShadows: ThemeShadows = {
 // Dark mode has no drop shadow. Views that already draw a border use nothing.
 // The sheet and the segment pill have no border, so they get a 1px hairline.
 const darkNoShadow = '0 0 0 0 rgba(0,0,0,0)';
-const darkHairline = '0 0 0 1px rgba(255,255,255,0.08)';
+const darkHairline = '0 0 0 1px #2A2A28';
 
 export const darkShadows: ThemeShadows = {
   float: darkNoShadow,

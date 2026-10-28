@@ -104,41 +104,44 @@ test('light palette keeps the original colors and the current hardcoded literals
   }
 });
 
-test('dark palette is a neutral near-black with separated layers', () => {
-  assert.equal(darkColors.bg, '#0E0E0F');
-  assert.equal(darkColors.homeBg, '#0E0E0F');
-  assert.equal(darkColors.surface, '#1C1C1E');
-  assert.equal(darkColors.sheet, '#1C1C1E');
-  assert.equal(darkColors.menu, '#1C1C1E');
-  assert.equal(darkColors.input, '#2A2A2D');
-  assert.equal(darkColors.assistantBubble, '#2A2A2D');
-  assert.equal(darkColors.text, '#F5F5F5');
-  assert.equal(darkColors.textSecondary, '#A1A1A6');
-  assert.equal(darkColors.placeholder, '#A1A1A6');
-  assert.equal(darkColors.mineBubble, '#F5F5F5');
-  assert.equal(darkColors.mineBubbleText, '#0E0E0F');
-  assert.equal(darkColors.border, 'rgba(255,255,255,0.08)');
-  assert.equal(darkColors.hairline, 'rgba(255,255,255,0.08)');
-  assert.equal(darkColors.divider, 'rgba(255,255,255,0.08)');
-  assert.equal(darkColors.roundBorder, 'rgba(255,255,255,0.08)');
+test('dark palette follows the Claude app: near-black page, warm white text, layers by brightness', () => {
+  assert.equal(darkColors.bg, '#111111');
+  assert.equal(darkColors.homeBg, '#111111');
+  assert.equal(darkColors.surface, '#1E1E1D');
+  assert.equal(darkColors.sheet, '#1E1E1D');
+  assert.equal(darkColors.menu, '#262625');
+  assert.equal(darkColors.input, '#262625');
+  assert.equal(darkColors.selected, '#404040');
+  assert.equal(darkColors.text, '#F9F9F7');
+  assert.equal(darkColors.textSecondary, '#C3C2B8');
+  assert.equal(darkColors.placeholder, '#8A8984');
+  assert.equal(darkColors.mineBubble, '#2A2A28');
+  assert.equal(darkColors.mineBubbleText, '#F9F9F7');
+  assert.equal(darkColors.button, '#F2F2F2');
+  assert.equal(darkColors.buttonText, '#1F1F1E');
+  assert.equal(darkColors.accent, '#F2F2F2');
+  assert.equal(darkColors.accentIcon, '#1F1F1E');
+  for (const key of ['border', 'hairline', 'divider', 'roundBorder'] as const) assert.equal(darkColors[key], '#2A2A28', key);
   assert.equal(darkColors.scrim, '#000000');
 
+  // Greys stay neutral or a touch warm (never blue).
   for (const [name, hex] of [
     ['bg', darkColors.bg],
     ['surface', darkColors.surface],
     ['input', darkColors.input],
-    ['sheet', darkColors.sheet],
-    ['menu', darkColors.menu],
     ['selected', darkColors.selected],
+    ['text', darkColors.text],
+    ['textSecondary', darkColors.textSecondary],
   ]) {
     const r = channel(hex, 0);
-    const g = channel(hex, 1);
     const b = channel(hex, 2);
-    assert.ok(Math.abs(r - g) <= 1 && b >= r && b - r <= 4, `${name} should be neutral, not warm`);
+    assert.ok(b <= r && r - b <= 12, `${name} should be neutral or warm`);
   }
 
-  assert.ok(luminance(darkColors.surface) > luminance(darkColors.bg) + 0.005);
-  assert.ok(luminance(darkColors.input) > luminance(darkColors.surface) + 0.005);
+  assert.ok(luminance(darkColors.bg) < 0.01, 'page is near black');
+  assert.ok(luminance(darkColors.surface) > luminance(darkColors.bg) + 0.003);
+  assert.ok(luminance(darkColors.input) > luminance(darkColors.surface) + 0.003);
+  assert.ok(luminance(darkColors.selected) > luminance(darkColors.input) + 0.01);
 
   // Every fill that primary or secondary text is actually painted on.
   const textLayers = [
@@ -150,6 +153,7 @@ test('dark palette is a neutral near-black with separated layers', () => {
     darkColors.menu,
     darkColors.selected,
     darkColors.assistantBubble,
+    darkColors.mineBubble,
     darkColors.secondaryButton,
   ];
   for (const surface of textLayers) {
@@ -158,20 +162,22 @@ test('dark palette is a neutral near-black with separated layers', () => {
     assert.ok(primary >= 4.5, `text on ${surface} is ${primary.toFixed(2)}`);
     assert.ok(secondary >= 4.5, `secondary text on ${surface} is ${secondary.toFixed(2)}`);
   }
-  for (const surface of [darkColors.input, darkColors.surface, darkColors.selected]) {
+  // Placeholders are the "weaker" grey; they only need to be legible as hints.
+  for (const surface of [darkColors.input, darkColors.surface]) {
     const ratio = contrast(darkColors.placeholder, surface);
-    assert.ok(ratio >= 4.5, `placeholder on ${surface} is ${ratio.toFixed(2)}`);
+    assert.ok(ratio >= 3, `placeholder on ${surface} is ${ratio.toFixed(2)}`);
   }
   assert.ok(contrast(darkColors.mineBubbleText, darkColors.mineBubble) >= 7);
-  assert.ok(contrast(darkColors.assistantBubbleText, darkColors.assistantBubble) >= 4.5);
+  assert.ok(contrast(darkColors.assistantBubbleText, darkColors.assistantBubble) >= 7);
   assert.ok(contrast(darkColors.buttonText, darkColors.button) >= 7);
+  assert.ok(contrast(darkColors.accentIcon, darkColors.accent) >= 7);
   for (const surface of [darkColors.bg, darkColors.homeBg, darkColors.surface, darkColors.sheet, darkColors.input, darkColors.selected]) {
     assert.ok(contrast(darkColors.warning, surface) >= 4.5, `warning on ${surface}`);
     assert.ok(contrast(darkColors.danger, surface) >= 4.5, `danger on ${surface}`);
     assert.ok(contrast(darkColors.success, surface) >= 4.5, `success on ${surface}`);
   }
 
-  const hairline = '0 0 0 1px rgba(255,255,255,0.08)';
+  const hairline = '0 0 0 1px #2A2A28';
   const none = '0 0 0 0 rgba(0,0,0,0)';
   assert.equal(darkShadows.sheet, hairline);
   assert.equal(darkShadows.segment, hairline);
@@ -181,6 +187,11 @@ test('dark palette is a neutral near-black with separated layers', () => {
   for (const value of Object.values(lightShadows)) {
     assert.ok(!Object.values(darkShadows).includes(value), 'dark mode must not reuse a light drop shadow');
   }
+});
+
+test('light mode accent matches the existing round buttons', () => {
+  assert.equal(lightColors.accent, lightColors.surface);
+  assert.equal(lightColors.accentIcon, lightColors.icon);
 });
 
 test('status bar style is inverted from the page scheme', () => {

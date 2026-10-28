@@ -14,14 +14,15 @@ import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '
 import { CheckIcon } from './Icons';
 
 /** 48px white circular button floating over the page. */
-export function RoundButton({ label, onPress, children }: { label: string; onPress: () => void; children: ReactNode }) {
+/** `accent` paints the primary look: light fill with a dark icon in dark mode, same as the others in light mode. */
+export function RoundButton({ label, onPress, children, accent }: { label: string; onPress: () => void; children: ReactNode; accent?: boolean }) {
   const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.round, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.round, accent && styles.roundAccent, pressed && styles.pressed]}
     >
       {children}
     </Pressable>
@@ -141,6 +142,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
     alignItems: 'center',
     justifyContent: 'center',
   },
+  roundAccent: { backgroundColor: colors.accent },
   pressed: { opacity: 0.7 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14 },
   headerSide: { width: 48 },
