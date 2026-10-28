@@ -6,10 +6,12 @@
  * Those light values match the literals exactly, so step 2 can switch a screen
  * to `useTheme()` without changing how light mode looks.
  *
- * Dark mode is a warm gray, in the vein of Claude and Grok Bot: the page is
- * not pure black, cards sit a step lighter, and text is a soft off-white.
- * Mac window dots and assistant avatar colors are not in here — they stay
- * constant in both modes (`MAC_DOTS`, `COLOR_HEX` in `theme.ts`).
+ * Dark mode is a neutral near-black, in the vein of iOS and Grok Bot: the page
+ * is about #0E0E0F, cards sit a step lighter, inputs another step up, and text
+ * is #F5F5F5. Drop shadows are off in dark mode; a 1px hairline stands in only
+ * where a view has no border of its own. Mac window dots and assistant avatar
+ * colors are not in here — they stay constant in both modes (`MAC_DOTS`,
+ * `COLOR_HEX` in `theme.ts`).
  */
 
 export type ColorScheme = 'light' | 'dark';
@@ -17,7 +19,7 @@ export type ColorScheme = 'light' | 'dark';
 export interface ThemeColors {
   /** Page background (chat, settings, sheets). */
   bg: string;
-  /** Home list background. A hair lighter than `bg` in both modes. */
+  /** Home list background. In light mode a hair lighter than `bg`. */
   homeBg: string;
   /** Cards, round buttons, assistant bubbles, menus. */
   surface: string;
@@ -146,43 +148,43 @@ export const lightColors: ThemeColors = {
 };
 
 export const darkColors: ThemeColors = {
-  bg: '#23211E',
-  homeBg: '#282622',
-  surface: '#302E2A',
-  text: '#E8E3DA',
-  textSecondary: '#AFA99E',
-  icon: '#D8D2C8',
-  border: '#413E38',
-  hairline: 'rgba(255,244,230,0.08)',
-  divider: '#35332E',
-  selected: '#3A3833',
-  switchOff: '#3F3C37',
-  switchOn: '#E8E3DA',
-  idleDot: '#4A4741',
-  overlay: 'rgba(12,10,8,0.62)',
-  warning: '#E0976A',
-  danger: '#F09497',
-  placeholder: '#A6A094',
-  pending: '#E08A55',
-  success: '#5EBE8A',
-  photoPlaceholder: '#3A3833',
-  input: '#3A3732',
-  sheet: '#23211E',
-  menu: '#302E2A',
-  mineBubble: '#E4DFD4',
-  mineBubbleText: '#23211E',
-  assistantBubble: '#302E2A',
-  assistantBubbleText: '#E8E3DA',
-  button: '#E8E3DA',
-  buttonText: '#23211E',
-  secondaryButton: '#3A3833',
-  knob: '#F3F0EA',
-  knobOn: '#2A2824',
-  handle: '#5C5852',
-  checkOff: '#5C5852',
-  ring: '#8C877E',
-  scrim: '#100E0C',
-  roundBorder: 'rgba(255,244,230,0.10)',
+  bg: '#0E0E0F',
+  homeBg: '#0E0E0F',
+  surface: '#1C1C1E',
+  text: '#F5F5F5',
+  textSecondary: '#A1A1A6',
+  icon: '#F5F5F5',
+  border: 'rgba(255,255,255,0.08)',
+  hairline: 'rgba(255,255,255,0.08)',
+  divider: 'rgba(255,255,255,0.08)',
+  selected: '#2A2A2D',
+  switchOff: '#3A3A3C',
+  switchOn: '#F5F5F5',
+  idleDot: '#3A3A3C',
+  overlay: 'rgba(0,0,0,0.55)',
+  warning: '#FF9F0A',
+  danger: '#FF7A72',
+  placeholder: '#A1A1A6',
+  pending: '#FF9F0A',
+  success: '#30D158',
+  photoPlaceholder: '#2A2A2D',
+  input: '#2A2A2D',
+  sheet: '#1C1C1E',
+  menu: '#1C1C1E',
+  mineBubble: '#F5F5F5',
+  mineBubbleText: '#0E0E0F',
+  assistantBubble: '#2A2A2D',
+  assistantBubbleText: '#F5F5F5',
+  button: '#F5F5F5',
+  buttonText: '#0E0E0F',
+  secondaryButton: '#2A2A2D',
+  knob: '#F5F5F5',
+  knobOn: '#0E0E0F',
+  handle: '#8E8E93',
+  checkOff: '#8E8E93',
+  ring: '#A1A1A6',
+  scrim: '#000000',
+  roundBorder: 'rgba(255,255,255,0.08)',
 };
 
 export const lightShadows: ThemeShadows = {
@@ -197,16 +199,21 @@ export const lightShadows: ThemeShadows = {
   knob: '0 1px 3px rgba(0,0,0,0.2)',
 };
 
+// Dark mode has no drop shadow. Views that already draw a border use nothing.
+// The sheet and the segment pill have no border, so they get a 1px hairline.
+const darkNoShadow = '0 0 0 0 rgba(0,0,0,0)';
+const darkHairline = '0 0 0 1px rgba(255,255,255,0.08)';
+
 export const darkShadows: ThemeShadows = {
-  float: '0 6px 20px rgba(0,0,0,0.36)',
-  composer: '0 8px 24px rgba(0,0,0,0.42)',
-  card: '0 1px 2px rgba(0,0,0,0.28)',
-  button: '0 8px 24px rgba(0,0,0,0.38)',
-  segment: '0 1px 3px rgba(0,0,0,0.32)',
-  popover: '0 12px 32px rgba(0,0,0,0.5)',
-  bar: '0 8px 24px rgba(0,0,0,0.4)',
-  sheet: '0 -8px 32px rgba(0,0,0,0.5)',
-  knob: '0 1px 3px rgba(0,0,0,0.4)',
+  float: darkNoShadow,
+  composer: darkNoShadow,
+  card: darkNoShadow,
+  button: darkNoShadow,
+  segment: darkHairline,
+  popover: darkNoShadow,
+  bar: darkNoShadow,
+  sheet: darkHairline,
+  knob: darkNoShadow,
 };
 
 function sameKeys(a: object, b: object): boolean {

@@ -245,7 +245,7 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
     gap: 8,
     height: 54,
     paddingHorizontal: 18,
-    backgroundColor: colors.input,
+    backgroundColor: colors.surface,
     borderRadius: 27,
     borderWidth: 1,
     borderColor: colors.hairline,

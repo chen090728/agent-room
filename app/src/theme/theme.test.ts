@@ -104,35 +104,83 @@ test('light palette keeps the original colors and the current hardcoded literals
   }
 });
 
-test('dark palette is a warm gray with lighter cards and soft text', () => {
-  assert.notEqual(darkColors.bg.toLowerCase(), '#000000');
-  assert.notEqual(darkColors.bg.toLowerCase(), '#ffffff');
-  assert.notEqual(darkColors.text.toLowerCase(), '#ffffff');
-  assert.notEqual(darkColors.surface.toLowerCase(), '#000000');
+test('dark palette is a neutral near-black with separated layers', () => {
+  assert.equal(darkColors.bg, '#0E0E0F');
+  assert.equal(darkColors.homeBg, '#0E0E0F');
+  assert.equal(darkColors.surface, '#1C1C1E');
+  assert.equal(darkColors.sheet, '#1C1C1E');
+  assert.equal(darkColors.menu, '#1C1C1E');
+  assert.equal(darkColors.input, '#2A2A2D');
+  assert.equal(darkColors.assistantBubble, '#2A2A2D');
+  assert.equal(darkColors.text, '#F5F5F5');
+  assert.equal(darkColors.textSecondary, '#A1A1A6');
+  assert.equal(darkColors.placeholder, '#A1A1A6');
+  assert.equal(darkColors.mineBubble, '#F5F5F5');
+  assert.equal(darkColors.mineBubbleText, '#0E0E0F');
+  assert.equal(darkColors.border, 'rgba(255,255,255,0.08)');
+  assert.equal(darkColors.hairline, 'rgba(255,255,255,0.08)');
+  assert.equal(darkColors.divider, 'rgba(255,255,255,0.08)');
+  assert.equal(darkColors.roundBorder, 'rgba(255,255,255,0.08)');
+  assert.equal(darkColors.scrim, '#000000');
 
-  const r = channel(darkColors.bg, 0);
-  const g = channel(darkColors.bg, 1);
-  const b = channel(darkColors.bg, 2);
-  assert.ok(r >= g && g >= b && r - b >= 4, 'page background should be warm, not neutral black');
-
-  assert.ok(luminance(darkColors.homeBg) > luminance(darkColors.bg));
-  assert.ok(luminance(darkColors.surface) > luminance(darkColors.homeBg));
-  assert.ok(luminance(darkColors.input) > luminance(darkColors.surface));
-  assert.ok(luminance(darkColors.text) > luminance(darkColors.textSecondary));
-  assert.ok(luminance(darkColors.textSecondary) > luminance(darkColors.placeholder));
-
-  const surfaces = [darkColors.bg, darkColors.homeBg, darkColors.surface, darkColors.input, darkColors.selected, darkColors.sheet];
-  for (const surface of surfaces) {
-    assert.ok(contrast(darkColors.text, surface) >= 4.5, `text on ${surface}`);
-    assert.ok(contrast(darkColors.textSecondary, surface) >= 4.5, `secondary text on ${surface}`);
+  for (const [name, hex] of [
+    ['bg', darkColors.bg],
+    ['surface', darkColors.surface],
+    ['input', darkColors.input],
+    ['sheet', darkColors.sheet],
+    ['menu', darkColors.menu],
+    ['selected', darkColors.selected],
+  ]) {
+    const r = channel(hex, 0);
+    const g = channel(hex, 1);
+    const b = channel(hex, 2);
+    assert.ok(Math.abs(r - g) <= 1 && b >= r && b - r <= 4, `${name} should be neutral, not warm`);
   }
-  assert.ok(contrast(darkColors.placeholder, darkColors.input) >= 4.5);
+
+  assert.ok(luminance(darkColors.surface) > luminance(darkColors.bg) + 0.005);
+  assert.ok(luminance(darkColors.input) > luminance(darkColors.surface) + 0.005);
+
+  // Every fill that primary or secondary text is actually painted on.
+  const textLayers = [
+    darkColors.bg,
+    darkColors.homeBg,
+    darkColors.surface,
+    darkColors.input,
+    darkColors.sheet,
+    darkColors.menu,
+    darkColors.selected,
+    darkColors.assistantBubble,
+    darkColors.secondaryButton,
+  ];
+  for (const surface of textLayers) {
+    const primary = contrast(darkColors.text, surface);
+    const secondary = contrast(darkColors.textSecondary, surface);
+    assert.ok(primary >= 4.5, `text on ${surface} is ${primary.toFixed(2)}`);
+    assert.ok(secondary >= 4.5, `secondary text on ${surface} is ${secondary.toFixed(2)}`);
+  }
+  for (const surface of [darkColors.input, darkColors.surface, darkColors.selected]) {
+    const ratio = contrast(darkColors.placeholder, surface);
+    assert.ok(ratio >= 4.5, `placeholder on ${surface} is ${ratio.toFixed(2)}`);
+  }
   assert.ok(contrast(darkColors.mineBubbleText, darkColors.mineBubble) >= 7);
   assert.ok(contrast(darkColors.assistantBubbleText, darkColors.assistantBubble) >= 4.5);
   assert.ok(contrast(darkColors.buttonText, darkColors.button) >= 7);
-  assert.ok(contrast(darkColors.warning, darkColors.surface) >= 4.5);
-  assert.ok(contrast(darkColors.danger, darkColors.surface) >= 4.5);
-  assert.ok(contrast(darkColors.success, darkColors.surface) >= 4.5);
+  for (const surface of [darkColors.bg, darkColors.homeBg, darkColors.surface, darkColors.sheet, darkColors.input, darkColors.selected]) {
+    assert.ok(contrast(darkColors.warning, surface) >= 4.5, `warning on ${surface}`);
+    assert.ok(contrast(darkColors.danger, surface) >= 4.5, `danger on ${surface}`);
+    assert.ok(contrast(darkColors.success, surface) >= 4.5, `success on ${surface}`);
+  }
+
+  const hairline = '0 0 0 1px rgba(255,255,255,0.08)';
+  const none = '0 0 0 0 rgba(0,0,0,0)';
+  assert.equal(darkShadows.sheet, hairline);
+  assert.equal(darkShadows.segment, hairline);
+  for (const key of ['float', 'composer', 'card', 'button', 'popover', 'bar', 'knob']) {
+    assert.equal(darkShadows[key], none, key);
+  }
+  for (const value of Object.values(lightShadows)) {
+    assert.ok(!Object.values(darkShadows).includes(value), 'dark mode must not reuse a light drop shadow');
+  }
 });
 
 test('status bar style is inverted from the page scheme', () => {
