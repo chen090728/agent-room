@@ -285,7 +285,8 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   center: { flex: 1, alignItems: 'center', gap: 3, paddingTop: 4 },
   titleText: { fontSize: 12.5, fontWeight: '500', color: colors.text, maxWidth: '100%' },
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 15 },
+  // Inverted list: paddingTop is the gap under the newest message, above the chips.
+  listContent: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 15 },
   relay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 12 },
   relayText: { flexShrink: 1, fontSize: 12, color: colors.textSecondary },
   composer: { paddingBottom: 10 },

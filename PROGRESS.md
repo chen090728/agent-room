@@ -249,4 +249,5 @@
 - 部署仍然要先绑定仓库。没绑仓库时点「连接部署」，卡片里沿用原来的说明，不会绕过这条规则。
 - 英文芯片用短句 Connect deploy，避免两枚芯片在窄屏上挤出屏幕；卡片标题是 Connect a deploy platform。读屏听到的也是这句完整的。没有新依赖，没有改发送、重试、`clientKey`。
 - 芯片行左边距从 18 改成 14，和输入栏外框（`Composer` 的 `paddingHorizontal: 14`）对齐，第一枚贴在加号那一侧，不再往中间偏。
+- 芯片不盖在列表上，列表仍是 `flex: 1`。倒序列表里最新一条下面的空隙是 `paddingTop`，从 5 提到 16，让最后一条离芯片远一点。芯片行的左右边距没动。
 - 验证：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）通过；App `npm test` 50 通过；`tsc --noEmit` 通过；`check:animations` 73 个文件通过。没有在 Expo Go 里看过。
