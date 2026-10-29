@@ -33,7 +33,7 @@ export function PluginChips({ group, onPress }: { group: GroupSummary; onPress(k
             onPress={() => onPress(slot.kind, bound !== null)}
             style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
           >
-            {slot.kind === 'repo' ? <BranchIcon size={13} /> : <LinkIcon size={13} color={colors.textSecondary} />}
+            {slot.kind === 'repo' ? <BranchIcon size={16} /> : <LinkIcon size={16} color={colors.textSecondary} />}
             <Text style={styles.text} numberOfLines={1}>
               {label}
             </Text>
@@ -51,15 +51,15 @@ const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    maxWidth: 240,
-    height: 30,
-    paddingHorizontal: 12,
-    borderRadius: 15,
+    gap: 8,
+    maxWidth: 280,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   pressed: { opacity: 0.7 },
-  text: { flexShrink: 1, fontSize: 12, color: colors.text },
+  text: { flexShrink: 1, fontSize: 15, color: colors.text },
 });
