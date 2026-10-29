@@ -231,7 +231,13 @@ const ChatPane = memo(function ChatPane({ groupId, topInset }: { groupId: string
 
       {relay && <RelayBar relay={relay} />}
 
-      <PluginChips group={group} onPress={(kind) => sheets.open('plugin-detail', { groupId: id, kind })} />
+      <PluginChips
+        group={group}
+        onPress={(kind, bound) => {
+          if (bound) sheets.open('plugin-detail', { groupId: id, kind });
+          else sheets.open('plugins', { groupId: id, focus: kind });
+        }}
+      />
 
       <View style={styles.composer}>
         <Composer

@@ -39,7 +39,7 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - Example name 小青 → Quinn.
 - Plugin help keeps the third-party product’s own English menu labels.
 
-342 keys in 22 groups: common, home, chat, composer, attachments, avatar, sheets, bridge, deployment, pr, error, time, photo, permissions, api, plugins, pluginDetail, settings, member, group, chatSettings, notice.
+345 keys in 22 groups: common, home, chat, composer, attachments, avatar, sheets, bridge, deployment, pr, error, time, photo, permissions, api, plugins, pluginDetail, settings, member, group, chatSettings, notice.
 
 
 ### common.cancel
@@ -1504,6 +1504,28 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - zh: 连接
 - en: Connect
 - sources:
+  - app/src/sheet-content/PluginsSheet.tsx
+
+### plugins.chipConnectRepo
+
+- zh: 连接 GitHub
+- en: Connect GitHub
+- sources:
+  - app/src/components/PluginChips.tsx
+
+### plugins.chipConnectDeploy
+
+- zh: 连接部署
+- en: Connect deploy
+- sources:
+  - app/src/components/PluginChips.tsx
+
+### plugins.connectDeployTitle
+
+- zh: 连接部署平台
+- en: Connect a deploy platform
+- sources:
+  - app/src/components/PluginChips.tsx
   - app/src/sheet-content/PluginsSheet.tsx
 
 ### plugins.unsupported

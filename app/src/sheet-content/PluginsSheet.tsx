@@ -4,14 +4,14 @@ import { ChevronRightIcon, LockIcon } from '../components/Icons';
 import { Card, ErrorText, FieldRow, PrimaryButton, SectionLabel } from '../components/ui';
 import { confirmAction, showMessage } from '../dialogs';
 import { useAppTranslation } from '../i18n';
-import { pluginHelp, plugins, type PluginInfo } from '../plugins';
+import { initialPluginView, pluginHelp, pluginsForFocus, type PluginInfo, type PluginSheetStart } from '../plugins';
 import type { IntegrationView, ResourceInfo } from '../protocol';
 import { KeyboardAvoider } from '../components/KeyboardAvoider';
 import { SheetHeader, SheetScrollView } from '../sheets';
 import { useStore } from '../store';
 import { useTheme, useThemedStyles, type ThemeColors, type ThemeShadows } from '../theme';
 
-type View_ = { kind: 'list' } | { kind: 'connect'; plugin: PluginInfo } | { kind: 'bind'; plugin: PluginInfo; integrationId: string };
+type View_ = PluginSheetStart;
 
 /**
  * Sheet: the plugins a conversation can use. Unconnected ones take their token
@@ -23,11 +23,22 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
   const styles = useThemedStyles(createStyles);
   const { groups, integrations, integrationTypes, refreshIntegrations } = useStore();
   const group = groups.find((g) => g.id === params.groupId);
-  const [view, setView] = useState<View_>({ kind: 'list' });
+  const [view, setView] = useState<View_>(() => initialPluginView(params.focus, integrations));
 
   useEffect(() => {
     refreshIntegrations().catch(() => {});
   }, [refreshIntegrations]);
+
+  // The GitHub chip can open before saved connections arrive. Step into bind once they do,
+  // and only while this sheet is still on the GitHub connect step.
+  useEffect(() => {
+    if (params.focus !== 'repo') return;
+    setView((current) => {
+      if (current.kind !== 'connect' || current.plugin.binds !== 'repo') return current;
+      const next = initialPluginView('repo', integrations);
+      return next.kind === 'bind' ? next : current;
+    });
+  }, [integrations, params.focus]);
 
   if (!group) return null;
   const back = () => setView({ kind: 'list' });
@@ -48,11 +59,11 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
   const binding = group.binding;
   return (
     <View style={styles.root}>
-      <SheetHeader title={t('plugins.title')} />
+      <SheetHeader title={params.focus === 'deploy' ? t('plugins.connectDeployTitle') : t('plugins.title')} />
       <SheetScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>{t('plugins.intro', { name: group.name })}</Text>
         <Card>
-          {plugins().map((plugin, i) => {
+          {pluginsForFocus(params.focus).map((plugin, i) => {
             const connections = integrations.filter((x) => x.type === plugin.type);
             const offered = integrationTypes.some((item) => item.type === plugin.type);
             const bound = plugin.binds === 'repo' ? binding?.repo : binding?.deploy;

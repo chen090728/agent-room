@@ -55,3 +55,43 @@ export function boundPlugins(binding: GroupBinding | null | undefined, integrati
   }
   return out;
 }
+
+/** One composer chip per slot. `bound` is null when that slot still needs a connection. */
+export interface PluginChipSlot {
+  kind: 'repo' | 'deploy';
+  bound: BoundPlugin | null;
+}
+
+export function pluginChipSlots(binding: GroupBinding | null | undefined, integrations: IntegrationView[]): PluginChipSlot[] {
+  const bound = boundPlugins(binding, integrations);
+  return (['repo', 'deploy'] as const).map((kind) => ({
+    kind,
+    bound: bound.find((item) => item.kind === kind) ?? null,
+  }));
+}
+
+/** Where the plugins sheet opens. `repo` skips the list; `deploy` stays on the list. */
+export type PluginSheetStart =
+  | { kind: 'list' }
+  | { kind: 'connect'; plugin: PluginInfo }
+  | { kind: 'bind'; plugin: PluginInfo; integrationId: string };
+
+/**
+ * GitHub is the only repo plugin, so a repo chip can open connect (no token yet)
+ * or bind (token saved, this chat has no repo). Deploy has several platforms,
+ * so that chip stays on the list.
+ */
+export function initialPluginView(focus: string | undefined, integrations: IntegrationView[]): PluginSheetStart {
+  if (focus !== 'repo') return { kind: 'list' };
+  const plugin = plugins().find((item) => item.binds === 'repo');
+  if (!plugin) return { kind: 'list' };
+  const connection = integrations.find((item) => item.type === plugin.type);
+  if (connection) return { kind: 'bind', plugin, integrationId: connection.id };
+  return { kind: 'connect', plugin };
+}
+
+/** Deploy chips show only deploy platforms. Every other entry shows the full list. */
+export function pluginsForFocus(focus: string | undefined): PluginInfo[] {
+  const all = plugins();
+  return focus === 'deploy' ? all.filter((plugin) => plugin.binds === 'deploy') : all;
+}
