@@ -46,7 +46,8 @@ export function PluginChips({ group, onPress }: { group: GroupSummary; onPress(k
 
 const createStyles = (colors: ThemeColors, shadows: ThemeShadows) => StyleSheet.create({
   scroll: { flexGrow: 0 },
-  row: { gap: 8, paddingHorizontal: 18, paddingBottom: 8 },
+  // Match Composer wrap (paddingHorizontal: 14) so the first chip lines up with the bar’s left edge.
+  row: { gap: 8, paddingHorizontal: 14, paddingBottom: 8, justifyContent: 'flex-start' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
