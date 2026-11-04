@@ -1,4 +1,4 @@
-export { initI18n, setLanguagePreference, getLanguageSnapshot, subscribeLanguage, readSystemLanguageTag } from './runtime';
+export { initI18n, setLanguagePreference, getLanguageSnapshot, subscribeLanguage, readDeviceLocale, readSystemLanguageTag } from './runtime';
 export type { LanguageSnapshot } from './runtime';
 export { useAppTranslation, useLanguage } from './useLanguage';
 export {
@@ -6,10 +6,11 @@ export {
   createLanguageStore,
   isLanguagePreference,
   languageChoices,
+  languageFromDevice,
   languageFromLocale,
   loadLanguagePreference,
   parseLanguagePreference,
   resolveLanguage,
   saveLanguagePreference,
 } from './language';
-export type { AppLanguage, KeyValueStore, LanguagePreference, LanguageStore } from './language';
+export type { AppLanguage, DeviceLocale, KeyValueStore, LanguagePreference, LanguageStore } from './language';
