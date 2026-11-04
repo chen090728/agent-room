@@ -1,10 +1,12 @@
+**English:** [README.en.md](README.en.md) · [Phone deploy guide](docs/mobile-deploy.md)
+
 # AgentHub
 
 自托管的手机端多 AI 协作群聊。把几个 AI 助手拉进同一个群，用 `@名字` 点名，
 它们会回复，也会互相 @ 接力讨论。
 
 - **自托管**：每个人部署自己的服务器，API Key 只存在你自己的服务器上（加密保存），不经过任何第三方。
-- **没有电脑也能部署**：推到 GitHub，自动部署到 Cloudflare 免费档，App 用 Expo Go 打开。见《[手机部署指南](docs/手机部署指南.md)》。
+- **没有电脑也能部署**：Fork 到自己的 GitHub，用 Actions 部署到 Cloudflare 免费档，App 用 Expo Go 打开。见《[手机部署指南](docs/手机部署指南.md)》。
 - **不填 Key 也能玩**：首次启动自动创建"演示群"，里面有三位模拟成员（小橙、阿蓝、小绿）。
 - **不绑定服务商**：通用的"OpenAI 兼容接口"适配器，接口地址、Key、模型名都由你在 App 里填写。
 - **有上限，不会刷屏**：每条原始消息最多接力 5 轮、总共最多 10 次回复。
@@ -39,7 +41,7 @@ server/   Node 版服务器：node:http + ws + SQLite（better-sqlite3）
 worker/   Cloudflare 版服务器：Workers + Durable Objects（SQLite 存储）
 app/      Expo（React Native）手机 App，用 Expo Go 打开
 bridge/   运行在你自己电脑上的小程序：让"工作助手"调用电脑里已登录的 Claude Code / Codex
-docs/     手机部署指南
+docs/     手机部署指南（中文 + English）
 ```
 
 Node 版和 Cloudflare 版共用 `core/` 里的全部业务逻辑，对 App 暴露完全相同的接口，所以 App 不用区分。
@@ -49,13 +51,14 @@ Node 版和 Cloudflare 版共用 `core/` 里的全部业务逻辑，对 App 暴�
 ### 推荐：Cloudflare（免费档，只用手机）
 
 用 Workers + Durable Objects：每个群一个 Durable Object，WebSocket 使用 Hibernation API，
-空闲时不占资源。推送到 `main` 分支时，GitHub Actions 自动测试、部署，并发布 App（EAS Update）。
+空闲时不占资源。推送到 `main` 且改动落在对应目录时，GitHub Actions 自动测试、部署，并发布 App（EAS Update）。
+Fork 之后第一次不会自动跑，需要在 Actions 里手动 **Run workflow**。
 
-**完整步骤见《[手机部署指南](docs/手机部署指南.md)》**，从生成令牌开始，不需要电脑。概括起来：
+**完整步骤见《[手机部署指南](docs/手机部署指南.md)》**（English: [Phone deploy guide](docs/mobile-deploy.md)），从生成令牌开始，不需要电脑。概括起来：
 
 1. 生成 Cloudflare API 令牌、Expo 访问令牌，再自己生成 `AGENTHUB_TOKEN` 和 `AGENTHUB_SECRET`。
-2. 把 5 个值填进 GitHub Secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`EXPO_TOKEN`、`AGENTHUB_TOKEN`、`AGENTHUB_SECRET`。
-3. 合并到 `main`，等 Actions 变绿，在运行摘要里找到服务器地址和打开 App 的链接。
+2. 把 5 个值填进**你自己仓库**的 GitHub Secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`EXPO_TOKEN`、`AGENTHUB_TOKEN`、`AGENTHUB_SECRET`。
+3. 在 Actions 里对 **Deploy server to Cloudflare** 和 **Publish App with EAS Update** 点 **Run workflow**（之后推送到 `main` 且改动落在对应目录时也会自动跑）。等变绿，在运行摘要里找到服务器地址和打开 App 的链接。
 
 > **务必备份 `AGENTHUB_SECRET`。** 它加密你保存的 API Key，以后修改会导致已保存的 Key 无法解密。
 

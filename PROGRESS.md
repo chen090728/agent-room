@@ -242,6 +242,16 @@
 - 危险红从 `#FF7A72` 稍微调亮到 `#FF8C84`，让它在 `#404040` 的选中块上也有 4.5:1 对比度。占位符 `#8A8984` 按"更弱的文字"处理，测试只要求 ≥ 3:1。
 - Mac 圆点、助手头像颜色、浅色配色、布局、文字都没动。没有在真机上看过。
 
+## 输入栏旁的连接入口（fable/composer-connect-chips）
+
+- 未绑定的对话在输入栏上方一直有两枚小标签：仓库和部署。已绑定的仍是「名称 · 详情」，点开还是插件详情。没绑定的是「连接 GitHub」和「连接部署」。
+- 点「连接 GitHub」打开原来的插件卡片，并直接进入这一步：还没有令牌就填令牌，已经有 GitHub 连接就去选仓库。从这里返回是完整插件列表。点「连接部署」打开同一张卡片，列表只留 Cloudflare Pages、Vercel、Netlify、Render，返回仍是这份列表。输入栏「+」里的「插件」不带过滤，还是完整列表。
+- 部署仍然要先绑定仓库。没绑仓库时点「连接部署」，卡片里沿用原来的说明，不会绕过这条规则。
+- 英文芯片用短句 Connect deploy，避免两枚芯片在窄屏上挤出屏幕；卡片标题是 Connect a deploy platform。读屏听到的也是这句完整的。没有新依赖，没有改发送、重试、`clientKey`。
+- 芯片行左边距从 18 改成 14，和输入栏外框（`Composer` 的 `paddingHorizontal: 14`）对齐，第一枚贴在加号那一侧，不再往中间偏。
+- 芯片不盖在列表上，列表仍是 `flex: 1`。倒序列表里最新一条下面的空隙是 `paddingTop`，现在是 48。芯片高 40、字号 15、图标 16，左右边距仍是 14。
+- 验证：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）通过；App `npm test` 50 通过；`tsc --noEmit` 通过；`check:animations` 73 个文件通过。没有在 Expo Go 里看过。
+
 ## 首次打开按设备选语言，以及公开仓库说明
 
 - 从最新 `main` 开了新分支。没有改输入框里的 GitHub / 部署芯片，也没有加需要原生编译的库。
@@ -251,4 +261,4 @@
   3. 语言和地区都看不出来时，才用 IANA 时区：`Asia/Shanghai`、`Asia/Urumqi`、`Asia/Taipei`、`Asia/Hong_Kong`、`Asia/Macau`，以及一些手机仍会报的旧名 → 中文。`Asia/Singapore` 和 `GMT+8` 这种偏移不算。
 - 已经保存的 `system` / `zh` / `en` 不会被改写。设置里仍是「跟随系统 / 中文 / English」。选了中文或 English 之后，换地区或时区也不会改回去；选了跟随系统，则回到上面的规则。
 - 扫过仓库：测试里的 `sk-`、`github_pat_` 都是假数据，`server/.env.example` 和 `.dev.vars.example` 是空占位。没有维护者的私人 Key、令牌、部署账号或个人助手配置。README「安全说明」加了一段中英说明：使用者自己带 API Key、自己部署后端，公开仓库不能放维护者的私钥或个人助手配置。演示成员小橙、阿蓝、小绿保持不动。
-- 没有新增依赖，没有新的界面文案。验证：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）和 `npm run typecheck` 通过；`cd app && npm test` 50 通过，`npx tsc --noEmit` 通过。没有在 Expo Go 里看过。
+- 没有新增依赖，没有新的界面文案。合并了已进入 main 的 #18（输入栏连接芯片）和 #19（英文 README）。芯片文件保持 main 上的版本。验证：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）和 `npm run typecheck` 通过；`cd app && npm test` 53 通过，`npx tsc --noEmit` 通过。没有在 Expo Go 里看过。
