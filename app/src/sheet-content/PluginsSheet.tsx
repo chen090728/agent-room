@@ -29,12 +29,12 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
     refreshIntegrations().catch(() => {});
   }, [refreshIntegrations]);
 
-  // The GitHub chip can open before saved connections arrive. Step into bind once they do,
-  // and only while this sheet is still on the GitHub connect step.
+  // The repo chip can open before saved connections arrive. If exactly one code host
+  // is connected, step into picking a repository. Don't interrupt a form already open.
   useEffect(() => {
     if (params.focus !== 'repo') return;
     setView((current) => {
-      if (current.kind !== 'connect' || current.plugin.binds !== 'repo') return current;
+      if (current.kind !== 'list') return current;
       const next = initialPluginView('repo', integrations);
       return next.kind === 'bind' ? next : current;
     });
@@ -59,7 +59,7 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
   const binding = group.binding;
   return (
     <View style={styles.root}>
-      <SheetHeader title={params.focus === 'deploy' ? t('plugins.connectDeployTitle') : t('plugins.title')} />
+      <SheetHeader title={params.focus === 'deploy' ? t('plugins.connectDeployTitle') : params.focus === 'repo' ? t('plugins.connectRepoTitle') : t('plugins.title')} />
       <SheetScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>{t('plugins.intro', { name: group.name })}</Text>
         <Card>
@@ -68,7 +68,9 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
             const offered = integrationTypes.some((item) => item.type === plugin.type);
             const bound = plugin.binds === 'repo' ? binding?.repo : binding?.deploy;
             const boundHere = bound && connections.some((c) => c.id === bound.integrationId);
+            const repoHost = integrations.find((item) => item.id === binding?.repo?.integrationId);
             const needsRepo = plugin.binds === 'deploy' && !binding?.repo;
+            const needsGitHub = plugin.binds === 'deploy' && !!binding?.repo && !!repoHost && repoHost.type !== 'github';
             const target = boundHere ? (plugin.binds === 'repo' ? binding!.repo!.repo : binding!.deploy!.name || binding!.deploy!.project) : '';
             const detail = boundHere ? t('plugins.bound', { target }) : null;
 
@@ -79,8 +81,9 @@ export function PluginsSheet({ params }: { params: Record<string, string> }) {
               action = '';
             } else if (connections.length) {
               status = detail ?? t('plugins.connected', { name: connections[0]!.name });
-              action = needsRepo ? '' : boundHere ? t('common.change') : t('plugins.bind');
+              action = needsRepo || needsGitHub ? '' : boundHere ? t('common.change') : t('plugins.bind');
               if (needsRepo && !boundHere) status = t('plugins.needsRepo');
+              if (needsGitHub && !boundHere) status = t('plugins.needsGitHubRepo');
             }
             const press = () => {
               if (!action) return;
@@ -225,7 +228,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
     return (resources ?? []).filter((r) => !q || r.name.toLowerCase().includes(q));
   }, [resources, query]);
   const typed = query.trim();
-  const typedLooksLikeRepo = plugin.binds === 'repo' && /^[\w.-]+\/[\w.-]+$/.test(typed) && !filtered.some((r) => r.id === typed);
+  const typedLooksLikeRepo = plugin.binds === 'repo' && /^[\w.-]+(?:\/[\w.-]+)+$/.test(typed) && !filtered.some((r) => r.id === typed);
 
   const bind = async (resource: ResourceInfo | { id: string; name: string }) => {
     if (!api || !current) return;
@@ -324,7 +327,7 @@ function BindView({ plugin, groupId, integrationId, onBack, onDone }: { plugin: 
                 );
               })}
               {!filtered.length && !typedLooksLikeRepo && (
-                <Text style={styles.empty}>{plugin.binds === 'repo' ? t('plugins.emptyRepos') : t('plugins.emptyProjects')}</Text>
+                <Text style={styles.empty}>{plugin.binds === 'repo' ? t(plugin.type === 'github' ? 'plugins.emptyRepos' : 'plugins.emptyReposGeneric') : t('plugins.emptyProjects')}</Text>
               )}
             </View>
           )}

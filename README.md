@@ -10,7 +10,7 @@
 - **不填 Key 也能玩**：首次启动自动创建"演示群"，里面有三位模拟成员（小橙、阿蓝、小绿）。
 - **不绑定服务商**：通用的"OpenAI 兼容接口"适配器，接口地址、Key、模型名都由你在 App 里填写。
 - **有上限，不会刷屏**：每条原始消息最多接力 5 轮、总共最多 10 次回复。
-- **能干活**：连接 GitHub 后，助手可以读代码、开 PR，**你点"同意合并"才会合并**；合并后群里自动显示部署进度和预览链接（Cloudflare Pages / Workers、Vercel、Netlify、Render、Railway、Fly.io、Azure Static Web Apps，或自定义 Webhook）。
+- **能干活**：连接 GitHub、GitLab、Bitbucket 或 Gitea / Forgejo 后，助手可以读代码、开 PR，**你点"同意合并"才会合并**；合并后群里自动显示部署进度和预览链接（Cloudflare Pages / Workers、Vercel、Netlify、Render、Railway、Fly.io、Azure Static Web Apps，或自定义 Webhook）。部署跟踪仍跟着 GitHub 仓库。
 - **能用你电脑上的 Claude Code / Codex**：通过运行在你自己电脑上的 bridge 接入，项目不接触任何网页账号凭证。
 - **能发文件**：图片、PDF、代码文件都可以发给助手。
 
@@ -176,13 +176,13 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
   点中间的头像或名字打开**对话设置**（改群成员、看工作助手的电脑连接状态）。
 - **底部卡片**：新建助手、新建群聊、设置、对话设置、插件都是从底部滑出的卡片，背景会略微缩小变暗；
   拖住卡片顶部往下拉（或点 ×、点空白处）关闭，没拉够会弹回去。
-- **插件**：输入框上方的小标签显示这个对话已绑定的插件（GitHub 仓库、部署项目），点开可以查看或解除绑定；
-  输入框左边的加号 → "插件"，列出 GitHub 和各个部署平台（Cloudflare Pages / Workers、Vercel、Netlify、Render、Railway、Fly.io、Azure Static Web Apps、Webhook）：没连接的直接填令牌连接，
-  连接过的绑定到当前对话。设置页只保留"我"和服务器。
+- **插件**：输入框上方的小标签显示这个对话已绑定的插件（代码仓库、部署项目），点开可以查看或解除绑定；
+  输入框左边的加号 → "插件"，列出 GitHub、GitLab、Bitbucket、Gitea / Forgejo，以及各个部署平台（Cloudflare Pages / Workers、Vercel、Netlify、Render、Railway、Fly.io、Azure Static Web Apps、Webhook）：没连接的直接填令牌连接，
+  连接过的绑定到当前对话。一个对话只绑定一个代码仓库。设置页只保留"我"和服务器。
 
 ## 连接（Integrations）：GitHub
 
-"连接"（插件）管理和外部服务的连接，目前支持 GitHub 和九个部署平台，在聊天输入框的加号 → "插件"里添加和绑定。写法和成员适配器一致：按类型注册、
+"连接"（插件）管理和外部服务的连接，支持 GitHub、GitLab、Bitbucket、Gitea / Forgejo 和九个部署平台，在聊天输入框的加号 → "插件"里添加和绑定。写法和成员适配器一致：按类型注册、
 用表单字段描述需要填什么、敏感字段加密保存、并向助手暴露工具。
 
 **连接 GitHub**：在 GitHub 网页创建一个**细粒度访问令牌**（Settings → Developer settings → Personal access tokens →
@@ -202,6 +202,14 @@ Fine-grained tokens），Repository access 只选要给助手用的仓库，Repo
 **助手改代码要经过你确认**：开 PR 后，聊天里会出现一张确认卡片（改了哪些文件、增删行数），点"同意合并"才会合并（squash），
 点"拒绝"会关掉 PR。助手没有任何合并的工具，所以不可能自己合并。另外，助手**不能修改 `.github/workflows/` 里的文件**
 （CI 工作流会带着仓库的密钥运行）。合并或拒绝后，临时分支会被删除。
+
+**GitLab、Bitbucket、Gitea / Forgejo** 和 GitHub 用同一套能力：验证令牌、列出仓库、绑定到对话、`list_directory` / `read_file` / `create_pull_request`，以及合并 / 拒绝卡片。令牌同样加密保存，App 里只显示打码。助手不能改 CI 配置（`.github/workflows/`，以及 `.gitlab-ci.yml`、`bitbucket-pipelines.yml`、`.gitea/workflows/`、`.forgejo/workflows/`）。
+
+- **GitLab**：GitLab.com 不用填地址；自建实例填网站根地址（如 `https://gitlab.example.com`）。用个人、项目或群组访问令牌，权限选 `api`。仓库可以是 `群组/子群组/项目`。
+- **Bitbucket Cloud**：填工作区和 API 令牌（Bearer）。应用密码已停用。必须用 Basic 认证时再填 Atlassian 账号邮箱。
+- **Gitea / Forgejo**：同一种连接。填实例根地址和访问令牌，例如 `https://codeberg.org`。
+
+一个对话只能绑定一个代码仓库。部署平台的进度跟踪仍然只跟着 **GitHub** 仓库（平台按 GitHub 提交号查找部署）。
 
 **如何新增连接类型**：实现 `core/src/integrations/types.ts` 里的 `IntegrationType`（`fields`、`verify`、`listResources`、
 `createTools`、`cardAction`），在 `core/src/index.ts` 的 `defaultIntegrations()` 里注册即可，Node 版和 Cloudflare 版同时生效。
@@ -418,13 +426,13 @@ npx wrangler dev --var AGENTHUB_TOKEN:<至少16位> --var AGENTHUB_SECRET:<至�
 ## 路线图
 
 已经做到的：多成员群聊与接力规则、模拟 + OpenAI 兼容适配器、Node 版和 Cloudflare 版服务器、手机 App（Expo）、
-GitHub 连接（读代码、PR 确认卡片）、文件上传、托管平台部署卡片、bridge 工作助手。
+GitHub、GitLab、Bitbucket、Gitea / Forgejo 连接（读代码、PR 确认卡片）、文件上传、托管平台部署卡片、bridge 工作助手。
 
 接下来想做的（没有承诺时间，欢迎提 issue）：
 
 - **流式回复**：模型边写边显示（现在是写完一次性出现）。
 - **语音输入**。
-- **更多连接类型**：比如 GitLab、Linear / Jira 工单；部署状态用 webhook 替代轮询。
+- **更多连接类型**：比如 Linear / Jira 工单；部署状态用 webhook 替代轮询。GitLab、Bitbucket、Gitea / Forgejo 已经可以连接。
 - **更多适配器**：原生的 Anthropic / Gemini 接口、本地模型（Ollama）。
 - **bridge**：吊销 / 管理已配对的电脑、支持更多本地工具、`npx` 一键运行（需要先发布到 npm）。
 - **上传文件的清理**：自动清理没被消息引用的文件。

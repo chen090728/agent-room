@@ -5,8 +5,8 @@ import type { IntegrationView } from './protocol.ts';
 
 const DEPLOY = ['cloudflare-pages', 'vercel', 'netlify', 'render', 'railway', 'fly', 'cloudflare-workers', 'azure-static-web-apps', 'webhook'];
 
-function integration(type: string, id = type): IntegrationView {
-  return { id, type, typeLabel: type, name: id, config: {}, secrets: {}, createdAt: 0 };
+function integration(type: string, id = type, typeLabel = type): IntegrationView {
+  return { id, type, typeLabel, name: id, config: {}, secrets: {}, createdAt: 0 };
 }
 
 test('composer chips always offer a repo slot and a deploy slot', () => {
@@ -18,9 +18,14 @@ test('composer chips always offer a repo slot and a deploy slot', () => {
   assert.equal(empty[0]?.bound, null);
   assert.equal(empty[1]?.bound, null);
 
-  const repoOnly = pluginChipSlots({ repo: { integrationId: 'gh', repo: 'octo/room' } }, [integration('github', 'gh')]);
+  const repoOnly = pluginChipSlots({ repo: { integrationId: 'gh', repo: 'octo/room' } }, [integration('github', 'gh', 'GitHub')]);
   assert.equal(repoOnly[0]?.bound?.label, 'GitHub');
   assert.equal(repoOnly[0]?.bound?.detail, 'octo/room');
+  const gitlab = pluginChipSlots({ repo: { integrationId: 'gl', repo: 'group/sub/room' } }, [integration('gitlab', 'gl', 'GitLab')]);
+  assert.equal(gitlab[0]?.bound?.label, 'GitLab');
+  assert.equal(gitlab[0]?.bound?.detail, 'group/sub/room');
+  const missing = pluginChipSlots({ repo: { integrationId: 'gone', repo: 'octo/room' } }, []);
+  assert.equal(missing[0]?.bound?.label, 'plugins.fallbackRepo');
   assert.equal(repoOnly[1]?.bound, null);
 
   const both = pluginChipSlots(
@@ -34,10 +39,8 @@ test('composer chips always offer a repo slot and a deploy slot', () => {
   assert.equal(both[1]?.bound?.detail, 'Room');
 });
 
-test('a GitHub chip opens connect or bind, and a deploy chip stays on the list', () => {
-  const connect = initialPluginView('repo', []);
-  assert.equal(connect.kind, 'connect');
-  if (connect.kind === 'connect') assert.equal(connect.plugin.type, 'github');
+test('a repo chip lists hosts, and opens bind only when one code host is connected', () => {
+  assert.equal(initialPluginView('repo', []).kind, 'list');
 
   const bind = initialPluginView('repo', [integration('github', 'gh')]);
   assert.equal(bind.kind, 'bind');
@@ -46,6 +49,11 @@ test('a GitHub chip opens connect or bind, and a deploy chip stays on the list',
     assert.equal(bind.integrationId, 'gh');
   }
 
+  const gitlab = initialPluginView('repo', [integration('gitlab', 'gl')]);
+  assert.equal(gitlab.kind, 'bind');
+  if (gitlab.kind === 'bind') assert.equal(gitlab.plugin.type, 'gitlab');
+
+  assert.equal(initialPluginView('repo', [integration('github', 'gh'), integration('gitlab', 'gl')]).kind, 'list');
   assert.equal(initialPluginView('deploy', [integration('github', 'gh')]).kind, 'list');
   assert.equal(initialPluginView(undefined, []).kind, 'list');
 });
@@ -55,17 +63,27 @@ test('deploy focus lists only deploy platforms', () => {
   assert.deepEqual(deploy.map((plugin) => plugin.type), DEPLOY);
   assert.ok(deploy.every((plugin: PluginInfo) => plugin.binds === 'deploy'));
 
+  const repos = pluginsForFocus('repo');
+  assert.deepEqual(
+    repos.map((plugin) => plugin.type),
+    ['github', 'gitlab', 'bitbucket', 'gitea'],
+  );
+  assert.ok(repos.every((plugin: PluginInfo) => plugin.binds === 'repo'));
+
   const all = pluginsForFocus(undefined);
-  assert.equal(all.length, 1 + DEPLOY.length);
+  assert.equal(all.length, 4 + DEPLOY.length);
   assert.equal(all[0]?.type, 'github');
-  assert.equal(pluginsForFocus('repo').length, 1 + DEPLOY.length);
+  assert.equal(pluginsForFocus('repo').length, 4);
 });
 
-test('new deploy plugins have help steps', () => {
+test('code hosts and new deploy plugins have help steps', () => {
   for (const type of ['railway', 'fly', 'cloudflare-workers', 'azure-static-web-apps', 'webhook']) {
     const help = pluginHelp(type);
     assert.equal(help?.length, 3, type);
     assert.ok(help!.every((line) => line.trim().length > 0));
   }
-  assert.equal(pluginHelp('gitlab'), undefined);
+  for (const type of ['gitlab', 'bitbucket', 'gitea']) {
+    const help = pluginHelp(type);
+    assert.ok(help && help.length >= 3, type);
+  }
 });
