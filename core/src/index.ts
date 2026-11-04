@@ -18,6 +18,9 @@ export * from './uploads.js';
 export * from './integrations/types.js';
 export { IntegrationRegistry } from './integrations/registry.js';
 export { createGitHubIntegration, GitHubClient, GitHubError } from './integrations/github.js';
+export { createGitLabIntegration } from './integrations/gitlab.js';
+export { createBitbucketIntegration } from './integrations/bitbucket.js';
+export { createGiteaIntegration } from './integrations/gitea.js';
 export { createVercelIntegration } from './integrations/platforms/vercel.js';
 export { createNetlifyIntegration } from './integrations/platforms/netlify.js';
 export { createRenderIntegration } from './integrations/platforms/render.js';
@@ -38,7 +41,10 @@ import { createMockAdapter } from './adapters/mock.js';
 import { createOpenAICompatibleAdapter } from './adapters/openai-compatible.js';
 import { AdapterRegistry } from './adapters/registry.js';
 import type { Limits } from './config.js';
+import { createBitbucketIntegration } from './integrations/bitbucket.js';
+import { createGiteaIntegration } from './integrations/gitea.js';
 import { createGitHubIntegration } from './integrations/github.js';
+import { createGitLabIntegration } from './integrations/gitlab.js';
 import { createAzureStaticWebAppsIntegration } from './integrations/platforms/azure-static-web-apps.js';
 import { createCloudflarePagesIntegration } from './integrations/platforms/cloudflare-pages.js';
 import { createCloudflareWorkersIntegration } from './integrations/platforms/cloudflare-workers.js';
@@ -64,6 +70,9 @@ export function defaultRegistry(limits: Pick<Limits, 'mockDelayMs'>): AdapterReg
 export function defaultIntegrations(): IntegrationRegistry {
   return new IntegrationRegistry()
     .register(createGitHubIntegration())
+    .register(createGitLabIntegration())
+    .register(createBitbucketIntegration())
+    .register(createGiteaIntegration())
     .register(createCloudflarePagesIntegration())
     .register(createVercelIntegration())
     .register(createNetlifyIntegration())

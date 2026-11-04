@@ -365,6 +365,9 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           const types = (await api('/api/integrations/types')).body;
           expect(types.map((t: any) => t.type)).toEqual([
             'github',
+            'gitlab',
+            'bitbucket',
+            'gitea',
             'cloudflare-pages',
             'vercel',
             'netlify',

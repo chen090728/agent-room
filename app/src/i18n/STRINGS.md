@@ -1478,6 +1478,27 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - sources:
   - app/src/plugins.ts
 
+### plugins.gitlabDescription
+
+- zh: 读取 GitLab 仓库，通过合并请求提交修改（合并前要你确认）
+- en: Read a GitLab repository and open merge requests (you confirm before anything merges)
+- sources:
+  - app/src/plugins.ts
+
+### plugins.bitbucketDescription
+
+- zh: 读取 Bitbucket 仓库，通过 Pull Request 提交修改（合并前要你确认）
+- en: Read a Bitbucket repository and open pull requests (you confirm before anything merges)
+- sources:
+  - app/src/plugins.ts
+
+### plugins.giteaDescription
+
+- zh: 读取 Gitea 或 Forgejo 仓库，通过 Pull Request 提交修改（合并前要你确认）
+- en: Read a Gitea or Forgejo repository and open pull requests (you confirm before anything merges)
+- sources:
+  - app/src/plugins.ts
+
 ### plugins.deployDescription
 
 - zh: 合并后在群里显示部署进度和预览链接
@@ -1489,6 +1510,13 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: 部署平台
 - en: Deploy platform
+- sources:
+  - app/src/plugins.ts
+
+### plugins.fallbackRepo
+
+- zh: 代码仓库
+- en: Repository
 - sources:
   - app/src/plugins.ts
 
@@ -1508,8 +1536,8 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 ### plugins.chipConnectRepo
 
-- zh: 连接 GitHub
-- en: Connect GitHub
+- zh: 连接代码仓库
+- en: Connect a repository
 - sources:
   - app/src/components/PluginChips.tsx
 
@@ -1526,6 +1554,13 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - en: Connect a deploy platform
 - sources:
   - app/src/components/PluginChips.tsx
+  - app/src/sheet-content/PluginsSheet.tsx
+
+### plugins.connectRepoTitle
+
+- zh: 连接代码仓库
+- en: Connect a repository
+- sources:
   - app/src/sheet-content/PluginsSheet.tsx
 
 ### plugins.unsupported
@@ -1560,6 +1595,13 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: 已连接 · 先绑定 GitHub 仓库，才能跟踪部署
 - en: Connected · Bind a GitHub repo before tracking deploys
+- sources:
+  - app/src/sheet-content/PluginsSheet.tsx
+
+### plugins.needsGitHubRepo
+
+- zh: 已连接 · 部署跟踪目前只跟着 GitHub 仓库
+- en: Connected · Deploy tracking follows a GitHub repository
 - sources:
   - app/src/sheet-content/PluginsSheet.tsx
 
@@ -1696,6 +1738,13 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - sources:
   - app/src/sheet-content/PluginsSheet.tsx
 
+### plugins.emptyReposGeneric
+
+- zh: 没有找到仓库。令牌只能看到你授权过的仓库。
+- en: No repositories. The token only sees repos you authorized.
+- sources:
+  - app/src/sheet-content/PluginsSheet.tsx
+
 ### plugins.emptyProjects
 
 - zh: 这个账号下还没有项目。
@@ -1743,6 +1792,83 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 - zh: 4. 生成后复制令牌（以 github_pat_ 开头），粘贴到下面。
 - en: 4. Copy the token (it starts with github_pat_) and paste it below.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitlab.step1
+
+- zh: 1. 在 GitLab 打开头像 → Preferences → Access tokens（自建实例也在这里），创建一个个人、项目或群组访问令牌。
+- en: 1. On GitLab, open your avatar → Preferences → Access tokens (self-hosted instances use the same page) and create a personal, project, or group access token.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitlab.step2
+
+- zh: 2. 权限勾选 api。项目令牌的角色选 Maintainer，这样你才能在聊天里点合并。
+- en: 2. Select the api scope. For a project token, set the role to Maintainer so you can merge from the chat.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitlab.step3
+
+- zh: 3. 只想开放个别仓库时，用项目访问令牌，不要用能看全部仓库的个人令牌。
+- en: 3. To open only a few repositories, use a project access token instead of a personal token that can see everything.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitlab.step4
+
+- zh: 4. 把令牌粘贴到下面。GitLab.com 不用填网站地址；自建实例填 https://gitlab.example.com。
+- en: 4. Paste the token below. Leave the site address empty for GitLab.com. For a self-hosted instance, enter https://gitlab.example.com.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.bitbucket.step1
+
+- zh: 1. 在 Bitbucket 打开 Personal settings → Atlassian account settings → Security → Create and manage API tokens，创建一个 API 令牌。
+- en: 1. On Bitbucket, open Personal settings → Atlassian account settings → Security → Create and manage API tokens, and create an API token.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.bitbucket.step2
+
+- zh: 2. 权限勾选仓库和 Pull request 的读、写（read/write repository 和 read/write pullrequest）。应用密码已经停用。
+- en: 2. Include read and write for repositories and pull requests. App passwords no longer work.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.bitbucket.step3
+
+- zh: 3. 工作区填网址里 bitbucket.org/ 后面的那段，例如 my-team。令牌用 Bearer 即可，邮箱留空。
+- en: 3. The workspace is the part after bitbucket.org/ in the URL, for example my-team. Leave the email empty — the token is sent as a Bearer token.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.bitbucket.step4
+
+- zh: 4. 如果这个令牌必须用 Basic 认证，再把 Atlassian 账号邮箱填到「邮箱或用户名」。
+- en: 4. If this token must use Basic auth, also enter your Atlassian account email under email or username.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitea.step1
+
+- zh: 1. 在 Gitea 或 Forgejo 打开设置 → 应用，生成访问令牌。新版本勾选仓库的读和写；旧版本的令牌默认有全部权限。
+- en: 1. On Gitea or Forgejo, open Settings → Applications and generate an access token. On newer versions, allow repository read and write. Older tokens already have full access.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitea.step2
+
+- zh: 2. 网站地址填实例根地址，例如 https://gitea.example.com 或 https://codeberg.org，不要带 /api。
+- en: 2. The site address is the instance root, such as https://gitea.example.com or https://codeberg.org. Do not include /api.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.gitea.step3
+
+- zh: 3. 把令牌粘贴到下面。Gitea 和 Forgejo 用同一种连接。
+- en: 3. Paste the token below. Gitea and Forgejo use the same connection.
 - sources:
   - app/src/plugins.ts
 
@@ -2496,8 +2622,8 @@ A few English lines are judgment calls. They are repeated under the key when it 
 
 ### chatSettings.directHint
 
-- zh: 这是和 {{name}} 的单聊。点输入框左边的加号，可以给这个对话添加插件（GitHub、部署平台）。
-- en: This is your chat with {{name}}. Tap + by the message box to add plugins (GitHub, deploy platforms).
+- zh: 这是和 {{name}} 的单聊。点输入框左边的加号，可以给这个对话添加插件（GitHub、GitLab、Bitbucket、Gitea、部署平台）。
+- en: This is your chat with {{name}}. Tap + by the message box to add plugins (GitHub, GitLab, Bitbucket, Gitea, or a deploy platform).
 - sources:
   - app/src/sheet-content/ChatSettingsSheet.tsx
 

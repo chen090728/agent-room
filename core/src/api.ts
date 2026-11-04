@@ -86,7 +86,7 @@ const cardBody = z.object({ action: z.enum(['merge', 'reject']) });
 /** Each key is optional: leave it out to keep the current value, send null to clear it. */
 const bindingBody = z.object({
   repo: z
-    .object({ integrationId: z.string(), repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, '仓库名要写成 所有者/仓库名') })
+    .object({ integrationId: z.string(), repo: z.string().regex(/^[\w.-]+(?:\/[\w.-]+)+$/, '仓库名要写成 所有者/仓库名') })
     .nullable()
     .optional(),
   deploy: z
@@ -390,6 +390,11 @@ async function route(request: Request, url: URL, path: string, deps: ApiDeps): P
 
     if (sub === '/binding' && method === 'PUT') {
       const input = bindingBody.parse(await body());
+      if (input.repo && !/^[\w.-]+\/[\w.-]+$/.test(input.repo.repo)) {
+        const saved = await directory.getIntegration(input.repo.integrationId);
+        // GitLab projects can live under group/subgroup. The other hosts are owner/repo.
+        if (saved?.type !== 'gitlab') return fail(400, '仓库名要写成 所有者/仓库名');
+      }
       const current = (await directory.getGroup(groupId))?.binding ?? {};
       const next = { repo: input.repo === undefined ? current.repo : input.repo ?? undefined, deploy: input.deploy === undefined ? current.deploy : input.deploy ?? undefined };
       const updated = await directory.setBinding(groupId, next);

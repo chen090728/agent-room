@@ -27,7 +27,7 @@ You run your own server. This repository does not ship anyone's API keys, assist
 - The phone app is Expo (React Native). Open it with **Expo Go**. The interface is Chinese and English; Settings → Language can follow the phone or stay on one language.
 - The same core runs on Cloudflare (Workers + Durable Objects) and on Node. The app talks to either one.
 - A first launch with no model keys still creates a **demo group** (小橙, 阿蓝, 小绿). Those three are simulated. They are part of the app, not a real person's assistants.
-- Optional later: GitHub (read files, open a pull request — merge only when you tap it), deploy status for Cloudflare Pages and Workers, Vercel, Netlify, Render, Railway, Fly.io, Azure Static Web Apps, or a custom webhook, file uploads, and a [bridge](bridge/README.md) on your own computer for Claude Code or Codex. The project never logs into Claude.ai or ChatGPT. Hosting tokens are typed in the app; none of these platforms add a server environment variable.
+- Optional later: a code host (GitHub, GitLab, Bitbucket, or Gitea/Forgejo — read files, open a pull request, merge only when you tap it), deploy status for Cloudflare Pages and Workers, Vercel, Netlify, Render, Railway, Fly.io, Azure Static Web Apps, or a custom webhook, file uploads, and a [bridge](bridge/README.md) on your own computer for Claude Code or Codex. Deploy tracking follows a GitHub repository. The project never logs into Claude.ai or ChatGPT. Hosting tokens are typed in the app; none of these platforms add a server environment variable.
 
 The long-form Chinese README stays the full reference for the HTTP API, adapters, and bridge protocol. You do not need it to deploy.
 
@@ -56,7 +56,7 @@ Cloudflare, Expo, and GitHub accounts are yours. So are the model credentials.
 | `AGENTHUB_TOKEN` | App login to your server. You generate it. At least 16 characters |
 | `AGENTHUB_SECRET` | Encrypts keys stored on your server. You generate it. At least 16 characters. Back it up |
 | Model base URL, API key, and model name | Only when you add a real assistant. Any OpenAI-compatible endpoint. The demo group does not need one |
-| GitHub fine-grained token, and optional host tokens | Only when you connect those plugins |
+| GitHub, GitLab, Bitbucket, or Gitea/Forgejo token, and optional host tokens | Only when you connect those plugins. Tokens stay on your server. |
 
 Leave every example blank. Fill the real values only in GitHub Actions secrets, Cloudflare secrets, or a local `.env` that stays on your machine. Do not open a pull request that contains them.
 
