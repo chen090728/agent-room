@@ -241,3 +241,14 @@
 - 新增颜色角色 `accent` / `accentIcon`，用于首页和聊天页右上角的加号圆按钮（深色是白底深色图标）。浅色里它们等于原来的 `surface` / `icon`，浅色外观不变。发送按钮、主按钮用原有的 `button` / `buttonText`，深色改成同样的反色。
 - 危险红从 `#FF7A72` 稍微调亮到 `#FF8C84`，让它在 `#404040` 的选中块上也有 4.5:1 对比度。占位符 `#8A8984` 按"更弱的文字"处理，测试只要求 ≥ 3:1。
 - Mac 圆点、助手头像颜色、浅色配色、布局、文字都没动。没有在真机上看过。
+
+## 首次打开按设备选语言，以及公开仓库说明
+
+- 从最新 `main` 开了新分支。没有改输入框里的 GitHub / 部署芯片，也没有加需要原生编译的库。
+- 还没有保存过语言时（AsyncStorage 里没有 `agenthub.language`），界面语言按设备决定，并继续当作「跟随系统」。启动不会写入这个键：
+  1. `expo-localization` 的语言是 `zh` → 中文，是 `en` → 英文。语言已经是这两种之一就停，不再看地区和时区，所以英文手机在中国仍是英文。
+  2. 否则看国家：先用设备地区 `regionCode`，再看语言自带的地区。中国大陆、台湾、香港、澳门 → 中文，其他地区 → 英文。
+  3. 语言和地区都看不出来时，才用 IANA 时区：`Asia/Shanghai`、`Asia/Urumqi`、`Asia/Taipei`、`Asia/Hong_Kong`、`Asia/Macau`，以及一些手机仍会报的旧名 → 中文。`Asia/Singapore` 和 `GMT+8` 这种偏移不算。
+- 已经保存的 `system` / `zh` / `en` 不会被改写。设置里仍是「跟随系统 / 中文 / English」。选了中文或 English 之后，换地区或时区也不会改回去；选了跟随系统，则回到上面的规则。
+- 扫过仓库：测试里的 `sk-`、`github_pat_` 都是假数据，`server/.env.example` 和 `.dev.vars.example` 是空占位。没有维护者的私人 Key、令牌、部署账号或个人助手配置。README「安全说明」加了一段中英说明：使用者自己带 API Key、自己部署后端，公开仓库不能放维护者的私钥或个人助手配置。演示成员小橙、阿蓝、小绿保持不动。
+- 没有新增依赖，没有新的界面文案。验证：根目录 `npm test`（core 126、server 18、worker 21、bridge 14）和 `npm run typecheck` 通过；`cd app && npm test` 50 通过，`npx tsc --noEmit` 通过。没有在 Expo Go 里看过。

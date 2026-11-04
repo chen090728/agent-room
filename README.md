@@ -288,6 +288,14 @@ Node 版 `server/src/hub.ts` 和 Cloudflare 版 `worker/src/directory-do.ts` 里
 - bridge 配对码 8 位、10 分钟有效、只能用一次；换到的凭证服务器只存 SHA-256 哈希，bridge 用它认证 `/ws/bridge`，它**不能**访问其他 HTTP 接口。
 - 连接的令牌（如 GitHub）和 API Key 一样加密保存，接口不返回明文，也不会出现在发给模型的内容和错误信息里。
 
+### 自己的 Key，自己的服务器
+
+使用这个仓库的人需要**自己准备模型 API Key，并自己部署后端**（Cloudflare 或 Node 版）。Key、`AGENTHUB_TOKEN`、`AGENTHUB_SECRET` 和各平台令牌只放在你自己的服务器或本机 `server/.env` 里，不要写进 Git。
+
+公开的代码树里**不能**出现维护者的私人密钥、访问令牌、部署账号，或只属于某一个人的助手配置。`server/.env.example` 和 `.dev.vars.example` 保持空白占位。演示群里的「小橙 / 阿蓝 / 小绿」是产品自带的模拟成员，不是私人助手。
+
+Bring your own model API keys and deploy your own backend. Keys, `AGENTHUB_TOKEN`, `AGENTHUB_SECRET`, and provider tokens stay on your server or in a local `server/.env`, and must not be committed. This public tree must never contain the maintainer's private keys, access tokens, deploy credentials, or personal assistant configuration. The checked-in examples stay empty placeholders. The demo members (小橙, 阿蓝, 小绿) are built-in stand-ins, not a personal assistant setup.
+
 ### 从旧版本升级
 
 - 加密格式在 Cloudflare 版开发时改成了 `v2`（HKDF + AES-GCM）。项目还没有正式发布过，所以**不提供旧格式的迁移**：
