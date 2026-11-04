@@ -1823,6 +1823,111 @@ A few English lines are judgment calls. They are repeated under the key when it 
 - sources:
   - app/src/plugins.ts
 
+### plugins.help.railway.step1
+
+- zh: 1. 在 Railway 打开 Account Settings → Tokens，创建一个账号令牌。只授权一个项目时也可以用项目令牌。
+- en: 1. On Railway, open Account Settings → Tokens and create an account token. A project token works too if it only needs to see one project.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.railway.step2
+
+- zh: 2. 服务要已经连上对应的 Git 仓库。合并后如果 Railway 没有自动开始部署，AgentHub 会用这次提交的 SHA 触发一次。
+- en: 2. The service must already be connected to the matching Git repo. If Railway does not start a deploy after a merge, AgentHub triggers one for that commit SHA.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.railway.step3
+
+- zh: 3. 令牌只保存在你自己的服务器上，不要写进仓库。
+- en: 3. The token stays on your own server. Do not commit it.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.fly.step1
+
+- zh: 1. 运行 fly tokens create org（或在 Fly 后台创建个人访问令牌），把令牌贴到下面。只给单个应用的 deploy 令牌读不到发布记录。
+- en: 1. Run fly tokens create org (or create a personal access token in the Fly dashboard) and paste it below. A deploy token for a single app cannot read release history.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.fly.step2
+
+- zh: 2. Fly 没有「按提交部署」的接口，AgentHub 只跟踪发布。请让 CI 把提交 SHA 写进发布说明，例如 fly deploy --deploy-message "$GITHUB_SHA"。
+- en: 2. Fly has no “deploy this commit” API, so AgentHub only tracks releases. Have CI put the commit SHA in the release description, for example fly deploy --deploy-message "$GITHUB_SHA".
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.fly.step3
+
+- zh: 3. 有多个组织时，把组织 slug 填到下面（个人组织一般是 personal）。
+- en: 3. If you use more than one organization, paste its slug below (personal orgs are often “personal”).
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.cloudflareWorkers.step1
+
+- zh: 1. 在 Cloudflare 打开 My Profile → API Tokens，创建用户令牌（不要用账户令牌）。权限：Workers Scripts → Read，以及 Workers Builds Configuration → Edit。
+- en: 1. On Cloudflare, open My Profile → API Tokens and create a user token (not an account token). Permissions: Workers Scripts → Read, and Workers Builds Configuration → Edit.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.cloudflareWorkers.step2
+
+- zh: 2. 账户 ID 在 Cloudflare 后台首页地址栏里（dash.cloudflare.com/ 后面那串 32 位字符）。这和 Pages 是两条连接。
+- en: 2. The account ID is the 32-character string after dash.cloudflare.com/ in the dashboard URL. This connection is separate from Pages.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.cloudflareWorkers.step3
+
+- zh: 3. Worker 要已经在 Builds 里连上 Git 仓库。合并后如果没有自动开始构建，AgentHub 会按这个提交触发一次。
+- en: 3. The Worker must already be connected to a Git repo in Builds. If no build starts after a merge, AgentHub triggers one for that commit.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.azure.step1
+
+- zh: 1. 在你自己的电脑上运行 az account get-access-token --query accessToken -o tsv，把输出的令牌贴到下面。这是短期令牌，过期后要重新连接。
+- en: 1. On your own computer, run az account get-access-token --query accessToken -o tsv and paste the token below. It expires; reconnect when it does.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.azure.step2
+
+- zh: 2. 订阅 ID 在 Azure 门户的订阅概览里，是一串 GUID。
+- en: 2. The subscription ID is the GUID on the subscription overview in the Azure portal.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.azure.step3
+
+- zh: 3. 构建记录通常没有提交 SHA。AgentHub 会在返回内容里查找 SHA，或在 PR 标题唯一匹配时跟上。这里不能触发 Git 构建；要主动触发请用 Webhook。
+- en: 3. Build records usually omit the commit SHA. AgentHub looks for the SHA in the payload, or follows a build when its pull request title is the only match. Git builds cannot be started here; use Webhook for that.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.webhook.step1
+
+- zh: 1. 填写一个 http 或 https 地址。合并后 AgentHub 会 POST JSON：event、project、repo、sha、branch、title。可选令牌放在 Authorization: Bearer。
+- en: 1. Paste an http or https URL. After a merge, AgentHub POSTs JSON: event, project, repo, sha, branch, title. An optional token is sent as Authorization: Bearer.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.webhook.step2
+
+- zh: 2. 保存时只发 HEAD，不会触发部署。钩子如果没有 HEAD，返回 404 或 405 也可以保存。
+- en: 2. Saving sends HEAD only, so it does not deploy. A hook that has no HEAD can still be saved if it returns 404 or 405.
+- sources:
+  - app/src/plugins.ts
+
+### plugins.help.webhook.step3
+
+- zh: 3. 部署如果是异步的，再填状态地址，用 {id} 表示部署 ID。响应里用 state（queued、building、ready、error），以及可选的 url、error。不填状态地址时，2xx 就视为完成。
+- en: 3. If the deploy is asynchronous, add a status URL and use {id} for the deployment id. Respond with state (queued, building, ready, error) and optional url and error. With no status URL, a 2xx response counts as finished.
+- sources:
+  - app/src/plugins.ts
+
 ### pluginDetail.unbindRepoTitle
 
 - zh: 解除仓库绑定？

@@ -27,7 +27,7 @@ You run your own server. This repository does not ship anyone's API keys, assist
 - The phone app is Expo (React Native). Open it with **Expo Go**. The interface is Chinese and English; Settings → Language can follow the phone or stay on one language.
 - The same core runs on Cloudflare (Workers + Durable Objects) and on Node. The app talks to either one.
 - A first launch with no model keys still creates a **demo group** (小橙, 阿蓝, 小绿). Those three are simulated. They are part of the app, not a real person's assistants.
-- Optional later: GitHub (read files, open a pull request — merge only when you tap it), deploy status for Cloudflare Pages / Vercel / Netlify / Render, file uploads, and a [bridge](bridge/README.md) on your own computer for Claude Code or Codex. The project never logs into Claude.ai or ChatGPT.
+- Optional later: GitHub (read files, open a pull request — merge only when you tap it), deploy status for Cloudflare Pages and Workers, Vercel, Netlify, Render, Railway, Fly.io, Azure Static Web Apps, or a custom webhook, file uploads, and a [bridge](bridge/README.md) on your own computer for Claude Code or Codex. The project never logs into Claude.ai or ChatGPT. Hosting tokens are typed in the app; none of these platforms add a server environment variable.
 
 The long-form Chinese README stays the full reference for the HTTP API, adapters, and bridge protocol. You do not need it to deploy.
 

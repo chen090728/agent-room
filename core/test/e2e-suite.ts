@@ -363,7 +363,18 @@ export function defineE2ESuite(name: string, target: () => E2ETarget) {
           expect(created.body.secrets.token).toMatch(/^git….{4}$/);
           expect(JSON.stringify((await api('/api/integrations')).body)).not.toContain(FAKE_TOKEN);
           const types = (await api('/api/integrations/types')).body;
-          expect(types.map((t: any) => t.type)).toEqual(['github', 'cloudflare-pages', 'vercel', 'netlify', 'render']);
+          expect(types.map((t: any) => t.type)).toEqual([
+            'github',
+            'cloudflare-pages',
+            'vercel',
+            'netlify',
+            'render',
+            'railway',
+            'fly',
+            'cloudflare-workers',
+            'azure-static-web-apps',
+            'webhook',
+          ]);
           expect(types[0].fields.find((f: any) => f.key === 'token')).toMatchObject({ secret: true, required: true });
           const resources = await api(`/api/integrations/${created.body.id}/resources`);
           expect(resources.body.map((r: any) => r.id)).toEqual([FAKE_REPO]);

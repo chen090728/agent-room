@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { initialPluginView, pluginChipSlots, pluginsForFocus, type PluginInfo } from './plugins.ts';
+import { initialPluginView, pluginChipSlots, pluginHelp, pluginsForFocus, type PluginInfo } from './plugins.ts';
 import type { IntegrationView } from './protocol.ts';
+
+const DEPLOY = ['cloudflare-pages', 'vercel', 'netlify', 'render', 'railway', 'fly', 'cloudflare-workers', 'azure-static-web-apps', 'webhook'];
 
 function integration(type: string, id = type): IntegrationView {
   return { id, type, typeLabel: type, name: id, config: {}, secrets: {}, createdAt: 0 };
@@ -50,14 +52,20 @@ test('a GitHub chip opens connect or bind, and a deploy chip stays on the list',
 
 test('deploy focus lists only deploy platforms', () => {
   const deploy = pluginsForFocus('deploy');
-  assert.deepEqual(
-    deploy.map((plugin) => plugin.type),
-    ['cloudflare-pages', 'vercel', 'netlify', 'render'],
-  );
+  assert.deepEqual(deploy.map((plugin) => plugin.type), DEPLOY);
   assert.ok(deploy.every((plugin: PluginInfo) => plugin.binds === 'deploy'));
 
   const all = pluginsForFocus(undefined);
-  assert.equal(all.length, 5);
+  assert.equal(all.length, 1 + DEPLOY.length);
   assert.equal(all[0]?.type, 'github');
-  assert.equal(pluginsForFocus('repo').length, 5);
+  assert.equal(pluginsForFocus('repo').length, 1 + DEPLOY.length);
+});
+
+test('new deploy plugins have help steps', () => {
+  for (const type of ['railway', 'fly', 'cloudflare-workers', 'azure-static-web-apps', 'webhook']) {
+    const help = pluginHelp(type);
+    assert.equal(help?.length, 3, type);
+    assert.ok(help!.every((line) => line.trim().length > 0));
+  }
+  assert.equal(pluginHelp('gitlab'), undefined);
 });

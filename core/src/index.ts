@@ -22,6 +22,11 @@ export { createVercelIntegration } from './integrations/platforms/vercel.js';
 export { createNetlifyIntegration } from './integrations/platforms/netlify.js';
 export { createRenderIntegration } from './integrations/platforms/render.js';
 export { createCloudflarePagesIntegration } from './integrations/platforms/cloudflare-pages.js';
+export { createRailwayIntegration } from './integrations/platforms/railway.js';
+export { createFlyIntegration } from './integrations/platforms/fly.js';
+export { createCloudflareWorkersIntegration } from './integrations/platforms/cloudflare-workers.js';
+export { createAzureStaticWebAppsIntegration } from './integrations/platforms/azure-static-web-apps.js';
+export { createWebhookIntegration } from './integrations/platforms/webhook.js';
 export { PlatformError } from './integrations/platforms/http.js';
 export type { ContextMessage, FieldSpec, MemberAdapter, ReplyContext, ResolvedAttachment } from './adapters/types.js';
 export { AdapterRegistry } from './adapters/registry.js';
@@ -34,10 +39,15 @@ import { createOpenAICompatibleAdapter } from './adapters/openai-compatible.js';
 import { AdapterRegistry } from './adapters/registry.js';
 import type { Limits } from './config.js';
 import { createGitHubIntegration } from './integrations/github.js';
+import { createAzureStaticWebAppsIntegration } from './integrations/platforms/azure-static-web-apps.js';
 import { createCloudflarePagesIntegration } from './integrations/platforms/cloudflare-pages.js';
+import { createCloudflareWorkersIntegration } from './integrations/platforms/cloudflare-workers.js';
+import { createFlyIntegration } from './integrations/platforms/fly.js';
 import { createNetlifyIntegration } from './integrations/platforms/netlify.js';
+import { createRailwayIntegration } from './integrations/platforms/railway.js';
 import { createRenderIntegration } from './integrations/platforms/render.js';
 import { createVercelIntegration } from './integrations/platforms/vercel.js';
+import { createWebhookIntegration } from './integrations/platforms/webhook.js';
 import { IntegrationRegistry } from './integrations/registry.js';
 
 import { createBridgeAdapter } from './adapters/bridge.js';
@@ -57,5 +67,10 @@ export function defaultIntegrations(): IntegrationRegistry {
     .register(createCloudflarePagesIntegration())
     .register(createVercelIntegration())
     .register(createNetlifyIntegration())
-    .register(createRenderIntegration());
+    .register(createRenderIntegration())
+    .register(createRailwayIntegration())
+    .register(createFlyIntegration())
+    .register(createCloudflareWorkersIntegration())
+    .register(createAzureStaticWebAppsIntegration())
+    .register(createWebhookIntegration());
 }

@@ -1,9 +1,20 @@
-// In-process imitations of the hosting-platform REST endpoints AgentHub uses
-// (Vercel, Netlify, Render, Cloudflare Pages). The integrations take a `fetch`,
-// so tests hand them this one instead of opening any sockets.
+// In-process imitations of the hosting-platform APIs AgentHub uses.
+// The integrations take a `fetch`, so tests hand them this one instead of opening any sockets.
 
-export const TOKENS = { vercel: 'vercel_fake_token_0123456789', netlify: 'netlify_fake_token_0123456789', render: 'rnd_fake_key_0123456789', cloudflare: 'cf_fake_token_0123456789' } as const;
+export const TOKENS = {
+  vercel: 'vercel_fake_token_0123456789',
+  netlify: 'netlify_fake_token_0123456789',
+  render: 'rnd_fake_key_0123456789',
+  cloudflare: 'cf_fake_token_0123456789',
+  railway: 'railway_fake_token_0123456789',
+  fly: 'fly_fake_token_0123456789',
+  workers: 'cfw_fake_token_0123456789',
+  azure: 'azure_fake_token_0123456789',
+  webhook: 'whsec_fake_token_0123456789',
+} as const;
 export const CF_ACCOUNT = 'a'.repeat(32);
+/** Microsoft's public sample subscription id, used only by the fake Azure API. */
+export const AZURE_SUB = '34adfa4f-cedf-4dc0-ba29-b6d1a69ab345';
 
 export type Phase = 'queued' | 'building' | 'ready' | 'error';
 
@@ -11,6 +22,8 @@ export interface FakeDeploy {
   id: string;
   sha: string;
   phase: Phase;
+  /** Azure-only: pull request title when the build record has no commit. */
+  title?: string;
 }
 
 export type Platform = keyof typeof TOKENS;
@@ -30,10 +43,21 @@ const HOSTS: Record<string, Platform> = {
   'api.netlify.com': 'netlify',
   'api.render.com': 'render',
   'api.cloudflare.com': 'cloudflare',
+  'backboard.railway.com': 'railway',
+  'management.azure.com': 'azure',
+  'hooks.example.test': 'webhook',
 };
 
+function platformOf(url: URL): Platform | undefined {
+  if (url.hostname === 'api.cloudflare.com') {
+    return url.pathname.includes('/builds/') || url.pathname.includes('/workers/') ? 'workers' : 'cloudflare';
+  }
+  if (url.hostname === 'api.machines.dev' || url.hostname === 'api.fly.io') return 'fly';
+  return HOSTS[url.hostname];
+}
+
 export function fakePlatforms(): FakePlatforms {
-  const deploys: FakePlatforms['deploys'] = { vercel: [], netlify: [], render: [], cloudflare: [] };
+  const deploys: FakePlatforms['deploys'] = { vercel: [], netlify: [], render: [], cloudflare: [], railway: [], fly: [], workers: [], azure: [], webhook: [] };
   const requests: FakePlatforms['requests'] = [];
   let failing = 0;
   let counter = 0;
@@ -44,7 +68,7 @@ export function fakePlatforms(): FakePlatforms {
     const url = new URL(String(input));
     const method = (init.method ?? 'GET').toUpperCase();
     requests.push({ method, url: url.toString() });
-    const platform = HOSTS[url.hostname];
+    const platform = platformOf(url);
     if (!platform) return json(404, { message: 'unknown host' });
     if (failing > 0) {
       failing--;
@@ -146,6 +170,119 @@ export function fakePlatforms(): FakePlatforms {
       if (one) {
         const d = list.find((x) => x.id === one[1]);
         return d ? ok(view(d)) : json(404, { success: false, errors: [{ message: 'not found' }] });
+      }
+    }
+
+    if (platform === 'railway') {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
+      const q = String(body.query ?? '');
+      const view = (d: FakeDeploy) => ({
+        id: d.id,
+        status: { queued: 'QUEUED', building: 'BUILDING', ready: 'SUCCESS', error: 'FAILED' }[d.phase],
+        staticUrl: `${d.id}.up.railway.app`,
+        meta: { commitHash: d.sha },
+      });
+      if (q.includes('serviceInstanceDeployV2')) {
+        const d: FakeDeploy = { id: `rw-${++counter}`, sha: body.variables?.commitSha ?? 'triggered', phase: 'queued' };
+        list.push(d);
+        return json(200, { data: { serviceInstanceDeployV2: d.id } });
+      }
+      if (q.includes('deployments(')) return json(200, { data: { deployments: { edges: list.map((d) => ({ node: view(d) })) } } });
+      if (q.includes('deployment(')) {
+        const d = list.find((x) => x.id === body.variables?.id);
+        return d ? json(200, { data: { deployment: view(d) } }) : json(200, { data: { deployment: null } });
+      }
+      if (q.includes('projects')) {
+        return json(200, {
+          data: {
+            projects: {
+              edges: [{ node: { id: 'prj', name: 'app', environments: { edges: [{ node: { id: 'env', name: 'production' } }] }, services: { edges: [{ node: { id: 'svc', name: 'web' } }] } } }],
+            },
+          },
+        });
+      }
+      if (q.includes('me {') || q.includes(' me {')) return json(200, { data: { me: { name: 'Rail', email: 'rail@example.com' } } });
+    }
+
+    if (platform === 'fly') {
+      const view = (d: FakeDeploy) => ({ id: d.id, status: { queued: 'pending', building: 'running', ready: 'complete', error: 'failed' }[d.phase], description: d.sha, reason: '', imageRef: '' });
+      if (path === '/v1/apps') return json(200, { apps: [{ name: 'web', organization: { name: 'Fly Org', slug: 'personal' } }] });
+      if (path === '/graphql') {
+        const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
+        if (body.variables?.appName !== 'web') return json(200, { data: { app: null } });
+        return json(200, { data: { app: { hostname: 'web.fly.dev', releasesUnprocessed: { nodes: list.map(view) } } } });
+      }
+    }
+
+    if (platform === 'workers') {
+      const base = `/client/v4/accounts/${CF_ACCOUNT}`;
+      const view = (d: FakeDeploy) => ({
+        build_uuid: d.id,
+        status: { queued: 'queued', building: 'running', ready: 'stopped', error: 'stopped' }[d.phase],
+        build_outcome: d.phase === 'ready' ? 'success' : d.phase === 'error' ? 'fail' : undefined,
+        build_trigger_metadata: { commit_hash: d.sha, branch: 'main' },
+      });
+      const ok = (result: unknown) => json(200, { success: true, errors: [], result });
+      if (path === `${base}/workers/scripts`) return ok([{ id: 'my-worker', tag: 'worker-tag' }]);
+      if (path === `${base}/workers/subdomain`) return ok({ subdomain: 'example' });
+      if (path === `${base}/builds/workers/worker-tag/builds`) return ok(list.map(view));
+      if (path === `${base}/builds/workers/worker-tag/triggers`) return ok([{ trigger_uuid: 'trig-1', branch: 'main' }]);
+      if (path === `${base}/builds/triggers/trig-1/builds` && method === 'POST') {
+        const payload = typeof init.body === 'string' ? JSON.parse(init.body) : {};
+        const d: FakeDeploy = { id: `cfw-${++counter}`, sha: payload.commit_hash ?? 'triggered', phase: 'queued' };
+        list.push(d);
+        return ok(view(d));
+      }
+      const one = path.match(new RegExp(`^${base}/builds/builds/(.+)$`));
+      if (one) {
+        const d = list.find((x) => x.id === one[1]);
+        return d ? ok(view(d)) : json(404, { success: false, errors: [{ message: 'not found' }] });
+      }
+    }
+
+    if (platform === 'azure') {
+      const site = `/subscriptions/${AZURE_SUB}/resourceGroups/rg/providers/Microsoft.Web/staticSites/site`;
+      const view = (d: FakeDeploy) => ({
+        name: d.id,
+        properties: {
+          buildId: d.id,
+          status: { queued: 'WaitingForDeployment', building: 'Deploying', ready: 'Ready', error: 'Failed' }[d.phase],
+          sourceVersion: d.sha || undefined,
+          pullRequestTitle: d.title,
+          hostname: `${d.id}.azurestaticapps.net`,
+        },
+      });
+      if (path === `/subscriptions/${AZURE_SUB}/providers/Microsoft.Web/staticSites`) {
+        return json(200, { value: [{ id: site, name: 'site', properties: { defaultHostname: 'site.azurestaticapps.net', repositoryUrl: 'https://github.com/octo/hello' } }] });
+      }
+      if (path === `${site}/builds`) return json(200, { value: list.map(view) });
+      const one = path.match(new RegExp(`^${site}/builds/(.+)$`));
+      if (one) {
+        const d = list.find((x) => x.id === one[1]);
+        return d ? json(200, view(d)) : json(404, { error: { message: 'not found' } });
+      }
+    }
+
+    if (platform === 'webhook') {
+      const view = (d: FakeDeploy) => ({
+        id: d.id,
+        state: d.phase,
+        sha: d.sha,
+        url: `https://${d.id}.hook.example.test`,
+        error: d.phase === 'error' ? 'build failed' : undefined,
+      });
+      if (path === '/hooks' && method === 'HEAD') return json(200, {});
+      if (path === '/hooks' && method === 'POST') {
+        const payload = typeof init.body === 'string' ? JSON.parse(init.body) : {};
+        const d: FakeDeploy = { id: `wh-${++counter}`, sha: payload.sha ?? 'triggered', phase: 'queued' };
+        list.push(d);
+        return json(200, { id: d.id, state: 'queued' });
+      }
+      if (path === '/deploys' && method === 'GET') {
+        const id = url.searchParams.get('id');
+        const sha = url.searchParams.get('sha');
+        const d = id ? list.find((x) => x.id === id) : list.find((x) => x.sha === sha);
+        return d ? json(200, view(d)) : json(404, { message: 'not found' });
       }
     }
 
