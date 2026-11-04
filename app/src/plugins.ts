@@ -22,6 +22,11 @@ export function plugins(): PluginInfo[] {
     { type: 'vercel', label: 'Vercel', description: tr('plugins.deployDescription'), binds: 'deploy' },
     { type: 'netlify', label: 'Netlify', description: tr('plugins.deployDescription'), binds: 'deploy' },
     { type: 'render', label: 'Render', description: tr('plugins.deployDescription'), binds: 'deploy' },
+    { type: 'railway', label: 'Railway', description: tr('plugins.deployDescription'), binds: 'deploy' },
+    { type: 'fly', label: 'Fly.io', description: tr('plugins.deployDescription'), binds: 'deploy' },
+    { type: 'cloudflare-workers', label: 'Cloudflare Workers', description: tr('plugins.deployDescription'), binds: 'deploy' },
+    { type: 'azure-static-web-apps', label: 'Azure Static Web Apps', description: tr('plugins.deployDescription'), binds: 'deploy' },
+    { type: 'webhook', label: 'Webhook', description: tr('plugins.deployDescription'), binds: 'deploy' },
   ];
 }
 
@@ -31,6 +36,11 @@ const HELP_KEYS: Record<string, string[]> = {
   netlify: ['plugins.help.netlify.step1', 'plugins.help.netlify.step2'],
   render: ['plugins.help.render.step1', 'plugins.help.render.step2'],
   'cloudflare-pages': ['plugins.help.cloudflare.step1', 'plugins.help.cloudflare.step2', 'plugins.help.cloudflare.step3'],
+  railway: ['plugins.help.railway.step1', 'plugins.help.railway.step2', 'plugins.help.railway.step3'],
+  fly: ['plugins.help.fly.step1', 'plugins.help.fly.step2', 'plugins.help.fly.step3'],
+  'cloudflare-workers': ['plugins.help.cloudflareWorkers.step1', 'plugins.help.cloudflareWorkers.step2', 'plugins.help.cloudflareWorkers.step3'],
+  'azure-static-web-apps': ['plugins.help.azure.step1', 'plugins.help.azure.step2', 'plugins.help.azure.step3'],
+  webhook: ['plugins.help.webhook.step1', 'plugins.help.webhook.step2', 'plugins.help.webhook.step3'],
 };
 
 // Short, practical instructions for getting each token.

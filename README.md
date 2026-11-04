@@ -10,7 +10,7 @@
 - **不填 Key 也能玩**：首次启动自动创建"演示群"，里面有三位模拟成员（小橙、阿蓝、小绿）。
 - **不绑定服务商**：通用的"OpenAI 兼容接口"适配器，接口地址、Key、模型名都由你在 App 里填写。
 - **有上限，不会刷屏**：每条原始消息最多接力 5 轮、总共最多 10 次回复。
-- **能干活**：连接 GitHub 后，助手可以读代码、开 PR，**你点"同意合并"才会合并**；合并后群里自动显示部署进度和预览链接（Cloudflare Pages / Vercel / Netlify / Render）。
+- **能干活**：连接 GitHub 后，助手可以读代码、开 PR，**你点"同意合并"才会合并**；合并后群里自动显示部署进度和预览链接（Cloudflare Pages / Workers、Vercel、Netlify、Render、Railway、Fly.io、Azure Static Web Apps，或自定义 Webhook）。
 - **能用你电脑上的 Claude Code / Codex**：通过运行在你自己电脑上的 bridge 接入，项目不接触任何网页账号凭证。
 - **能发文件**：图片、PDF、代码文件都可以发给助手。
 
@@ -177,12 +177,12 @@ Node 版：写在 `server/.env`（参考 `server/.env.example`），另外还有
 - **底部卡片**：新建助手、新建群聊、设置、对话设置、插件都是从底部滑出的卡片，背景会略微缩小变暗；
   拖住卡片顶部往下拉（或点 ×、点空白处）关闭，没拉够会弹回去。
 - **插件**：输入框上方的小标签显示这个对话已绑定的插件（GitHub 仓库、部署项目），点开可以查看或解除绑定；
-  输入框左边的加号 → "插件"，列出 GitHub、Cloudflare Pages、Vercel、Netlify、Render：没连接的直接填令牌连接，
+  输入框左边的加号 → "插件"，列出 GitHub 和各个部署平台（Cloudflare Pages / Workers、Vercel、Netlify、Render、Railway、Fly.io、Azure Static Web Apps、Webhook）：没连接的直接填令牌连接，
   连接过的绑定到当前对话。设置页只保留"我"和服务器。
 
 ## 连接（Integrations）：GitHub
 
-"连接"（插件）管理和外部服务的连接，目前支持 GitHub 和四个部署平台，在聊天输入框的加号 → "插件"里添加和绑定。写法和成员适配器一致：按类型注册、
+"连接"（插件）管理和外部服务的连接，目前支持 GitHub 和九个部署平台，在聊天输入框的加号 → "插件"里添加和绑定。写法和成员适配器一致：按类型注册、
 用表单字段描述需要填什么、敏感字段加密保存、并向助手暴露工具。
 
 **连接 GitHub**：在 GitHub 网页创建一个**细粒度访问令牌**（Settings → Developer settings → Personal access tokens →
@@ -230,8 +230,8 @@ Node 版 `server/src/hub.ts` 和 Cloudflare 版 `worker/src/directory-do.ts` 里
 
 ## 部署平台：合并后自动跟踪部署
 
-"连接"里除了 GitHub，还能连接托管平台：**Cloudflare Pages、Vercel、Netlify、Render**。它们和 GitHub 一样，
-令牌加密保存、App 里只显示打码后的样子，添加时服务器会先验证再保存。
+"连接"里除了 GitHub，还能连接托管平台：**Cloudflare Pages、Vercel、Netlify、Render、Railway、Fly.io、Cloudflare Workers、Azure Static Web Apps、Webhook**。它们和 GitHub 一样，
+令牌加密保存、App 里只显示打码后的样子，添加时服务器会先验证再保存。这些令牌都在 App 里填写，不需要新的服务器环境变量。
 
 | 平台 | 需要填 | 合并后 |
 | --- | --- | --- |
@@ -239,6 +239,11 @@ Node 版 `server/src/hub.ts` 和 Cloudflare 版 `worker/src/directory-do.ts` 里
 | Netlify | 访问令牌 | 跟踪；约 90 秒还没开始部署就替你触发一次 |
 | Render | API Key | 同上 |
 | Cloudflare Pages | API 令牌（Cloudflare Pages：编辑）+ 账户 ID | 同上 |
+| Railway | 账号令牌（或只能看一个项目的项目令牌） | 跟踪；没有自动部署时按这次提交的 SHA 触发 |
+| Fly.io | 组织令牌（`fly tokens create org`） | 只跟踪。发布说明里要带提交 SHA，不能从这里触发 |
+| Cloudflare Workers | 用户 API 令牌（Workers Scripts 读 + Workers Builds 编辑）+ 账户 ID | 跟踪 Workers Builds（不是 Pages）；没有自动构建时按提交触发 |
+| Azure Static Web Apps | `az account get-access-token` 的令牌 + 订阅 ID | 跟踪。构建记录通常没有 SHA；不能从这里触发 Git 构建 |
+| Webhook | 部署地址（可选 Bearer 令牌、状态地址） | 向你的地址 POST；用状态地址继续查进度 |
 
 **使用**：先在平台里把项目连到这个 GitHub 仓库并开着自动部署；然后打开对话 → 输入框左边的加号 →
 "插件" → 选一个部署平台，再选项目（要先绑定 GitHub 仓库才能绑定部署平台）。之后只要你在聊天里点"同意合并"，群里就会出现一张

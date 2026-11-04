@@ -296,6 +296,31 @@ export const zh = {
         step2: '2. 账户 ID 在 Cloudflare 后台首页地址栏里（dash.cloudflare.com/ 后面那串 32 位字符）。',
         step3: '3. 项目要已经连接了对应的 GitHub 仓库。合并后如果 Pages 没有自动开始部署，AgentHub 会替你触发一次。',
       },
+      railway: {
+        step1: '1. 在 Railway 打开 Account Settings → Tokens，创建一个账号令牌。只授权一个项目时也可以用项目令牌。',
+        step2: '2. 服务要已经连上对应的 Git 仓库。合并后如果 Railway 没有自动开始部署，AgentHub 会用这次提交的 SHA 触发一次。',
+        step3: '3. 令牌只保存在你自己的服务器上，不要写进仓库。',
+      },
+      fly: {
+        step1: '1. 运行 fly tokens create org（或在 Fly 后台创建个人访问令牌），把令牌贴到下面。只给单个应用的 deploy 令牌读不到发布记录。',
+        step2: '2. Fly 没有「按提交部署」的接口，AgentHub 只跟踪发布。请让 CI 把提交 SHA 写进发布说明，例如 fly deploy --deploy-message "$GITHUB_SHA"。',
+        step3: '3. 有多个组织时，把组织 slug 填到下面（个人组织一般是 personal）。',
+      },
+      cloudflareWorkers: {
+        step1: '1. 在 Cloudflare 打开 My Profile → API Tokens，创建用户令牌（不要用账户令牌）。权限：Workers Scripts → Read，以及 Workers Builds Configuration → Edit。',
+        step2: '2. 账户 ID 在 Cloudflare 后台首页地址栏里（dash.cloudflare.com/ 后面那串 32 位字符）。这和 Pages 是两条连接。',
+        step3: '3. Worker 要已经在 Builds 里连上 Git 仓库。合并后如果没有自动开始构建，AgentHub 会按这个提交触发一次。',
+      },
+      azure: {
+        step1: '1. 在你自己的电脑上运行 az account get-access-token --query accessToken -o tsv，把输出的令牌贴到下面。这是短期令牌，过期后要重新连接。',
+        step2: '2. 订阅 ID 在 Azure 门户的订阅概览里，是一串 GUID。',
+        step3: '3. 构建记录通常没有提交 SHA。AgentHub 会在返回内容里查找 SHA，或在 PR 标题唯一匹配时跟上。这里不能触发 Git 构建；要主动触发请用 Webhook。',
+      },
+      webhook: {
+        step1: '1. 填写一个 http 或 https 地址。合并后 AgentHub 会 POST JSON：event、project、repo、sha、branch、title。可选令牌放在 Authorization: Bearer。',
+        step2: '2. 保存时只发 HEAD，不会触发部署。钩子如果没有 HEAD，返回 404 或 405 也可以保存。',
+        step3: '3. 部署如果是异步的，再填状态地址，用 {id} 表示部署 ID。响应里用 state（queued、building、ready、error），以及可选的 url、error。不填状态地址时，2xx 就视为完成。',
+      },
     },
   },
   pluginDetail: {

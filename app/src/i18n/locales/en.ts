@@ -298,6 +298,31 @@ export const en = {
         step2: '2. The account ID is the 32-character string after dash.cloudflare.com/ in the dashboard URL.',
         step3: "3. The project must already be connected to the matching GitHub repo. If Pages doesn't start a deploy after a merge, AgentHub will trigger one.",
       },
+      railway: {
+        step1: '1. On Railway, open Account Settings → Tokens and create an account token. A project token works too if it only needs to see one project.',
+        step2: '2. The service must already be connected to the matching Git repo. If Railway does not start a deploy after a merge, AgentHub triggers one for that commit SHA.',
+        step3: '3. The token stays on your own server. Do not commit it.',
+      },
+      fly: {
+        step1: '1. Run fly tokens create org (or create a personal access token in the Fly dashboard) and paste it below. A deploy token for a single app cannot read release history.',
+        step2: '2. Fly has no “deploy this commit” API, so AgentHub only tracks releases. Have CI put the commit SHA in the release description, for example fly deploy --deploy-message "$GITHUB_SHA".',
+        step3: '3. If you use more than one organization, paste its slug below (personal orgs are often “personal”).',
+      },
+      cloudflareWorkers: {
+        step1: '1. On Cloudflare, open My Profile → API Tokens and create a user token (not an account token). Permissions: Workers Scripts → Read, and Workers Builds Configuration → Edit.',
+        step2: '2. The account ID is the 32-character string after dash.cloudflare.com/ in the dashboard URL. This connection is separate from Pages.',
+        step3: '3. The Worker must already be connected to a Git repo in Builds. If no build starts after a merge, AgentHub triggers one for that commit.',
+      },
+      azure: {
+        step1: '1. On your own computer, run az account get-access-token --query accessToken -o tsv and paste the token below. It expires; reconnect when it does.',
+        step2: '2. The subscription ID is the GUID on the subscription overview in the Azure portal.',
+        step3: '3. Build records usually omit the commit SHA. AgentHub looks for the SHA in the payload, or follows a build when its pull request title is the only match. Git builds cannot be started here; use Webhook for that.',
+      },
+      webhook: {
+        step1: '1. Paste an http or https URL. After a merge, AgentHub POSTs JSON: event, project, repo, sha, branch, title. An optional token is sent as Authorization: Bearer.',
+        step2: '2. Saving sends HEAD only, so it does not deploy. A hook that has no HEAD can still be saved if it returns 404 or 405.',
+        step3: '3. If the deploy is asynchronous, add a status URL and use {id} for the deployment id. Respond with state (queued, building, ready, error) and optional url and error. With no status URL, a 2xx response counts as finished.',
+      },
     },
   },
   pluginDetail: {
