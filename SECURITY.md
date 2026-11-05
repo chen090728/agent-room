@@ -6,7 +6,7 @@
 
 写清楚：影响范围、复现步骤、你测试用的版本。我们会尽快确认和修复。
 
-使用提醒（详见 README 的"安全说明"）：
+使用提醒（详见 [README.zh.md](README.zh.md) 的"安全说明"）：
 
 - 公网部署务必使用 HTTPS；
 - 备份并保管好 `AGENTHUB_SECRET` 和 `AGENTHUB_TOKEN`，不要提交到仓库；
